@@ -1,0 +1,20 @@
+{
+  "name": "@dex/database",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/client.ts",
+  "scripts": {
+    "migrate":        "tsx src/migrate.ts",
+    "migrate:simple": "SIMPLE=1 tsx src/migrate.ts"
+  },
+  "dependencies": {
+    "pg": "^8.12.0",
+    "ioredis": "^5.3.2",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.6",
+    "tsx": "^4.15.0",
+    "typescript": "^5.5.0"
+  }
+}

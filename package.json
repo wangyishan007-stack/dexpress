@@ -1,0 +1,18 @@
+{
+  "name": "base-dex-screener",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.0.0",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm --parallel --filter='./packages/*' dev",
+    "build": "pnpm --filter='./packages/*' build",
+    "workers": "pnpm --filter='@dex/workers' dev",
+    "api": "pnpm --filter='@dex/api' dev",
+    "frontend": "pnpm --filter='@dex/frontend' dev",
+    "db:migrate":        "pnpm --filter='@dex/database' migrate",
+    "db:migrate:simple": "pnpm --filter='@dex/database' migrate:simple"
+  }
+}

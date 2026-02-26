@@ -1,0 +1,7 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "pnpm install && pnpm --filter='@dex/frontend' build",
+  "outputDirectory": "packages/frontend/.next",
+  "installCommand": "pnpm install",
+  "rootDirectory": "."
+}
