@@ -1,7 +1,6 @@
 {
   "framework": "nextjs",
-  "buildCommand": "pnpm install && pnpm --filter='@dex/frontend' build",
+  "buildCommand": "pnpm --filter='@dex/frontend' build",
   "outputDirectory": "packages/frontend/.next",
-  "installCommand": "pnpm install",
-  "rootDirectory": "."
+  "installCommand": "pnpm install --no-frozen-lockfile"
 }
