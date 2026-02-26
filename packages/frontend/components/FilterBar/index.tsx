@@ -87,7 +87,8 @@ function IconRank() {
   )
 }
 
-const BTN_BASE = 'flex items-center gap-1.5 h-[36px] rounded-[8px] px-3 text-[14px] font-medium transition-colors'
+const BTN_BASE = 'flex items-center gap-1.5 rounded-[8px] font-medium transition-colors'
+const BTN_SIZE = 'h-[30px] px-2 text-[12px] md:h-[36px] md:px-3 md:text-[14px]'
 const BTN_ACTIVE = 'bg-blue text-white'
 const BTN_INACTIVE = 'bg-[#222] text-sub hover:text-white'
 
@@ -99,34 +100,35 @@ export function FilterBar({ filter, window, onFilter, onWindow }: Props) {
     `Trending ${window.toUpperCase()}`
 
   return (
-    <div className="flex items-center justify-between gap-2 py-3 border-b border-border">
-      {/* Left group */}
-      <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex flex-col gap-2 py-2 md:flex-row md:items-center md:justify-between md:py-3 border-b border-border">
+      {/* Left group — horizontal scroll on mobile, wrap on desktop */}
+      <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-hide md:flex-wrap md:overflow-visible">
 
         {/* Last 24 hours dropdown */}
-        <button className={clsx(BTN_BASE, 'bg-[#222] text-blue hover:text-blue/80')}>
+        <button className={clsx(BTN_BASE, BTN_SIZE, 'bg-[#222] text-blue hover:text-blue/80 flex-shrink-0')}>
           <span><IconClock /></span>
-          Last 24 hours
+          <span className="hidden md:inline">Last 24 hours</span>
+          <span className="md:hidden">24H</span>
           <IconChevron />
         </button>
 
         {/* Trending */}
         <button
           onClick={() => onFilter('trending')}
-          className={clsx(BTN_BASE, filter === 'trending' ? BTN_ACTIVE : BTN_INACTIVE)}
+          className={clsx(BTN_BASE, BTN_SIZE, 'flex-shrink-0', filter === 'trending' ? BTN_ACTIVE : BTN_INACTIVE)}
         >
           <IconTrending />
           Trending
         </button>
 
         {/* Time window pills */}
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 flex-shrink-0">
           {WINDOWS.map((w) => (
             <button
               key={w.value}
               onClick={() => { onFilter('trending'); onWindow(w.value) }}
               className={clsx(
-                'h-[36px] rounded-[8px] px-3 text-[14px] font-medium transition-colors',
+                'rounded-[8px] font-medium transition-colors h-[30px] px-2 text-[12px] md:h-[36px] md:px-3 md:text-[14px]',
                 filter === 'trending' && window === w.value
                   ? BTN_ACTIVE
                   : BTN_INACTIVE
@@ -140,7 +142,7 @@ export function FilterBar({ filter, window, onFilter, onWindow }: Props) {
         {/* Top */}
         <button
           onClick={() => onFilter('top')}
-          className={clsx(BTN_BASE, filter === 'top' ? BTN_ACTIVE : BTN_INACTIVE)}
+          className={clsx(BTN_BASE, BTN_SIZE, 'flex-shrink-0', filter === 'top' ? BTN_ACTIVE : BTN_INACTIVE)}
         >
           <IconTop />
           Top
@@ -149,7 +151,7 @@ export function FilterBar({ filter, window, onFilter, onWindow }: Props) {
         {/* Gainers */}
         <button
           onClick={() => onFilter('gainers')}
-          className={clsx(BTN_BASE, filter === 'gainers' ? BTN_ACTIVE : BTN_INACTIVE)}
+          className={clsx(BTN_BASE, BTN_SIZE, 'flex-shrink-0', filter === 'gainers' ? BTN_ACTIVE : BTN_INACTIVE)}
         >
           <IconGainers />
           Gainers
@@ -158,31 +160,32 @@ export function FilterBar({ filter, window, onFilter, onWindow }: Props) {
         {/* New Pairs */}
         <button
           onClick={() => onFilter('new')}
-          className={clsx(BTN_BASE, filter === 'new' ? BTN_ACTIVE : BTN_INACTIVE)}
+          className={clsx(BTN_BASE, BTN_SIZE, 'flex-shrink-0', filter === 'new' ? BTN_ACTIVE : BTN_INACTIVE)}
         >
           <IconNew />
-          New Pairs
+          <span className="hidden md:inline">New Pairs</span>
+          <span className="md:hidden">New</span>
         </button>
       </div>
 
       {/* Right group */}
       <div className="flex items-center gap-2 flex-shrink-0">
         {/* Rank by dropdown */}
-        <button className={clsx(BTN_BASE, 'bg-[#222] text-sub hover:text-white')}>
+        <button className={clsx(BTN_BASE, BTN_SIZE, 'bg-[#222] text-sub hover:text-white')}>
           <IconRank />
-          <span className="text-sub">Rank by:</span>
+          <span className="hidden md:inline text-sub">Rank by:</span>
           <span className="text-text font-medium">{rankLabel}</span>
           <IconChevron />
         </button>
 
-        {/* Filters */}
-        <button className={clsx(BTN_BASE, 'bg-[#222] text-sub hover:text-white')}>
+        {/* Filters — icon only on mobile */}
+        <button className={clsx(BTN_BASE, BTN_SIZE, 'bg-[#222] text-sub hover:text-white')}>
           <IconFilter />
-          Filters
+          <span className="hidden md:inline">Filters</span>
         </button>
 
-        {/* Settings */}
-        <button className="flex h-[36px] w-[36px] items-center justify-center rounded-[8px] bg-[#222] text-sub hover:text-white transition-colors">
+        {/* Settings — hidden on mobile */}
+        <button className="hidden md:flex h-[36px] w-[36px] items-center justify-center rounded-[8px] bg-[#222] text-sub hover:text-white transition-colors">
           <IconSettings />
         </button>
       </div>

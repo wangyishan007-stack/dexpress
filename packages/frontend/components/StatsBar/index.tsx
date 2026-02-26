@@ -40,7 +40,7 @@ export function StatsBar() {
     : vol >= 1_000 ? `$${(vol / 1_000).toFixed(1)}K` : fmtUsd(vol)
 
   return (
-    <div className="flex gap-3 mb-4">
+    <div className="flex gap-2 mb-3 md:gap-3 md:mb-4">
       <StatCard label="24H Volume"    value={volStr} />
       <StatCard label="24H Txns"      value={fmtTxns(stats.txns_24h)} />
       <StatCard
@@ -58,12 +58,12 @@ function StatCard({
   label: string; value: string; sub?: string
 }) {
   return (
-    <div className="flex-1 flex items-center px-4 border border-border rounded-[8px] h-[50px]">
+    <div className="flex-1 flex items-center px-3 md:px-4 border border-border rounded-[6px] md:rounded-[8px] h-[40px] md:h-[50px]">
       <div>
-        <div className="text-[12px] text-sub mb-0.5">{label}</div>
+        <div className="text-[10px] md:text-[12px] text-sub mb-0.5">{label}</div>
         <div className="flex items-baseline gap-2">
-          <span className="text-[14px] font-medium text-text">{value}</span>
-          {sub && <span className="text-[12px] text-sub">{sub}</span>}
+          <span className="text-[12px] md:text-[14px] font-medium text-text">{value}</span>
+          {sub && <span className="text-[10px] md:text-[12px] text-sub">{sub}</span>}
         </div>
       </div>
     </div>

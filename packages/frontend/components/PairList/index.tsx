@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { Pool } from '@dex/shared'
 import { PairRow, PairRowHeader } from './PairRow'
@@ -14,15 +14,24 @@ interface Props {
   flashing:     Record<string, 'up' | 'down'>
 }
 
-const ROW_HEIGHT = 70
-
 export function PairList({ pairs, hasMore, onLoadMore, isValidating, livePrices, flashing }: Props) {
   const parentRef = useRef<HTMLDivElement>(null)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    setIsMobile(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
+  const rowHeight = isMobile ? 64 : 70
 
   const virtualizer = useVirtualizer({
     count:            hasMore ? pairs.length + 1 : pairs.length,
     getScrollElement: () => parentRef.current,
-    estimateSize:     () => ROW_HEIGHT,
+    estimateSize:     () => rowHeight,
     overscan:         12,
   })
 
@@ -39,7 +48,7 @@ export function PairList({ pairs, hasMore, onLoadMore, isValidating, livePrices,
       <div
         ref={parentRef}
         className="overflow-auto"
-        style={{ height: 'calc(100vh - 190px)' }}
+        style={{ height: isMobile ? 'calc(100vh - 160px)' : 'calc(100vh - 190px)' }}
       >
         <div style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
           {items.map((vRow) => {

@@ -15,16 +15,17 @@ const QUOTE_TOKEN_ADDRS = new Set([
 ])
 
 /* ─── helpers ─────────────────────────────────────────────── */
-function PctCell({ v }: { v: number }) {
-  if (!v && v !== 0) return <span className="text-sub text-right tabular">—</span>
+function PctCell({ v, className }: { v: number; className?: string }) {
+  if (!v && v !== 0) return <span className={clsx('text-sub text-right tabular', className)}>—</span>
   const pos = v > 0
   const neg = v < 0
   return (
     <span className={clsx(
-      'text-right tabular font-medium text-[12px]',
+      'text-right tabular font-medium text-[11px] md:text-[12px]',
       pos && 'text-green',
       neg && 'text-red',
-      !pos && !neg && 'text-sub'
+      !pos && !neg && 'text-sub',
+      className
     )}>
       {pos ? '+' : ''}{v.toFixed(2)}%
     </span>
@@ -41,12 +42,12 @@ function addrToHue(address: string): number {
 }
 
 // Token 头像：Logo 优先，404 时退回地址色相 identicon
-function TokenAvatar({ symbol, logoUrl, address }: { symbol: string; logoUrl: string | null; address: string }) {
+function TokenAvatar({ symbol, logoUrl, address, size = 22 }: { symbol: string; logoUrl: string | null; address: string; size?: number }) {
   const hue = addrToHue(address)
   return (
     <div
-      className="relative flex h-[22px] w-[22px] items-center justify-center rounded-full overflow-hidden"
-      style={{ backgroundColor: `hsl(${hue},55%,20%)` }}
+      className="relative flex items-center justify-center rounded-full overflow-hidden"
+      style={{ backgroundColor: `hsl(${hue},55%,20%)`, width: size, height: size }}
     >
       <span
         className="text-[9px] font-bold select-none"
@@ -59,8 +60,8 @@ function TokenAvatar({ symbol, logoUrl, address }: { symbol: string; logoUrl: st
         <img
           src={logoUrl}
           alt={symbol}
-          width={22}
-          height={22}
+          width={size}
+          height={size}
           className="absolute inset-0 rounded-full object-cover"
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
         />
@@ -118,75 +119,116 @@ export function PairRow({ pair, livePrice, flash, rank }: Props) {
     <Link
       href={`/pair/${pair.address}`}
       className={clsx(
-        `grid ${COLS} items-center gap-x-2`,
-        'border-b border-muted h-[70px] px-4 text-[12px]',
-        'transition-colors hover:bg-surface/50 cursor-pointer',
+        'block transition-colors hover:bg-surface/50 cursor-pointer',
         flash === 'up'   && 'animate-flash-green',
         flash === 'down' && 'animate-flash-red'
       )}
     >
-      {/* # Rank */}
-      <span className="text-sub text-right text-[11px]">#{rank}</span>
+      {/* ── Mobile card ───────────────────────────────────── */}
+      <div className="flex md:hidden items-center gap-2.5 px-3 h-[64px] border-b border-muted">
+        {/* Rank */}
+        <span className="text-sub text-[11px] w-[22px] text-right flex-shrink-0">#{rank}</span>
 
-      {/* Token column */}
-      <div className="flex min-w-0 items-center gap-2">
-        {/* Overlapping token avatars */}
-        <div className="relative flex-shrink-0 w-[34px] h-[22px]">
-          <div className="absolute left-0 top-0 z-10 ring-1 ring-bg rounded-full">
-            <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} />
-          </div>
-          <div className="absolute left-[13px] top-0 z-0 ring-1 ring-bg rounded-full">
-            <TokenAvatar symbol={quote.symbol} logoUrl={quote.logo_url} address={quote.address} />
-          </div>
-        </div>
+        {/* Single avatar */}
+        <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={28} />
 
-        {/* DEX + 费率 + 多池标记 */}
-        <DexBadge dex={pair.dex} extraPools={extraPools} />
-
-        {/* Symbols */}
-        <div className="min-w-0">
-          <div className="flex items-center gap-1 min-w-0">
-            <span className="font-semibold text-text truncate">{base.symbol}</span>
-            <span className="text-sub text-[11px]">/ {quote.symbol}</span>
+        {/* Name + symbol */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1">
+            <span className="font-semibold text-text text-[13px] truncate">{base.symbol}</span>
+            <span className="text-sub text-[10px]">/ {quote.symbol}</span>
           </div>
           <div className="text-[10px] text-sub/70 truncate">
             {base.name !== base.symbol ? base.name : pair.address.slice(0, 8) + '…'}
           </div>
         </div>
+
+        {/* Price */}
+        <div className="flex flex-col items-end flex-shrink-0">
+          <span className={clsx(
+            'tabular font-mono text-[12px]',
+            flash === 'up'   ? 'text-green' :
+            flash === 'down' ? 'text-red'   : 'text-text'
+          )}>
+            {fmtPrice(price)}
+          </span>
+          <PctCell v={pair.change_24h} className="text-[10px]" />
+        </div>
+
+        {/* MCap */}
+        <span className="tabular text-right text-sub text-[10px] w-[52px] flex-shrink-0">
+          {pair.mcap_usd > 0 ? fmtUsd(pair.mcap_usd) : '—'}
+        </span>
       </div>
 
-      {/* Price */}
-      <span className={clsx(
-        'tabular font-mono text-right',
-        flash === 'up'   ? 'text-green' :
-        flash === 'down' ? 'text-red'   : 'text-text'
+      {/* ── Desktop grid ──────────────────────────────────── */}
+      <div className={clsx(
+        `hidden md:grid ${COLS} items-center gap-x-2`,
+        'border-b border-muted h-[70px] px-4 text-[12px]'
       )}>
-        {fmtPrice(price)}
-      </span>
+        {/* # Rank */}
+        <span className="text-sub text-right text-[11px]">#{rank}</span>
 
-      {/* Age */}
-      <span className="text-sub text-right">{fmtAge(pair.created_at)}</span>
+        {/* Token column */}
+        <div className="flex min-w-0 items-center gap-2">
+          {/* Overlapping token avatars */}
+          <div className="relative flex-shrink-0 w-[34px] h-[22px]">
+            <div className="absolute left-0 top-0 z-10 ring-1 ring-bg rounded-full">
+              <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} />
+            </div>
+            <div className="absolute left-[13px] top-0 z-0 ring-1 ring-bg rounded-full">
+              <TokenAvatar symbol={quote.symbol} logoUrl={quote.logo_url} address={quote.address} />
+            </div>
+          </div>
 
-      {/* Txns */}
-      <span className="tabular text-right text-text">{fmtNum(pair.txns_1h)}</span>
+          {/* DEX + 费率 + 多池标记 */}
+          <DexBadge dex={pair.dex} extraPools={extraPools} />
 
-      {/* Volume */}
-      <span className="tabular text-right text-text">{fmtUsd(pair.volume_1h)}</span>
+          {/* Symbols */}
+          <div className="min-w-0">
+            <div className="flex items-center gap-1 min-w-0">
+              <span className="font-semibold text-text truncate">{base.symbol}</span>
+              <span className="text-sub text-[11px]">/ {quote.symbol}</span>
+            </div>
+            <div className="text-[10px] text-sub/70 truncate">
+              {base.name !== base.symbol ? base.name : pair.address.slice(0, 8) + '…'}
+            </div>
+          </div>
+        </div>
 
-      {/* Makers */}
-      <span className="tabular text-right text-sub">{pair.holder_count ? fmtNum(pair.holder_count) : '—'}</span>
+        {/* Price */}
+        <span className={clsx(
+          'tabular font-mono text-right',
+          flash === 'up'   ? 'text-green' :
+          flash === 'down' ? 'text-red'   : 'text-text'
+        )}>
+          {fmtPrice(price)}
+        </span>
 
-      {/* 5M / 1H / 6H / 24H */}
-      <PctCell v={pair.change_5m}  />
-      <PctCell v={pair.change_1h}  />
-      <PctCell v={pair.change_6h}  />
-      <PctCell v={pair.change_24h} />
+        {/* Age */}
+        <span className="text-sub text-right">{fmtAge(pair.created_at)}</span>
 
-      {/* Liquidity */}
-      <span className="tabular text-right text-sub">{fmtUsd(pair.liquidity_usd)}</span>
+        {/* Txns */}
+        <span className="tabular text-right text-text">{fmtNum(pair.txns_1h)}</span>
 
-      {/* MCap */}
-      <span className="tabular text-right text-sub">{pair.mcap_usd > 0 ? fmtUsd(pair.mcap_usd) : '—'}</span>
+        {/* Volume */}
+        <span className="tabular text-right text-text">{fmtUsd(pair.volume_1h)}</span>
+
+        {/* Makers */}
+        <span className="tabular text-right text-sub">{pair.holder_count ? fmtNum(pair.holder_count) : '—'}</span>
+
+        {/* 5M / 1H / 6H / 24H */}
+        <PctCell v={pair.change_5m}  />
+        <PctCell v={pair.change_1h}  />
+        <PctCell v={pair.change_6h}  />
+        <PctCell v={pair.change_24h} />
+
+        {/* Liquidity */}
+        <span className="tabular text-right text-sub">{fmtUsd(pair.liquidity_usd)}</span>
+
+        {/* MCap */}
+        <span className="tabular text-right text-sub">{pair.mcap_usd > 0 ? fmtUsd(pair.mcap_usd) : '—'}</span>
+      </div>
     </Link>
   )
 }
@@ -200,7 +242,7 @@ const TH = ({ children, right }: { children: React.ReactNode; right?: boolean })
 
 export function PairRowHeader() {
   return (
-    <div className={`grid ${COLS} items-center gap-x-2 border-b border-muted bg-surface px-4 py-3 sticky top-0 z-10`}>
+    <div className={`hidden md:grid ${COLS} items-center gap-x-2 border-b border-muted bg-surface px-4 py-3 sticky top-0 z-10`}>
       <TH right>#</TH>
       <TH>Token</TH>
       <TH right>Price</TH>

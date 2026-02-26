@@ -273,7 +273,7 @@ export function PairDetailClient({ address }: Props) {
     <div className="flex flex-col h-full bg-bg overflow-hidden">
 
       {/* ── Two-column layout ─────────────────────────────────── */}
-      <div className="flex flex-1 min-h-0 gap-5 p-5">
+      <div className="flex flex-col md:flex-row flex-1 min-h-0 gap-3 md:gap-5 p-3 md:p-5">
 
         {/* ── LEFT COLUMN: Chart + Transactions ───────────────── */}
         <div className="flex flex-col flex-1 min-w-0 min-h-0 gap-5">
@@ -288,7 +288,7 @@ export function PairDetailClient({ address }: Props) {
             <div className="min-w-0">
               {/* Token pair + DEX badge + age + fee */}
               <div className="flex flex-wrap items-center gap-2 mb-2">
-                <h1 className="text-[18px] font-bold text-text leading-none">
+                <h1 className="text-[15px] md:text-[18px] font-bold text-text leading-none">
                   {base.symbol}
                   <span className="text-sub font-normal text-[15px]"> / {quote.symbol}</span>
                 </h1>
@@ -329,7 +329,7 @@ export function PairDetailClient({ address }: Props) {
             {/* Right: live price */}
             <div className="text-right flex-shrink-0">
               <div className={clsx(
-                'font-mono text-[26px] font-bold tabular leading-none transition-colors',
+                'font-mono text-[20px] md:text-[26px] font-bold tabular leading-none transition-colors',
                 flash === 'up'   ? 'text-green' :
                 flash === 'down' ? 'text-red'   : 'text-text'
               )}>
@@ -366,7 +366,7 @@ export function PairDetailClient({ address }: Props) {
           </div>
 
           {/* Chart canvas */}
-          <div ref={chartContainerRef} className="flex-1 w-full min-h-0" style={{ minHeight: 300 }} />
+          <div ref={chartContainerRef} className="flex-1 w-full min-h-[200px] md:min-h-[300px]" />
         </Card>
 
         {/* ── Transactions (left column, below chart) ─────────── */}
@@ -379,12 +379,12 @@ export function PairDetailClient({ address }: Props) {
 
           <div className="overflow-y-auto" style={{ maxHeight: 248 }}>
             {/* Column header */}
-            <div className="grid grid-cols-[96px_56px_1fr_1fr_1fr_96px] gap-x-3 px-5 py-2 text-[11px] text-header border-b border-border sticky top-0 bg-surface z-10">
+            <div className="grid grid-cols-[80px_48px_1fr_80px] md:grid-cols-[96px_56px_1fr_1fr_1fr_96px] gap-x-2 md:gap-x-3 px-3 md:px-5 py-2 text-[11px] text-header border-b border-border sticky top-0 bg-surface z-10">
               <span>Time</span>
               <span>Type</span>
               <span className="text-right">USD</span>
-              <span className="text-right">Token</span>
-              <span className="text-right">Price</span>
+              <span className="hidden md:block text-right">Token</span>
+              <span className="hidden md:block text-right">Price</span>
               <span className="text-right">Wallet</span>
             </div>
 
@@ -398,7 +398,7 @@ export function PairDetailClient({ address }: Props) {
               <div
                 key={s.id}
                 className={clsx(
-                  'grid grid-cols-[96px_56px_1fr_1fr_1fr_96px] gap-x-3 px-5 py-2 text-[12px] border-b border-muted',
+                  'grid grid-cols-[80px_48px_1fr_80px] md:grid-cols-[96px_56px_1fr_1fr_1fr_96px] gap-x-2 md:gap-x-3 px-3 md:px-5 py-2 text-[12px] border-b border-muted',
                   s.is_buy ? 'hover:bg-green/5' : 'hover:bg-red/5'
                 )}
               >
@@ -411,10 +411,10 @@ export function PairDetailClient({ address }: Props) {
                 <span className={clsx('tabular text-right font-mono', s.is_buy ? 'text-green' : 'text-red')}>
                   {fmtUsd(s.amount_usd)}
                 </span>
-                <span className="tabular text-right text-text">
+                <span className="hidden md:block tabular text-right text-text">
                   {Math.abs(Number(s.is_buy ? s.amount0 : s.amount1)).toFixed(4)}
                 </span>
-                <span className="tabular text-right text-sub font-mono">
+                <span className="hidden md:block tabular text-right text-sub font-mono">
                   {fmtPrice(s.price_usd)}
                 </span>
                 <a
@@ -446,7 +446,7 @@ export function PairDetailClient({ address }: Props) {
         </div>{/* end LEFT COLUMN */}
 
         {/* ── RIGHT COLUMN ────────────────────────────────────── */}
-        <div className="w-[340px] flex-shrink-0 flex flex-col gap-0 overflow-y-auto border border-border rounded-xl bg-surface">
+        <div className="w-full md:w-[340px] flex-shrink-0 flex flex-col gap-0 overflow-y-auto border border-border rounded-xl bg-surface">
 
           {/* ── 1. Token Header ──────────────────────────────────── */}
           <div className="flex items-start gap-3 px-4 py-4 border-b border-border">

@@ -32,7 +32,7 @@ export default function GainersPage() {
   usePairWebSocket(pairs.map(p => p.address), handlePriceUpdate)
 
   return (
-    <div className="flex flex-col h-full px-5 pt-4 pb-0">
+    <div className="flex flex-col h-full px-3 pt-3 md:px-5 md:pt-4 pb-0">
       <div className="mb-4">
         <div className="flex items-center gap-8 border-b border-border pb-0">
           {(['gainers', 'losers'] as Tab[]).map((t) => (
@@ -40,7 +40,7 @@ export default function GainersPage() {
               key={t}
               onClick={() => setTab(t)}
               className={clsx(
-                'pb-3 text-[16px] capitalize transition-colors',
+                'pb-3 text-[14px] md:text-[16px] capitalize transition-colors',
                 tab === t
                   ? 'border-b-2 border-blue font-bold text-text'
                   : 'font-medium text-sub hover:text-text'

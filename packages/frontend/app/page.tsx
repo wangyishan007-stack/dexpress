@@ -30,12 +30,12 @@ export default function HomePage() {
   usePairWebSocket(pairs.map(p => p.address), handlePriceUpdate)
 
   return (
-    <div className="flex flex-col h-full px-5 pt-4 pb-0">
+    <div className="flex flex-col h-full px-3 pt-3 md:px-5 md:pt-4 pb-0">
       {/* Page heading */}
       <div className="mb-4">
         <div className="flex items-center gap-8 border-b border-border pb-0">
           <div className="border-b-2 border-blue pb-3">
-            <span className="text-[16px] font-bold text-text">All Coins</span>
+            <span className="text-[14px] md:text-[16px] font-bold text-text">All Coins</span>
           </div>
         </div>
       </div>
