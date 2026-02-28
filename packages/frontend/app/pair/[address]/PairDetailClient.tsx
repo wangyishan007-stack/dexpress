@@ -293,13 +293,13 @@ export function PairDetailClient({ address }: Props) {
   const change24h = Number(pair.change_24h)
 
   return (
-    <div className="flex flex-col h-full bg-bg overflow-y-auto md:overflow-hidden">
+    <div className="flex flex-col h-full bg-bg overflow-y-auto md:overflow-hidden scrollbar-hide">
 
       {/* ── Two-column layout ─────────────────────────────────── */}
       <div className="flex flex-col md:flex-row gap-3 md:gap-5 p-3 md:p-5">
 
         {/* ── LEFT COLUMN: Chart + Transactions ───────────────── */}
-        <div className="flex flex-col md:flex-1 min-w-0 gap-5 md:h-[calc(100vh_-_40px)] md:overflow-y-auto">
+        <div className="flex flex-col md:flex-1 min-w-0 gap-5 md:h-[calc(100vh_-_40px)] md:overflow-y-auto scrollbar-hide">
 
         {/* ── Chart Card ──────────────────────────────────────── */}
         <Card className="flex flex-col overflow-hidden flex-shrink-0">
@@ -363,7 +363,7 @@ export function PairDetailClient({ address }: Props) {
         </div>{/* end LEFT COLUMN */}
 
         {/* ── RIGHT COLUMN ────────────────────────────────────── */}
-        <div className="w-full md:w-[340px] flex-shrink-0 flex flex-col gap-4 md:h-[calc(100vh_-_40px)] md:overflow-y-auto bg-surface border border-border rounded-xl px-4 py-2">
+        <div className="w-full md:w-[340px] flex-shrink-0 flex flex-col gap-4 md:h-[calc(100vh_-_40px)] md:overflow-y-auto scrollbar-hide bg-surface border border-border rounded-xl px-4 py-2">
 
           {/* ── 1. Token Header ──────────────────────────────────── */}
           <div className="flex flex-col gap-2 items-center">
