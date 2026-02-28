@@ -56,7 +56,7 @@ export async function setupPairsWs(app: FastifyInstance, redisSub: Redis) {
   })
 
   // Register WebSocket route
-  app.get('/ws/pairs', { websocket: true }, (socket: WebSocket) => {
+  app.get('/ws/pairs', { websocket: true }, (socket: any) => {
     const client: WsClient = { ws: socket, subscribedTo: new Set() }
     clients.add(client)
 
