@@ -1,23 +1,38 @@
 'use client'
 
-import { usePairs, useLivePrices } from '../../hooks/usePairs'
+import { useState, useCallback, useEffect } from 'react'
+import type { SortField, TimeWindow } from '@dex/shared'
+import { useMockPairs, useLivePrices } from '../../hooks/useMockPairs'
 import { usePairWebSocket }        from '../../hooks/useWebSocket'
 import { PairList }                from '../../components/PairList'
-
-function Spinner() {
-  return (
-    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25"/>
-      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-    </svg>
-  )
-}
+import { StatsBar }                from '../../components/StatsBar'
+import { FilterBar }               from '../../components/FilterBar'
+import type { FilterMode }         from '../../components/FilterBar'
+import { loadConfig, saveConfig, DEFAULT_CONFIG }  from '../../lib/columnConfig'
+import type { ScreenerConfig }     from '../../lib/columnConfig'
 
 export default function NewPairsPage() {
-  const { pairs, hasMore, isLoading, isValidating, loadMore } = usePairs({
-    sort:   'created_at',
-    filter: 'new',
-    order:  'desc',
+  const [filter, setFilter]               = useState<FilterMode>('new')
+  const [dataWindow, setDataWindow]       = useState<TimeWindow>('24h')
+  const [trendingWindow, setTrendingWindow] = useState<TimeWindow>('6h')
+  const [sort, setSort]                   = useState<SortField>('created_at')
+  const [order, setOrder]                 = useState<'asc' | 'desc'>('desc')
+  const [screenerConfig, setScreenerConfig] = useState<ScreenerConfig>(DEFAULT_CONFIG)
+  useEffect(() => { setScreenerConfig(loadConfig('new-pairs')) }, [])
+
+  const handleScreenerConfigChange = useCallback((config: ScreenerConfig) => {
+    setScreenerConfig(config)
+    saveConfig(config, 'new-pairs')
+  }, [])
+
+  const sortField: SortField =
+    filter === 'new' ? 'created_at' : sort
+
+  const { pairs, hasMore, isLoading, isValidating, loadMore } = useMockPairs({
+    sort:   sortField,
+    filter,
+    window: dataWindow,
+    order,
   })
 
   const { prices, flashing, handlePriceUpdate } = useLivePrices(pairs)
@@ -25,35 +40,42 @@ export default function NewPairsPage() {
 
   return (
     <div className="flex flex-col h-full px-3 pt-3 md:px-5 md:pt-4 pb-0">
-      <div className="mb-4">
+      <div className="hidden md:block mb-4">
         <div className="flex items-center gap-8 border-b border-border pb-0">
           <div className="border-b-2 border-blue pb-3">
-            <span className="text-[14px] md:text-[16px] font-bold text-text">New Pairs</span>
+            <span className="text-[16px] font-bold text-text">New Pairs</span>
           </div>
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex flex-1 items-center justify-center">
-          <div className="flex items-center gap-2 text-sub text-sm">
-            <Spinner />
-            Loading pairs…
-          </div>
-        </div>
-      ) : pairs.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center text-sub text-sm">
-          No new pairs in the last 24 hours.
-        </div>
-      ) : (
-        <PairList
-          pairs={pairs}
-          hasMore={hasMore}
-          onLoadMore={loadMore}
-          isValidating={isValidating}
-          livePrices={prices}
-          flashing={flashing}
-        />
-      )}
+      <StatsBar showBlock={false} />
+
+      <FilterBar
+        filter={filter}
+        dataWindow={dataWindow}
+        trendingWindow={trendingWindow}
+        onFilter={setFilter}
+        onDataWindow={setDataWindow}
+        onTrendingWindow={setTrendingWindow}
+        sort={sort}
+        order={order}
+        onSort={(s) => setSort(s as SortField)}
+        onOrder={setOrder}
+        screenerConfig={screenerConfig}
+        onScreenerConfigChange={handleScreenerConfigChange}
+      />
+
+      <PairList
+        pairs={pairs}
+        hasMore={hasMore}
+        onLoadMore={loadMore}
+        isValidating={isValidating}
+        livePrices={prices}
+        flashing={flashing}
+        timeWindow={dataWindow}
+        loading={isLoading}
+        columnConfig={screenerConfig}
+      />
     </div>
   )
 }

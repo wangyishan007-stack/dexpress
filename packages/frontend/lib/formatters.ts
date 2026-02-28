@@ -24,7 +24,7 @@ export function fmtPrice(n: unknown): string {
   const v = toNum(n)
   if (v === null || v === 0) return '$0'
   if (v >= 1000)   return `$${v.toLocaleString('en-US', { maximumFractionDigits: 2 })}`
-  if (v >= 1)      return `$${v.toFixed(4)}`
+  if (v >= 1)      return `$${v.toFixed(2)}`
   if (v >= 0.0001) return `$${v.toFixed(6)}`
   if (v >= 1e-9)   return `$${v.toFixed(10)}`
   return `$${v.toExponential(4)}`

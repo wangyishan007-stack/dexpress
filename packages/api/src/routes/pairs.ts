@@ -28,6 +28,7 @@ const ALLOWED_SORT: Record<string, string> = {
   mcap_usd:       'mcap_usd',
   created_at:     'agg.first_created',
   txns_1h:        'agg.total_txns_1h',
+  makers_1h:      'agg.total_makers_1h',
 }
 
 export async function pairsRoutes(app: FastifyInstance) {
@@ -111,6 +112,10 @@ export async function pairsRoutes(app: FastifyInstance) {
           SUM(p.txns_1h)::int          AS total_txns_1h,
           SUM(p.txns_6h)::int          AS total_txns_6h,
           SUM(p.txns_24h)::int         AS total_txns_24h,
+          SUM(p.makers_5m)::int        AS total_makers_5m,
+          SUM(p.makers_1h)::int        AS total_makers_1h,
+          SUM(p.makers_6h)::int        AS total_makers_6h,
+          SUM(p.makers_24h)::int       AS total_makers_24h,
           SUM(p.liquidity_usd)::float  AS total_liquidity,
           MAX(p.trending_score)::float AS max_trending_score,
           MIN(p.created_at)            AS first_created,
@@ -136,6 +141,10 @@ export async function pairsRoutes(app: FastifyInstance) {
         agg.total_txns_1h                   AS txns_1h,
         agg.total_txns_6h                   AS txns_6h,
         agg.total_txns_24h                  AS txns_24h,
+        agg.total_makers_5m                 AS makers_5m,
+        agg.total_makers_1h                 AS makers_1h,
+        agg.total_makers_6h                 AS makers_6h,
+        agg.total_makers_24h               AS makers_24h,
         main_p.change_5m::float,
         main_p.change_1h::float,
         main_p.change_6h::float,
@@ -160,8 +169,11 @@ export async function pairsRoutes(app: FastifyInstance) {
           'logo_url',     t1.logo_url,
           'total_supply', t1.total_supply::text
         ) AS token1,
-        CASE WHEN t0.total_supply > 0
-          THEN (main_p.price_usd * t0.total_supply / POWER(10, t0.decimals))::float
+        CASE
+          WHEN t0.address IN (${COMMON_ADDR_SQL}) AND t1.total_supply > 0
+            THEN (main_p.price_usd * t1.total_supply / POWER(10, t1.decimals))::float
+          WHEN t0.total_supply > 0
+            THEN (main_p.price_usd * t0.total_supply / POWER(10, t0.decimals))::float
           ELSE 0
         END AS mcap_usd,
         agg.all_fee_tiers,
@@ -223,8 +235,11 @@ export async function pairsRoutes(app: FastifyInstance) {
           'decimals', t1.decimals, 'logo_url', t1.logo_url,
           'total_supply', t1.total_supply::text
         ) AS token1,
-        CASE WHEN t0.total_supply > 0
-          THEN (p.price_usd * t0.total_supply / POWER(10, t0.decimals))::float
+        CASE
+          WHEN t0.address IN (${COMMON_ADDR_SQL}) AND t1.total_supply > 0
+            THEN (p.price_usd * t1.total_supply / POWER(10, t1.decimals))::float
+          WHEN t0.total_supply > 0
+            THEN (p.price_usd * t0.total_supply / POWER(10, t0.decimals))::float
           ELSE 0
         END AS mcap_usd
        FROM pools p

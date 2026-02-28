@@ -24,15 +24,17 @@ function timeAgo(ts: string | null): string {
   return `${Math.floor(diff / 3600)}h ago`
 }
 
-export function StatsBar() {
+export function StatsBar({ showBlock = true }: { showBlock?: boolean }) {
   const stats = useStats()
-  const [tick, setTick] = useState(0)
+  const [agoStr, setAgoStr] = useState('')
 
-  // Re-render every second to update "ago" label
+  // Compute timeAgo only on the client to avoid hydration mismatch
   useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 1000)
+    function update() { setAgoStr(timeAgo(stats.block_ts)) }
+    update()
+    const id = setInterval(update, 1000)
     return () => clearInterval(id)
-  }, [])
+  }, [stats.block_ts])
 
   const vol = stats.volume_24h
   const volStr = vol >= 1_000_000
@@ -43,11 +45,13 @@ export function StatsBar() {
     <div className="flex gap-2 mb-3 md:gap-3 md:mb-4">
       <StatCard label="24H Volume"    value={volStr} />
       <StatCard label="24H Txns"      value={fmtTxns(stats.txns_24h)} />
-      <StatCard
-        label="Latest Block"
-        value={stats.latest_block ? stats.latest_block.toLocaleString('en-US') : '—'}
-        sub={timeAgo(stats.block_ts)}
-      />
+      {showBlock && (
+        <StatCard
+          label="Latest Block"
+          value={stats.latest_block ? stats.latest_block.toLocaleString('en-US') : '—'}
+          sub={agoStr}
+        />
+      )}
     </div>
   )
 }
@@ -58,13 +62,12 @@ function StatCard({
   label: string; value: string; sub?: string
 }) {
   return (
-    <div className="flex-1 flex items-center px-3 md:px-4 border border-border rounded-[6px] md:rounded-[8px] h-[40px] md:h-[50px]">
-      <div>
-        <div className="text-[10px] md:text-[12px] text-sub mb-0.5">{label}</div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-[12px] md:text-[14px] font-medium text-text">{value}</span>
-          {sub && <span className="text-[10px] md:text-[12px] text-sub">{sub}</span>}
-        </div>
+    <div className="flex-1 flex flex-col items-start justify-center px-3 md:flex-row md:items-center md:justify-center md:px-4 border border-border rounded-md md:rounded-lg h-[56px] md:h-[50px]">
+      <span className="text-[11px] text-sub md:hidden">{label}</span>
+      <div className="flex items-baseline gap-1.5">
+        <span className="hidden md:inline text-[12px] text-sub">{label}:</span>
+        <span className="text-[16px] font-bold text-text md:text-[14px] md:font-medium">{value}</span>
+        {sub && <span className="text-[10px] md:text-[12px] text-sub">{sub}</span>}
       </div>
     </div>
   )

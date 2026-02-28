@@ -2,9 +2,9 @@
  * Workers Entry Point
  *
  * 启动顺序：
- *  1. PairDiscoveryWorker — 发现并追溯历史 pool
- *  2. IndexerWorker       — 实时监听 swap 事件
- *  3. AggregatorWorker    — 定时聚合指标
+ *  1. PairDiscoveryWorker — 后台发现 pool（不阻塞后续启动）
+ *  2. IndexerWorker       — 实时监听 swap 事件（await ready）
+ *  3. AggregatorWorker    — 定时聚合指标（Indexer ready 后启动）
  */
 
 import dotenv from 'dotenv'
@@ -43,9 +43,13 @@ async function main() {
   process.on('uncaughtException',  (err)    => console.error('[Workers] Uncaught exception:', err))
   process.on('unhandledRejection', (reason) => console.error('[Workers] Unhandled rejection:', reason))
 
-  // 启动顺序：先发现 pools → 再订阅 swaps → 再聚合
-  await discovery.start()
+  // 1. Discovery: 后台运行（bootstrap + catchup + subscribe），不阻塞
+  discovery.start().catch((e) => console.error('[Workers] Discovery error:', e))
+
+  // 2. Indexer: await 直到 pools 加载完毕、swap 监听就绪
   await indexer.start()
+
+  // 3. Aggregator: Indexer ready 后启动
   aggregator.start()
 
   console.log('[Workers] All workers running ✓')

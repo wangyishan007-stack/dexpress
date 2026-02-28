@@ -34,10 +34,15 @@ export default {
           '0%,100%': { backgroundColor: 'transparent' },
           '30%':     { backgroundColor: 'rgba(255,68,102,0.15)' },
         },
+        fadeIn: {
+          '0%':   { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
       },
       animation: {
         'flash-green': 'flashGreen 0.6s ease',
         'flash-red':   'flashRed   0.6s ease',
+        'fadeIn':      'fadeIn 0.2s ease-out',
       },
     },
   },

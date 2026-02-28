@@ -5,13 +5,15 @@
 export type Dex = 'uniswap_v3' | 'uniswap_v4' | 'aerodrome'
 export type TimeWindow = '5m' | '1h' | '6h' | '24h'
 export type SortField =
-  | 'trending_score'
+  | 'trending_score' | 'trending_5m' | 'trending_1h' | 'trending_6h' | 'trending_24h'
   | 'volume_5m' | 'volume_1h' | 'volume_6h' | 'volume_24h'
   | 'change_5m'  | 'change_1h'  | 'change_6h'  | 'change_24h'
+  | 'txns_5m' | 'txns_1h' | 'txns_6h' | 'txns_24h'
+  | 'buys_5m' | 'buys_1h' | 'buys_6h' | 'buys_24h'
+  | 'sells_5m' | 'sells_1h' | 'sells_6h' | 'sells_24h'
   | 'liquidity_usd'
   | 'mcap_usd'
   | 'created_at'
-  | 'txns_1h'
 
 export interface Token {
   address:      string
@@ -39,11 +41,27 @@ export interface Pool {
   txns_1h:       number
   txns_6h:       number
   txns_24h:      number
+  makers_5m:     number
+  makers_1h:     number
+  makers_6h:     number
+  makers_24h:    number
   change_5m:     number
   change_1h:     number
   change_6h:     number
   change_24h:    number
+  buys_5m:       number
+  buys_1h:       number
+  buys_6h:       number
+  buys_24h:      number
+  sells_5m:      number
+  sells_1h:      number
+  sells_6h:      number
+  sells_24h:     number
   trending_score: number
+  trending_5m:   number
+  trending_1h:   number
+  trending_6h:   number
+  trending_24h:  number
   holder_count:  number
   created_at:    string
   updated_at:    string

@@ -5,6 +5,8 @@
  *  - 5M / 1H / 6H / 24H 的 volume、txns、涨跌幅
  *  - Trending Score 排行
  *  - 将结果写入 pools 表和 Redis（作为 API 缓存）
+ *
+ * 性能优化：5m/1h 每 tick（30s），6h/24h 每 10 tick（~5min）
  */
 
 import { db, redis, query, RedisKeys } from '@dex/database'
@@ -19,19 +21,28 @@ interface PoolAggRow {
   open_price:    number
 }
 
+// 快窗口每 tick（30s），慢窗口每 10 tick（~5min）
+const FAST_WINDOWS = ['5m', '1h']  as const
+const SLOW_WINDOWS = ['6h', '24h'] as const
+const SLOW_EVERY   = 10  // 每 10 tick 跑一次慢窗口
+
 export class AggregatorWorker {
   private timer: ReturnType<typeof setInterval> | null = null
   private running = false
+  private tickCount = 0
 
   start() {
     if (this.running) return
     this.running = true
-    console.log('[Aggregator] Starting (interval: 30s)')
+    console.log('[Aggregator] Starting (fast: 30s, slow: ~5min)')
 
-    // 立即跑一次，然后每 30 秒重复
-    this.run().catch(console.error)
+    // 首次跑全部窗口
+    this.tickCount = 0
+    this.run(true).catch(console.error)
     this.timer = setInterval(() => {
-      this.run().catch(console.error)
+      this.tickCount++
+      const runSlow = this.tickCount % SLOW_EVERY === 0
+      this.run(runSlow).catch(console.error)
     }, 30_000)
   }
 
@@ -46,16 +57,22 @@ export class AggregatorWorker {
 
   // ─── Main loop ──────────────────────────────────────────────
 
-  async run() {
+  async run(includeSlow = false) {
     const start = Date.now()
     try {
-      // 并行计算所有时间窗口
+      const windows = includeSlow
+        ? [...FAST_WINDOWS, ...SLOW_WINDOWS]
+        : [...FAST_WINDOWS]
+
       await Promise.all(
-        WINDOWS.map((w) => this.aggregateWindow(w))
+        windows.map((w) => this.aggregateWindow(w))
       )
       await this.updatePoolsTable()
+      await this.updatePoolPrices()
       await this.buildRankings()
-      console.log(`[Aggregator] Done in ${Date.now() - start}ms`)
+
+      const label = includeSlow ? 'all' : 'fast'
+      console.log(`[Aggregator] Done (${label}) in ${Date.now() - start}ms`)
     } catch (err) {
       console.error('[Aggregator] Error:', err)
     }
@@ -63,40 +80,48 @@ export class AggregatorWorker {
 
   // ─── Per-window aggregation ──────────────────────────────────
 
-  private async aggregateWindow(window: typeof WINDOWS[number]) {
+  private async aggregateWindow(window: string) {
     const interval = WINDOW_TO_INTERVAL[window]
 
-    // 每个 pool 在该时间窗口内的汇总数据
+    // 用 DISTINCT ON 代替相关子查询，性能更好、语义更清晰
     const rows = await query<PoolAggRow>(`
-      WITH window_swaps AS (
-        SELECT
-          pool_address,
-          amount_usd,
-          sender,
-          price_usd,
-          timestamp
-        FROM swaps
-        WHERE timestamp > NOW() - INTERVAL '${interval}'
-      ),
-      aggregated AS (
+      WITH agg AS (
         SELECT
           pool_address,
           SUM(amount_usd)           AS volume_usd,
           COUNT(*)                  AS tx_count,
-          COUNT(DISTINCT sender)    AS unique_wallets,
-          -- 最新价格（最近一笔 swap）
-          (SELECT price_usd FROM swaps s2
-           WHERE s2.pool_address = window_swaps.pool_address
-           ORDER BY timestamp DESC LIMIT 1)  AS current_price,
-          -- 窗口开始时的价格
-          (SELECT price_usd FROM swaps s3
-           WHERE s3.pool_address = window_swaps.pool_address
-             AND s3.timestamp <= NOW() - INTERVAL '${interval}'
-           ORDER BY timestamp DESC LIMIT 1) AS open_price
-        FROM window_swaps
+          COUNT(DISTINCT sender)    AS unique_wallets
+        FROM swaps
+        WHERE timestamp > NOW() - INTERVAL '${interval}'
         GROUP BY pool_address
+      ),
+      latest_prices AS (
+        SELECT DISTINCT ON (pool_address)
+          pool_address, price_usd AS current_price
+        FROM swaps
+        WHERE pool_address IN (SELECT pool_address FROM agg)
+          AND price_usd > 0
+        ORDER BY pool_address, timestamp DESC
+      ),
+      open_prices AS (
+        SELECT DISTINCT ON (pool_address)
+          pool_address, price_usd AS open_price
+        FROM swaps
+        WHERE pool_address IN (SELECT pool_address FROM agg)
+          AND timestamp <= NOW() - INTERVAL '${interval}'
+          AND price_usd > 0
+        ORDER BY pool_address, timestamp DESC
       )
-      SELECT * FROM aggregated
+      SELECT
+        a.pool_address,
+        a.volume_usd,
+        a.tx_count,
+        a.unique_wallets,
+        COALESCE(lp.current_price, 0) AS current_price,
+        COALESCE(op.open_price, 0)    AS open_price
+      FROM agg a
+      LEFT JOIN latest_prices lp USING (pool_address)
+      LEFT JOIN open_prices   op USING (pool_address)
     `)
 
     if (rows.length === 0) return
@@ -184,14 +209,18 @@ export class AggregatorWorker {
     await db.query(`
       UPDATE pools p
       SET
-        volume_5m      = COALESCE(ts5m.volume_usd,  0),
-        volume_1h      = COALESCE(ts1h.volume_usd,  0),
-        volume_6h      = COALESCE(ts6h.volume_usd,  0),
-        volume_24h     = COALESCE(ts24h.volume_usd, 0),
-        txns_5m        = COALESCE(ts5m.tx_count,    0),
-        txns_1h        = COALESCE(ts1h.tx_count,    0),
-        txns_6h        = COALESCE(ts6h.tx_count,    0),
-        txns_24h       = COALESCE(ts24h.tx_count,   0),
+        volume_5m      = COALESCE(ts5m.volume_usd,    0),
+        volume_1h      = COALESCE(ts1h.volume_usd,    0),
+        volume_6h      = COALESCE(ts6h.volume_usd,    0),
+        volume_24h     = COALESCE(ts24h.volume_usd,   0),
+        txns_5m        = COALESCE(ts5m.tx_count,      0),
+        txns_1h        = COALESCE(ts1h.tx_count,      0),
+        txns_6h        = COALESCE(ts6h.tx_count,      0),
+        txns_24h       = COALESCE(ts24h.tx_count,     0),
+        makers_5m      = COALESCE(ts5m.new_wallets,   0),
+        makers_1h      = COALESCE(ts1h.new_wallets,   0),
+        makers_6h      = COALESCE(ts6h.new_wallets,   0),
+        makers_24h     = COALESCE(ts24h.new_wallets,  0),
         change_5m      = COALESCE(ts5m.price_change,  0),
         change_1h      = COALESCE(ts1h.price_change,  0),
         change_6h      = COALESCE(ts6h.price_change,  0),
@@ -199,17 +228,39 @@ export class AggregatorWorker {
         trending_score = COALESCE(ts1h.score, 0),
         updated_at     = NOW()
       FROM
-        (SELECT pool_address, volume_usd, tx_count, price_change, score FROM trending_scores WHERE win='5m')  ts5m
+        (SELECT pool_address, volume_usd, tx_count, price_change, new_wallets, score FROM trending_scores WHERE win='5m')  ts5m
         FULL OUTER JOIN
-        (SELECT pool_address, volume_usd, tx_count, price_change, score FROM trending_scores WHERE win='1h')  ts1h
+        (SELECT pool_address, volume_usd, tx_count, price_change, new_wallets, score FROM trending_scores WHERE win='1h')  ts1h
           USING (pool_address)
         FULL OUTER JOIN
-        (SELECT pool_address, volume_usd, tx_count, price_change, score FROM trending_scores WHERE win='6h')  ts6h
+        (SELECT pool_address, volume_usd, tx_count, price_change, new_wallets, score FROM trending_scores WHERE win='6h')  ts6h
           USING (pool_address)
         FULL OUTER JOIN
-        (SELECT pool_address, volume_usd, tx_count, price_change, score FROM trending_scores WHERE win='24h') ts24h
+        (SELECT pool_address, volume_usd, tx_count, price_change, new_wallets, score FROM trending_scores WHERE win='24h') ts24h
           USING (pool_address)
       WHERE p.address = COALESCE(ts5m.pool_address, ts1h.pool_address, ts6h.pool_address, ts24h.pool_address)
+    `)
+  }
+
+  // ─── Update pools.price_usd from latest swaps ──────────────
+
+  private async updatePoolPrices() {
+    // 只更新最近 24h 有交易的 pool，避免全表扫描
+    await db.query(`
+      UPDATE pools p
+      SET
+        price_usd  = lp.price_usd,
+        updated_at = NOW()
+      FROM (
+        SELECT DISTINCT ON (pool_address)
+          pool_address, price_usd
+        FROM swaps
+        WHERE timestamp > NOW() - INTERVAL '24 hours'
+          AND price_usd > 0
+        ORDER BY pool_address, timestamp DESC
+      ) lp
+      WHERE p.address = lp.pool_address
+        AND lp.price_usd > 0
     `)
   }
 
