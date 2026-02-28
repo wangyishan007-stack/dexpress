@@ -1,4 +1,4 @@
-FROM node:20-slim AS base
+FROM node:20-slim
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 WORKDIR /app
 
@@ -14,25 +14,7 @@ COPY packages/shared/   packages/shared/
 COPY packages/database/ packages/database/
 COPY packages/api/      packages/api/
 
-# Build API (tsconfig includes shared + database sources)
-RUN pnpm --filter=@dex/api build
-
-# Production stage
-FROM node:20-slim
-RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
-WORKDIR /app
-
-COPY --from=base /app/pnpm-lock.yaml /app/pnpm-workspace.yaml /app/package.json ./
-COPY --from=base /app/packages/shared/package.json   packages/shared/
-COPY --from=base /app/packages/database/package.json packages/database/
-COPY --from=base /app/packages/api/package.json      packages/api/
-
-RUN pnpm install --frozen-lockfile --filter=@dex/api... --prod
-
-# API build output: dist/api/src/, dist/shared/src/, dist/database/src/
-COPY --from=base /app/packages/api/dist/ packages/api/dist/
-
 ENV NODE_ENV=production
 EXPOSE 3001
 
-CMD ["node", "packages/api/dist/api/src/server.js"]
+CMD ["pnpm", "--filter=@dex/api", "start"]
