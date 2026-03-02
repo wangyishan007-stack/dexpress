@@ -16,6 +16,20 @@ function seedRange(i: number, salt: number, min: number, max: number): number {
   return min + seedFloat(i, salt) * (max - min)
 }
 
+/* ── Sparkline data (24 hourly close prices) ────────────── */
+function buildSparkline(i: number, currentPrice: number, change24h: number): number[] {
+  const startPrice = currentPrice / (1 + change24h / 100)
+  const points: number[] = []
+  for (let h = 0; h < 24; h++) {
+    const t = h / 23
+    const baseP = startPrice + (currentPrice - startPrice) * t
+    const noise = (seedFloat(i, 500 + h) - 0.5) * 0.16 * baseP
+    points.push(Math.max(0.000001, baseP + noise))
+  }
+  points[23] = currentPrice
+  return points
+}
+
 /* ── Token definitions ───────────────────────────────────── */
 interface TokenDef {
   symbol: string
@@ -237,6 +251,7 @@ function buildPools(): Pool[] {
       token0:         quoteToken,
       token1:         baseToken,
       mcap_usd:       mcap,
+      sparkline_data: buildSparkline(i, price, parseFloat(change24h.toFixed(2))),
     })
   }
 

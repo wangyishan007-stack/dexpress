@@ -90,6 +90,46 @@ function getBaseQuote(pair: Pool) {
     : [pair.token0, pair.token1] as const
 }
 
+/* ─── Sparkline mini-chart ────────────────────────────────── */
+function Sparkline({ data, width = 100, height = 30, positive }: {
+  data: number[]
+  width?: number
+  height?: number
+  positive: boolean
+}) {
+  if (!data || data.length < 2) return null
+
+  const min = Math.min(...data)
+  const max = Math.max(...data)
+  const range = max - min || 1
+
+  const padY = 2
+  const padX = 1
+  const innerW = width - padX * 2
+  const innerH = height - padY * 2
+
+  const points = data
+    .map((v, i) => {
+      const x = padX + (i / (data.length - 1)) * innerW
+      const y = padY + innerH - ((v - min) / range) * innerH
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
+
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="flex-shrink-0">
+      <polyline
+        points={points}
+        fill="none"
+        stroke={positive ? '#2fe06b' : '#ff4466'}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 /* ─── Cell renderer ──────────────────────────────────────── */
 function renderCell(
   key: string,
@@ -133,6 +173,8 @@ function renderCell(
       return <span className="tabular text-sub">{fmtUsd(pair.liquidity_usd)}</span>
     case 'mcap':
       return <span className="tabular text-sub">{pair.mcap_usd > 0 ? fmtUsd(pair.mcap_usd) : '—'}</span>
+    case 'chart':
+      return <Sparkline data={pair.sparkline_data ?? []} positive={pair.change_24h >= 0} />
     default:
       return <span className="text-sub">—</span>
   }

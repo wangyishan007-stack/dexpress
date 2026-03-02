@@ -1,120 +1,160 @@
-# dex.express
+# Base DEX Screener
 
-Real-time token & pair analytics on Base chain — a DEX screener similar to dexscreener.com.
+Real-time DEX token screener for the **Base** chain — inspired by [DexScreener](https://dexscreener.com).
+
+**Live**: https://base-dex-screener.vercel.app
+**API**: https://api-production-69b0.up.railway.app
+
+---
+
+## Features
+
+- **Token Screener** — browse all Base trading pairs with real-time price, volume, liquidity, market cap
+- **New Pairs** — discover newly created pools as they appear on-chain
+- **Gainers** — ranked tokens by price change across multiple time windows
+- **Watchlist** — custom watchlists with wallet login (Privy); shareable via link
+- **Pair Detail** — interactive price chart, trade history, token info, [Bubblemaps](https://bubblemaps.io) holder visualization
+- **Advanced Filtering** — custom filters for price, volume, liquidity, market cap, etc.
+- **Customizable Columns** — drag-and-drop ordering + visibility toggles, persisted per page
+- **Multi-Window Sorting** — independent data window (24H) and trending window (5M/1H/6H/24H)
+- **Real-time Updates** — WebSocket push for live price and trade data
+- **Search** — fuzzy search across all tokens and pairs
+- **Responsive** — collapsible sidebar, frozen-column desktop table, mobile-optimized card layout
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 14 + TailwindCSS + SWR + lightweight-charts |
-| API | Fastify + WebSocket |
-| Workers | viem (PairDiscovery / Indexer / Aggregator) |
-| Database | PostgreSQL 16 + Redis 7 |
-| Monorepo | pnpm workspaces |
-| Deploy | Vercel (frontend) + Docker Compose (infra) |
+| **Frontend** | Next.js 14, React 18, TailwindCSS, SWR, lightweight-charts |
+| **API** | Fastify, WebSocket, Pino |
+| **Workers** | viem (Base chain RPC via Alchemy) |
+| **Database** | PostgreSQL 16 (partitioned tables), Redis 7 (cache + pub/sub) |
+| **Auth** | Privy (wallet-based login) |
+| **Monorepo** | pnpm workspaces |
 
-## Packages
+## Architecture
 
 ```
 packages/
-  frontend/   @dex/frontend   — Next.js 14 app
-  api/        @dex/api        — Fastify REST + WebSocket server
-  workers/    @dex/workers    — Chain indexer workers
-  database/   @dex/database   — pg + ioredis, schema, migrations
-  shared/     @dex/shared     — Types, constants, ABIs
+├── frontend/   @dex/frontend   — Next.js 14 + TailwindCSS
+├── api/        @dex/api        — Fastify REST + WebSocket server
+├── workers/    @dex/workers    — On-chain indexers (viem)
+├── database/   @dex/database   — pg + ioredis, schema, migrations
+└── shared/     @dex/shared     — Types, constants, ABIs
 ```
+
+### Data Pipeline
+
+```
+  Base Chain (RPC)
+        │
+        ▼
+  ┌───────────┐      ┌────────────┐      ┌──────────┐
+  │  Workers   │─────▶│ PostgreSQL │◀────▶│   API    │
+  │            │      │  + Redis   │      │  Server  │
+  │ • Discover │      │            │      │          │── REST ──▶ Frontend
+  │ • Indexer  │      │ • tokens   │      │ • pairs  │
+  │ • Aggregat │      │ • pools    │      │ • search │── WS ───▶ Frontend
+  │            │      │ • swaps    │      │ • candles│
+  └───────────┘      │ • snapshots│      │ • stats  │
+                     └────────────┘      └──────────┘
+```
+
+- **PairDiscoveryWorker** — listens for `PoolCreated` events, registers new pools & tokens, loads logos from 1inch token list
+- **IndexerWorker** — indexes `Swap` events into partitioned trade history
+- **AggregatorWorker** — computes rolling metrics (volume, price change, trending scores)
 
 ## Getting Started
 
+### Prerequisites
+
+- Node.js >= 18
+- pnpm >= 9
+- Docker & Docker Compose
+
+### Setup
+
 ```bash
-# Install dependencies
+git clone https://github.com/your-username/base-dex-screener.git
+cd base-dex-screener
 pnpm install
 
 # Start Postgres + Redis
 docker compose up -d
 
-# Run database migrations
-pnpm --filter='@dex/database' migrate
+# Run database migration
+pnpm db:migrate
+```
 
-# Start API server
-pnpm --filter='@dex/api' dev
+### Environment Variables
 
-# Start workers
-pnpm --filter='@dex/workers' dev
+```env
+# Database
+DATABASE_URL=postgresql://dex:dex@localhost:5432/dexscreener
+REDIS_URL=redis://localhost:6379
 
-# Start frontend
-pnpm --filter='@dex/frontend' dev
+# Alchemy (for workers)
+ALCHEMY_HTTP_URL=https://base-mainnet.g.alchemy.com/v2/YOUR_KEY
+ALCHEMY_WS_URL=wss://base-mainnet.g.alchemy.com/v2/YOUR_KEY
+
+# Frontend
+NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_WS_URL=ws://localhost:3001
+NEXT_PUBLIC_PRIVY_APP_ID=your-privy-app-id
+```
+
+### Run
+
+```bash
+# Run all services
+pnpm dev
+
+# Or individually
+pnpm frontend   # Next.js on :3000
+pnpm api        # Fastify on :3001
+pnpm workers    # Chain indexers
 ```
 
 Open http://localhost:3000
 
-## Mobile Responsive Adaptation
+## API Endpoints
 
-Breakpoint: `md` (768px) — below = mobile, above = desktop (mobile-first approach).
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check |
+| GET | `/api/pairs` | List pairs (sorting, filtering, pagination) |
+| GET | `/api/tokens/:address` | Token details |
+| GET | `/api/search?q=` | Fuzzy search tokens & pairs |
+| GET | `/api/candles/:pool` | OHLCV candle data |
+| GET | `/api/stats` | Platform-wide statistics |
+| WS | `/ws/pairs` | Real-time pair updates |
 
-### Changes (11 files)
+## Database
 
-**globals.css**
-- Base font-size 13px (mobile), 14px (desktop via `@media min-width: 768px`)
-- `.scrollbar-hide` utility class for horizontal scroll containers
+PostgreSQL with native range partitioning for high-throughput trade data:
 
-**layout.tsx**
-- Added `viewport` export for mobile meta (`width=device-width, initial-scale=1`)
-- Flex container: `flex-col` on mobile (vertical), `md:flex-row` on desktop (horizontal)
-
-**Sidebar/index.tsx** (largest change)
-- Mobile: top bar (28px logo + hamburger button) + slide-out drawer with backdrop overlay
-- Desktop: static 239px sidebar (unchanged)
-- Auto-closes drawer on route change via `useEffect` + `usePathname`
-
-**PairRow.tsx**
-- Dual-render approach:
-  - Mobile card (`md:hidden`): rank, single avatar (28px), token name, price, 24h change, mcap
-  - Desktop grid (`hidden md:grid`): original 13-column layout unchanged
-- Header row hidden on mobile (cards are self-descriptive)
-
-**PairList/index.tsx**
-- `isMobile` detection via `window.matchMedia('(max-width: 767px)')`
-- Row height: 64px (mobile) / 70px (desktop)
-- Container height: `calc(100vh - 160px)` mobile / `calc(100vh - 190px)` desktop
-
-**FilterBar/index.tsx**
-- Mobile: stacked layout (`flex-col`), horizontal scroll for button group
-- Desktop: row layout with `flex-wrap` (unchanged behavior)
-- Buttons: `h-[30px] text-[12px]` mobile / `h-[36px] text-[14px]` desktop
-- Hidden on mobile: "Rank by:" label, "Filters" text (icon only), Settings button
-
-**StatsBar/index.tsx**
-- Responsive card: `h-[40px] rounded-[6px]` mobile / `h-[50px] rounded-[8px]` desktop
-- Font sizes: label `text-[10px]`/`text-[12px]`, value `text-[12px]`/`text-[14px]`
-
-**Page files** (page.tsx, new-pairs/page.tsx, gainers/page.tsx)
-- Responsive padding: `px-3 pt-3` mobile / `px-5 pt-4` desktop
-- Heading font: `text-[14px]` mobile / `text-[16px]` desktop
-
-**PairDetailClient.tsx**
-- Two-column → stacked: `flex-col md:flex-row`
-- Right column: `w-full` mobile / `w-[340px]` desktop
-- Chart min-height: 200px mobile / 300px desktop
-- Price text: `text-[20px]` mobile / `text-[26px]` desktop
-- Transaction table: hide Token & Price columns on mobile (4-col grid → 6-col grid)
-
-### Testing
-
-- Chrome DevTools responsive mode: 375px (iPhone SE), 390px (iPhone 14)
-- Verify: hamburger opens/closes, closes on nav + backdrop click
-- Verify: token list card layout, virtual scroll works
-- Verify: filter bar scrolls horizontally on mobile
-- Verify: detail page stacks vertically
-- Verify: no horizontal overflow on any page
-- Build: `pnpm --filter='@dex/frontend' build`
+- **tokens** — address, symbol, name, decimals, logo, verified status
+- **pools** — trading pairs with 20+ real-time metrics (price, volume, txns, trending per time window)
+- **swaps** — trade history, partitioned by month
+- **price_snapshots** — 1-min OHLCV candles, partitioned by year
+- **trending_scores** — pre-computed rankings (5m / 1h / 6h / 24h)
+- **pairs_view** — pools + tokens join with computed market cap
 
 ## Token Logo Pipeline
 
 1. **PairDiscoveryWorker** loads 1inch token list → saves `logo_url` to DB
-2. **API tokenEnrichment** enriches null `logo_url` before API response
-3. **Trust Wallet fallback**: `https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/base/assets/{CHECKSUM}/logo.png`
-4. **Frontend TokenAvatar**: shows `logo_url`, on error falls back to HSL-colored circle with initials
+2. **API tokenEnrichment** enriches missing logos before response
+3. **Trust Wallet fallback**: GitHub raw CDN with checksum addresses
+4. **Frontend TokenAvatar**: shows logo, on error falls back to HSL-colored circle with initials
+
+## Deployment
+
+| Service | Platform | Method |
+|---------|----------|--------|
+| Frontend | Vercel | Auto-deploy from `main` branch |
+| API | Railway | Docker (`Dockerfile.api`) via `railway up` |
+| Database | Railway | Built-in PostgreSQL + Redis plugins |
+| Workers | — | Pending (requires Alchemy RPC config) |
 
 ## License
 

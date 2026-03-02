@@ -72,6 +72,8 @@ export interface Pool {
   all_addresses?: string[]
   all_fee_tiers?: (number | null)[]
   all_dexes?:     string[]
+  // 24 hourly close prices for sparkline rendering
+  sparkline_data?: number[]
 }
 
 export interface Swap {

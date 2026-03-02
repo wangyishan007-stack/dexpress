@@ -17,7 +17,7 @@ export function BubblemapsEmbed({ tokenAddress }: Props) {
         </div>
       )}
       <iframe
-        src={`https://iframe.bubblemaps.io/map?chain=base&address=${tokenAddress}&partnerId=demo`}
+        src={`https://app.bubblemaps.io/base/token/${tokenAddress}`}
         className="w-full border-none"
         style={{ height: 600 }}
         title="Bubblemaps"
