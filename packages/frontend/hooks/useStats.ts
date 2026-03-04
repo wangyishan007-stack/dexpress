@@ -39,6 +39,7 @@ export function useStats(): Stats {
       revalidateOnFocus: false,
       dedupingInterval: 10_000,
       refreshInterval: 90_000,
+      keepPreviousData: true,
     }
   )
 

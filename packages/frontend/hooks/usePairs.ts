@@ -51,7 +51,6 @@ export function usePairs(baseParams: Omit<PairsQuery, 'limit' | 'offset'>) {
     setSize(1)
   }, [paramsKey])
 
-  // [#13] Adjusted intervals: refreshInterval=30s, dedupingInterval=5s
   // [#14] Expose error state
   const { data, error, isLoading, isValidating, mutate } = useSWR<PairsResponse>(
     'dexscreener-pairs',
@@ -60,6 +59,7 @@ export function usePairs(baseParams: Omit<PairsQuery, 'limit' | 'offset'>) {
       revalidateOnFocus: false,
       dedupingInterval: 10_000,
       refreshInterval: 90_000,
+      keepPreviousData: true,   // Show stale data while revalidating
     }
   )
 

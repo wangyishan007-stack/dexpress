@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import useSWR from 'swr'
 import type { Pool } from '@dex/shared'
 import { fmtPrice, fmtUsd, fmtAge, fmtNum, fmtPct, shortAddr } from '../../../lib/formatters'
 import { usePairWebSocket } from '../../../hooks/useWebSocket'
-import { getPair } from '../../../lib/dataProvider'
-import { fetchPoolTrades } from '../../../lib/dexscreener-client'
+import { fetchPoolTrades, type PoolExtended } from '../../../lib/dexscreener-client'
+import { useTokenSecurity } from '../../../hooks/useTokenSecurity'
 import { PairTabs } from '../../../components/PairTabs'
 import { TradingViewChart } from '../../../components/TradingViewChart'
 import clsx from 'clsx'
@@ -25,7 +25,7 @@ interface RecentSwap {
   sender:     string | null
 }
 
-type PairDetail = Pool & { recent_swaps: RecentSwap[] }
+type PairDetail = Pool & Partial<PoolExtended> & { recent_swaps: RecentSwap[] }
 
 interface Props { address: string }
 
@@ -180,11 +180,24 @@ export function PairDetailClient({ address }: Props) {
   const { data: pair, error, isLoading } = useSWR<PairDetail | null>(
     `pair-${address}`,
     async () => {
-      const { fetchPairByAddress } = await import('../../../lib/dexscreener-client')
-      return fetchPairByAddress(address) as Promise<PairDetail | null>
+      try {
+        const { fetchPairByAddress } = await import('../../../lib/dexscreener-client')
+        const result = await fetchPairByAddress(address)
+        if (!result) console.warn('[PairDetail] fetchPairByAddress returned null for', address)
+        return result as PairDetail | null
+      } catch (e) {
+        console.error('[PairDetail] SWR fetcher error:', e)
+        throw e
+      }
     },
     { revalidateOnFocus: false }
   )
+
+  // GoPlus security data for base token
+  const baseTokenAddr = pair?.token0 && pair?.token1
+    ? (QUOTE_ADDRS.has(pair.token0.address.toLowerCase()) ? pair.token1.address : pair.token0.address)
+    : undefined
+  const { data: security } = useTokenSecurity(baseTokenAddr)
 
   const [livePrice, setLivePrice] = useState<number | null>(null)
   const [flash,     setFlash]     = useState<'up' | 'down' | null>(null)
@@ -269,9 +282,12 @@ export function PairDetailClient({ address }: Props) {
     )
   }
   if (error || !pair) {
+    if (error) console.error('[PairDetail] SWR error state:', error)
+    if (!pair && !error) console.warn('[PairDetail] pair is null/undefined, no error')
     return (
       <div className="flex flex-col items-center justify-center h-48 gap-2">
         <p className="text-sub text-sm">Failed to load pair data.</p>
+        {error && <p className="text-red text-xs font-mono">{String(error?.message ?? error)}</p>}
         <a href="/" className="text-blue text-xs hover:underline">← Back to all coins</a>
       </div>
     )
@@ -448,8 +464,16 @@ export function PairDetailClient({ address }: Props) {
               <span className="text-[16px] font-bold tabular text-text">{fmtPrice(price)}</span>
             </div>
             <div className="flex-1 border border-border rounded-lg p-2 flex flex-col gap-1 items-center text-center">
-              <span className="text-[12px] text-sub">Price</span>
-              <span className="text-[16px] font-bold tabular text-text">{fmtPrice(price)} ETH</span>
+              <span className="text-[12px] text-sub">Price ETH</span>
+              <span className="text-[16px] font-bold tabular text-text">
+                {pair.base_token_price_native
+                  ? `${pair.base_token_price_native < 0.0001
+                      ? pair.base_token_price_native.toExponential(4)
+                      : pair.base_token_price_native < 1
+                      ? pair.base_token_price_native.toFixed(8)
+                      : pair.base_token_price_native.toFixed(4)} ETH`
+                  : '—'}
+              </span>
             </div>
           </div>
 
@@ -499,71 +523,110 @@ export function PairDetailClient({ address }: Props) {
           })()}
 
           {/* ── 5. Security Info Grid ────────────────────────────── */}
-          <div className="border border-border rounded-lg px-2 py-3 flex flex-col gap-5">
-            {/* Row 1: Top 10 / DEV / Holders / Snipers */}
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col gap-2 w-[67px]">
-                <span className="text-[12px] text-sub">Top 10</span>
-                <div className="flex items-center gap-1">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#2fe06b" strokeWidth="1.5"/><path d="M4 7l2 2 4-4" stroke="#2fe06b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  <span className="text-[14px] text-green tabular">0.64%</span>
+          {(() => {
+            const s = security
+            const CheckIcon = () => <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#2fe06b" strokeWidth="1.5"/><path d="M4 7l2 2 4-4" stroke="#2fe06b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            const WarnIcon = () => <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#ef5350" strokeWidth="1.5"/><path d="M5 5l4 4M9 5l-4 4" stroke="#ef5350" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            const LoadingText = () => <span className="text-[14px] text-sub tabular">—</span>
+
+            // Top 10 holders percentage
+            const top10Pct = s?.holders
+              ? s.holders.slice(0, 10).reduce((sum, h) => sum + parseFloat(h.percent || '0'), 0) * 100
+              : null
+            const top10Ok = top10Pct !== null && top10Pct < 50
+
+            // DEV (creator) holding
+            const devPct = s ? parseFloat(s.creator_percent || '0') * 100 : null
+            const devOk = devPct !== null && devPct < 5
+
+            // Holders count
+            const holderCount = s?.holder_count ? parseInt(s.holder_count) : null
+
+            // Is honeypot
+            const isHoneypot = s ? s.is_honeypot === '1' : null
+
+            // Verified (open source)
+            const isVerified = s ? s.is_open_source === '1' : null
+
+            // Renounced (owner is null address)
+            const isRenounced = s ? (s.owner_address === '0x0000000000000000000000000000000000000000' || s.owner_address === '') : null
+
+            // Locked liquidity
+            const lockedPct = s?.lp_holders
+              ? s.lp_holders.reduce((sum, lp) => sum + (lp.is_locked ? parseFloat(lp.percent || '0') : 0), 0) * 100
+              : null
+
+            return (
+              <div className="border border-border rounded-lg px-2 py-3 flex flex-col gap-5">
+                {/* Row 1: Top 10 / DEV / Holders / Snipers */}
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-2 w-[67px]">
+                    <span className="text-[12px] text-sub">Top 10</span>
+                    {top10Pct !== null ? (
+                      <div className="flex items-center gap-1">
+                        {top10Ok ? <CheckIcon /> : <WarnIcon />}
+                        <span className={clsx('text-[14px] tabular', top10Ok ? 'text-green' : 'text-red')}>{top10Pct.toFixed(2)}%</span>
+                      </div>
+                    ) : <LoadingText />}
+                  </div>
+                  <div className="flex flex-col gap-2 w-[67px]">
+                    <span className="text-[12px] text-sub">DEV</span>
+                    {devPct !== null ? (
+                      <div className="flex items-center gap-1">
+                        {devOk ? <CheckIcon /> : <WarnIcon />}
+                        <span className={clsx('text-[14px] tabular', devOk ? 'text-green' : 'text-red')}>{devPct.toFixed(1)}%</span>
+                      </div>
+                    ) : <LoadingText />}
+                  </div>
+                  <div className="flex flex-col gap-2 w-[67px]">
+                    <span className="text-[12px] text-sub">Holders</span>
+                    <span className="text-[14px] text-text tabular">{holderCount !== null ? fmtNum(holderCount) : '—'}</span>
+                  </div>
+                  <div className="flex flex-col gap-2 w-[67px]">
+                    <span className="text-[12px] text-sub">Snipers</span>
+                    <span className="text-[14px] text-sub tabular">—</span>
+                  </div>
+                </div>
+                {/* Row 2: Insiders / Phishing / Dex Paid / NoHoneypot */}
+                <div className="flex items-start justify-between">
+                  <div className="flex flex-col gap-2 w-[67px]">
+                    <span className="text-[12px] text-sub">Insiders</span>
+                    <span className="text-[14px] text-sub tabular">—</span>
+                  </div>
+                  <div className="flex flex-col gap-2 w-[67px]">
+                    <span className="text-[12px] text-sub">Phishing</span>
+                    <span className="text-[14px] text-sub tabular">—</span>
+                  </div>
+                  <div className="flex flex-col gap-2 w-[67px]">
+                    <span className="text-[12px] text-sub">Dex Paid</span>
+                    <span className="text-[14px] text-sub">—</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[12px] text-sub">NoHoneypot</span>
+                    {isHoneypot !== null ? (isHoneypot ? <WarnIcon /> : <CheckIcon />) : <LoadingText />}
+                  </div>
+                </div>
+                {/* Row 3: Verified / Renounced / Locked */}
+                <div className="flex items-start justify-between">
+                  <div className="flex flex-col gap-2 w-[67px]">
+                    <span className="text-[12px] text-sub">Verified</span>
+                    {isVerified !== null ? (isVerified ? <CheckIcon /> : <WarnIcon />) : <LoadingText />}
+                  </div>
+                  <div className="flex flex-col gap-2 w-[67px]">
+                    <span className="text-[12px] text-sub">Renounced</span>
+                    {isRenounced !== null ? (isRenounced ? <CheckIcon /> : <WarnIcon />) : <LoadingText />}
+                  </div>
+                  <div className="flex flex-col gap-2 w-[67px]">
+                    <span className="text-[12px] text-sub">Locked</span>
+                    {lockedPct !== null ? (
+                      <span className={clsx('text-[14px] tabular', lockedPct > 50 ? 'text-green' : 'text-red')}>{lockedPct.toFixed(1)}%</span>
+                    ) : <LoadingText />}
+                  </div>
+                  <div className="w-[67px]" />
                 </div>
               </div>
-              <div className="flex flex-col gap-2 w-[67px]">
-                <span className="text-[12px] text-sub">DEV</span>
-                <div className="flex items-center gap-1">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M7.01923 3.76467L5.06023 6.173L3.90689 5.74234C3.70773 5.66795 3.49202 5.6494 3.28308 5.68869C3.07414 5.72799 2.8799 5.82363 2.72137 5.96528C2.56283 6.10694 2.44601 6.28922 2.38354 6.49244C2.32106 6.69566 2.31531 6.91209 2.36689 7.11834L3.34689 11.0403C3.48219 11.5812 3.79441 12.0614 4.23393 12.4044C4.67344 12.7475 5.21501 12.9338 5.77256 12.9337H9.98256C10.5401 12.9338 11.0817 12.7475 11.5212 12.4044C11.9607 12.0614 12.2729 11.5812 12.4082 11.0403L13.3876 7.123C13.4452 6.89277 13.4312 6.65043 13.3476 6.42834L13.3229 6.369C13.2025 6.09607 12.9821 5.87964 12.707 5.7642C12.4319 5.64876 12.123 5.64308 11.8439 5.74834L10.7249 6.17L8.84089 3.77867C8.73264 3.64126 8.59488 3.52996 8.4378 3.45299C8.28072 3.37602 8.10834 3.33536 7.93342 3.33402C7.75851 3.33267 7.58552 3.37068 7.42728 3.44523C7.26903 3.51977 7.12958 3.62894 7.01923 3.76467ZM8.02956 4.37134C8.03906 4.37914 8.04767 4.38797 8.05523 4.39767L10.1662 7.07667C10.232 7.16006 10.3225 7.22036 10.4249 7.24883C10.5272 7.2773 10.6359 7.27245 10.7352 7.235L12.1969 6.684C12.2254 6.67329 12.2562 6.67057 12.2862 6.67615C12.3161 6.68172 12.3439 6.69539 12.3666 6.71565C12.3893 6.73591 12.406 6.762 12.4149 6.79109C12.4239 6.82018 12.4247 6.85116 12.4172 6.88067L11.4382 10.7973C11.3571 11.1219 11.1699 11.41 10.9063 11.6159C10.6426 11.8218 10.3177 11.9336 9.98323 11.9337H5.77256C5.438 11.9337 5.11303 11.8219 4.84933 11.616C4.58564 11.4101 4.39834 11.1219 4.31723 10.7973L3.33689 6.87534C3.3295 6.84587 3.33031 6.81494 3.33922 6.78589C3.34814 6.75684 3.36482 6.73079 3.38748 6.71054C3.41013 6.69029 3.43789 6.67661 3.46775 6.671C3.49761 6.66538 3.52843 6.66803 3.55689 6.67867L5.04689 7.23534C5.1449 7.2719 5.2519 7.2768 5.35284 7.24935C5.45378 7.2219 5.54356 7.16349 5.60956 7.08234L7.79523 4.39534C7.81982 4.36511 7.85423 4.34445 7.89248 4.33696C7.93072 4.32947 7.97038 4.33562 8.00456 4.35434L8.02956 4.371V4.37134Z" fill="#2FE06B"/><path d="M9.21329 9.76758C9.34173 9.76756 9.46525 9.81696 9.55824 9.90554C9.65124 9.99413 9.70658 10.1151 9.71279 10.2434C9.71901 10.3717 9.67562 10.4974 9.59162 10.5946C9.50763 10.6917 9.38946 10.7529 9.26163 10.7652L9.21329 10.7676H6.54663C6.41822 10.7675 6.29476 10.7181 6.20183 10.6294C6.1089 10.5408 6.05362 10.4199 6.04745 10.2916C6.04128 10.1633 6.08469 10.0376 6.16869 9.94051C6.25268 9.84339 6.37082 9.7823 6.49863 9.76991L6.54663 9.76758H9.21329Z" fill="#2FE06B"/></svg>
-                  <span className="text-[14px] text-green tabular">0%</span>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2 w-[67px]">
-                <span className="text-[12px] text-sub">Holders</span>
-                <span className="text-[14px] text-text tabular">{pair.holder_count ? fmtNum(pair.holder_count) : '1'}</span>
-              </div>
-              <div className="flex flex-col gap-2 w-[67px]">
-                <span className="text-[12px] text-sub">Snipers</span>
-                <div className="flex items-center gap-1">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#2fe06b" strokeWidth="1.5"/><path d="M4 7l2 2 4-4" stroke="#2fe06b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  <span className="text-[14px] tabular"><span className="text-green">1</span><span className="text-text"> / </span><span className="text-green">1</span></span>
-                </div>
-              </div>
-            </div>
-            {/* Row 2: Insiders / Phishing / Dex Paid / NoHoneypot */}
-            <div className="flex items-start justify-between">
-              <div className="flex flex-col gap-2 w-[67px]">
-                <span className="text-[12px] text-sub">Insiders</span>
-                <span className="text-[14px] text-green tabular">0%</span>
-              </div>
-              <div className="flex flex-col gap-2 w-[67px]">
-                <span className="text-[12px] text-sub">Phishing</span>
-                <span className="text-[14px] text-green tabular">0%</span>
-              </div>
-              <div className="flex flex-col gap-2 w-[67px]">
-                <span className="text-[12px] text-sub">Dex Paid</span>
-                <span className="text-[14px] text-text">Unpaid</span>
-              </div>
-              <div className="flex flex-col gap-2">
-                <span className="text-[12px] text-sub">NoHoneypot</span>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#2fe06b" strokeWidth="1.5"/><path d="M4 7l2 2 4-4" stroke="#2fe06b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </div>
-            </div>
-            {/* Row 3: Verified / Renounced / Locked */}
-            <div className="flex items-start justify-between">
-              <div className="flex flex-col gap-2 w-[67px]">
-                <span className="text-[12px] text-sub">Verified</span>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#2fe06b" strokeWidth="1.5"/><path d="M4 7l2 2 4-4" stroke="#2fe06b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </div>
-              <div className="flex flex-col gap-2 w-[67px]">
-                <span className="text-[12px] text-sub">Renounced</span>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#2fe06b" strokeWidth="1.5"/><path d="M4 7l2 2 4-4" stroke="#2fe06b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </div>
-              <div className="flex flex-col gap-2 w-[67px]">
-                <span className="text-[12px] text-sub">Locked</span>
-                <span className="text-[14px]">🔥</span>
-              </div>
-              <div className="w-[67px]" />
-            </div>
-          </div>
+            )
+          })()}
 
           {/* ── 6. Price Change + Trading Stats ──────────────────── */}
           {(() => {
@@ -616,38 +679,68 @@ export function PairDetailClient({ address }: Props) {
                     </div>
                     <div className="flex flex-col gap-1 p-1">
                       <span className="text-[12px] text-sub underline decoration-dotted">Makers</span>
-                      <span className="text-[14px] font-bold tabular text-text">{pair.holder_count ? fmtNum(pair.holder_count) : '—'}</span>
+                      <span className="text-[14px] font-bold tabular text-text">{fmtNum((pair as any)[`makers_${active.key}`] ?? 0)}</span>
                     </div>
                   </div>
                   {/* Divider */}
                   <div className="w-px bg-border self-stretch" />
                   {/* Right: Buy/Sell bars */}
-                  <div className="flex-1 flex flex-col gap-2 px-2 py-2">
-                    <div className="flex flex-col gap-[5px]">
-                      <div className="flex justify-between text-[12px] text-sub"><span>Buys</span><span>Sells</span></div>
-                      <div className="flex justify-between text-[14px] text-text"><span>14,684</span><span>20</span></div>
-                      <div className="flex h-1 gap-[2px]">
-                        <div className="rounded-full bg-green" style={{ width: '99.9%' }} />
-                        <div className="rounded-full bg-red" style={{ width: '0.1%' }} />
+                  {(() => {
+                    const buys  = (pair as any)[`buys_${active.key}`] ?? 0
+                    const sells = (pair as any)[`sells_${active.key}`] ?? 0
+                    const totalTxns = buys + sells || 1
+                    const buyPct  = Math.max(0.1, (buys / totalTxns) * 100)
+                    const sellPct = Math.max(0.1, (sells / totalTxns) * 100)
+
+                    // Estimate buy/sell volume from buys/sells ratio
+                    const vol = active.volume ?? 0
+                    const buyVol  = vol * (buys / totalTxns)
+                    const sellVol = vol * (sells / totalTxns)
+                    const buyVolPct  = vol > 0 ? Math.max(0.1, (buyVol / vol) * 100) : 50
+                    const sellVolPct = vol > 0 ? Math.max(0.1, (sellVol / vol) * 100) : 50
+
+                    // GT transactions provide buyers/sellers counts per window
+                    const t = pair as any
+                    const periodMap: Record<string, { buyers: number; sellers: number }> = {
+                      '5m':  { buyers: t.buys_5m ?? 0,  sellers: t.sells_5m ?? 0 },
+                      '1h':  { buyers: t.buys_1h ?? 0,  sellers: t.sells_1h ?? 0 },
+                      '6h':  { buyers: t.buys_6h ?? 0,  sellers: t.sells_6h ?? 0 },
+                      '24h': { buyers: t.buys_24h ?? 0, sellers: t.sells_24h ?? 0 },
+                    }
+                    const pm = periodMap[active.key] ?? { buyers: 0, sellers: 0 }
+                    const totalMakers = pm.buyers + pm.sellers || 1
+                    const buyerPct  = Math.max(0.1, (pm.buyers / totalMakers) * 100)
+                    const sellerPct = Math.max(0.1, (pm.sellers / totalMakers) * 100)
+
+                    return (
+                      <div className="flex-1 flex flex-col gap-2 px-2 py-2">
+                        <div className="flex flex-col gap-[5px]">
+                          <div className="flex justify-between text-[12px] text-sub"><span>Buys</span><span>Sells</span></div>
+                          <div className="flex justify-between text-[14px] text-text"><span>{fmtNum(buys)}</span><span>{fmtNum(sells)}</span></div>
+                          <div className="flex h-1 gap-[2px]">
+                            <div className="rounded-full bg-green" style={{ width: `${buyPct}%` }} />
+                            <div className="rounded-full bg-red" style={{ width: `${sellPct}%` }} />
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-[5px]">
+                          <div className="flex justify-between text-[12px] text-sub"><span>Buy Vol</span><span>Sell Vol</span></div>
+                          <div className="flex justify-between text-[14px] text-text"><span>{fmtUsd(buyVol)}</span><span>{fmtUsd(sellVol)}</span></div>
+                          <div className="flex h-1 gap-[2px]">
+                            <div className="rounded-full bg-green" style={{ width: `${buyVolPct}%` }} />
+                            <div className="rounded-full bg-red" style={{ width: `${sellVolPct}%` }} />
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-[5px]">
+                          <div className="flex justify-between text-[12px] text-sub"><span>Buyers</span><span>Sellers</span></div>
+                          <div className="flex justify-between text-[14px] text-text"><span>{fmtNum(pm.buyers)}</span><span>{fmtNum(pm.sellers)}</span></div>
+                          <div className="flex h-1 gap-[2px]">
+                            <div className="rounded-full bg-green" style={{ width: `${buyerPct}%` }} />
+                            <div className="rounded-full bg-red" style={{ width: `${sellerPct}%` }} />
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex flex-col gap-[5px]">
-                      <div className="flex justify-between text-[12px] text-sub"><span>Buy Vol</span><span>Sell Vol</span></div>
-                      <div className="flex justify-between text-[14px] text-text"><span>$4.8K</span><span>$6.6K</span></div>
-                      <div className="flex h-1 gap-[2px]">
-                        <div className="rounded-full bg-green" style={{ width: '42%' }} />
-                        <div className="rounded-full bg-red" style={{ width: '58%' }} />
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-[5px]">
-                      <div className="flex justify-between text-[12px] text-sub"><span>Buyers</span><span>Sellers</span></div>
-                      <div className="flex justify-between text-[14px] text-text"><span>14,658</span><span>15</span></div>
-                      <div className="flex h-1 gap-[2px]">
-                        <div className="rounded-full bg-green" style={{ width: '99.9%' }} />
-                        <div className="rounded-full bg-red" style={{ width: '0.1%' }} />
-                      </div>
-                    </div>
-                  </div>
+                    )
+                  })()}
                 </div>
               </div>
             )
@@ -683,14 +776,25 @@ export function PairDetailClient({ address }: Props) {
                 <span className="text-[12px] text-sub">Pair created</span>
                 <span className="text-[14px] text-text">{pair.created_at ? `${fmtAge(pair.created_at)} ago` : '—'}</span>
               </div>
-              <div className="flex items-center justify-between px-2 py-3 border-b border-border">
-                <span className="text-[12px] text-sub">Pooled {base.symbol}</span>
-                <span className="text-[14px] text-text whitespace-pre">35.85B   $58K</span>
-              </div>
-              <div className="flex items-center justify-between px-2 py-3 border-b border-border">
-                <span className="text-[12px] text-sub">Pooled {quote.symbol}</span>
-                <span className="text-[14px] text-text whitespace-pre">15.64   $49K</span>
-              </div>
+              {(() => {
+                const liq = pair.liquidity_usd ?? 0
+                const halfLiq = liq / 2
+                const basePooled = price > 0 ? halfLiq / price : 0
+                const quotePriceUsd = pair.quote_token_price_usd ?? 0
+                const quotePooled = quotePriceUsd > 0 ? halfLiq / quotePriceUsd : 0
+                return (
+                  <>
+                    <div className="flex items-center justify-between px-2 py-3 border-b border-border">
+                      <span className="text-[12px] text-sub">Pooled {base.symbol}</span>
+                      <span className="text-[14px] text-text">{basePooled > 0 ? `${fmtNum(basePooled)}   ${fmtUsd(halfLiq)}` : '—'}</span>
+                    </div>
+                    <div className="flex items-center justify-between px-2 py-3 border-b border-border">
+                      <span className="text-[12px] text-sub">Pooled {quote.symbol}</span>
+                      <span className="text-[14px] text-text">{quotePooled > 0 ? `${fmtNum(quotePooled)}   ${fmtUsd(halfLiq)}` : '—'}</span>
+                    </div>
+                  </>
+                )
+              })()}
               <div className="flex items-center justify-between px-2 py-3 border-b border-border">
                 <span className="text-[12px] text-sub">Pair</span>
                 <div className="flex items-center gap-2">
@@ -748,118 +852,134 @@ export function PairDetailClient({ address }: Props) {
 
           {/* ── 10. Security Audits ──────────────────────────────── */}
           <div className="flex flex-col gap-6 items-center w-full">
-            <div className="flex flex-col gap-2 w-full">
-              <div className="border border-border rounded-lg">
-                {([
-                  { name: 'Go+ Security', result: 'No issues', expandable: true },
-                  { name: 'Quick Intel',  result: 'No issues', expandable: true },
-                  { name: 'Token Sniffer', result: '100/100', expandable: false },
-                  { name: 'Honeypot.is',  result: 'No issues', expandable: true },
-                ] as const).map((item, i, arr) => {
-                  const isOpen = expandedAudit === item.name
-                  return (
-                    <div key={item.name} className={clsx(i < arr.length - 1 && 'border-b border-border')}>
-                      <div
-                        className={clsx('flex items-center gap-2 px-2 py-3', item.expandable && 'cursor-pointer')}
-                        onClick={() => item.expandable && setExpandedAudit(isOpen ? null : item.name)}
-                      >
-                        <div className="flex-1 flex items-center justify-between">
-                          <span className="text-[12px] text-text font-medium">{item.name}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[14px] text-text">{item.result}</span>
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#2fe06b" strokeWidth="1.5"/><path d="M3.5 6l2 2 3-3" stroke="#2fe06b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                          </div>
-                        </div>
-                        {item.expandable ? (
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={clsx('text-sub flex-shrink-0 transition-transform duration-200', isOpen && 'rotate-180')}><path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.2"/></svg>
-                        ) : (
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-sub flex-shrink-0"><path d="M4 1h7v7M11 1L5 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                        )}
-                      </div>
-                      {item.expandable && isOpen && (() => {
-                        const detailMap: Record<string, readonly { label: string; value: string; status: string }[]> = {
-                          'Go+ Security': [
-                            { label: 'Sell tax', value: '0%', status: 'ok' },
-                            { label: 'Tax modifiable', value: 'No', status: 'ok' },
-                            { label: 'External call', value: 'No', status: 'ok' },
-                            { label: 'Ownership renounced', value: 'Yes', status: 'ok' },
-                            { label: 'Hidden owner', value: 'No', status: 'ok' },
-                            { label: 'Open source', value: 'Yes', status: 'ok' },
-                            { label: 'Honeypot', value: 'No', status: 'ok' },
-                            { label: 'Proxy contract', value: 'No', status: 'ok' },
-                            { label: 'Mintable', value: 'No', status: 'ok' },
-                            { label: 'Transfer pausable', value: 'No', status: 'ok' },
-                            { label: 'Trading cooldown', value: 'No', status: 'ok' },
-                            { label: "Can't sell all", value: 'No', status: 'ok' },
-                            { label: 'Owner can change balance', value: 'No', status: 'ok' },
-                            { label: 'Has blacklist', value: 'No', status: 'ok' },
-                            { label: 'Has whitelist', value: 'No', status: 'ok' },
-                            { label: 'Buy tax', value: 'Unknown', status: 'neutral' },
-                            { label: 'Is anti whale', value: 'No', status: 'warn' },
-                            { label: 'LP Holder count', value: '2', status: 'neutral' },
-                            { label: 'Creator address', value: '0xeacc...0c48', status: 'link' },
-                            { label: 'Creator balance', value: '0 (0.00%)', status: 'neutral' },
-                            { label: 'Owner address', value: '0x0000...0000', status: 'link' },
-                            { label: 'Owner balance', value: '0 (0.00%)', status: 'neutral' },
-                          ],
-                          'Quick Intel': [
-                            { label: 'Honeypot', value: 'No', status: 'ok' },
-                            { label: 'Buy tax', value: 'Unknown', status: 'neutral' },
-                            { label: 'Sell tax', value: 'Unknown', status: 'neutral' },
-                            { label: 'Ownership renounced', value: 'Unknown', status: 'neutral' },
-                          ],
-                          'Honeypot.is': [
-                            { label: 'Honeypot', value: 'No', status: 'ok' },
-                            { label: 'Buy tax', value: '0%', status: 'ok' },
-                            { label: 'Sell tax', value: '0%', status: 'ok' },
-                          ],
-                        }
-                        const rows = detailMap[item.name]
-                        if (!rows) return null
-                        return (
-                          <div className="border-t border-border">
-                            {rows.map((row, ri) => (
-                              <div key={row.label} className={clsx('flex items-center justify-between px-3 py-2.5', ri < rows.length - 1 && 'border-b border-border/50')}>
-                                <div className="flex items-center gap-1.5">
-                                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-sub flex-shrink-0"><circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.2"/><path d="M7 4v3M7 9v1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
-                                  <span className="text-[13px] text-text">{row.label}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  {row.status === 'link' && (
-                                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="text-sub"><path d="M4 1h7v7M11 1L5 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                  )}
-                                  {row.status === 'ok' && (
-                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#2fe06b" strokeWidth="1.2"/><path d="M3.5 6l2 2 3-3" stroke="#2fe06b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                  )}
-                                  {row.status === 'warn' && (
-                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-yellow-400"><path d="M6 1L1 11h10L6 1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/><path d="M6 5v3M6 9.5v.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
-                                  )}
-                                  <span className={clsx('text-[13px] font-mono tabular', row.status === 'ok' ? 'text-green' : row.status === 'warn' ? 'text-yellow-400' : 'text-text')}>{row.value}</span>
-                                </div>
+            {(() => {
+              const s = security
+              // Build Go+ rows from real data
+              const fmtTax = (v: string | undefined) => {
+                if (!v || v === '') return { value: 'Unknown', status: 'neutral' as const }
+                const n = parseFloat(v) * 100
+                return { value: `${n.toFixed(1)}%`, status: n > 5 ? 'warn' as const : 'ok' as const }
+              }
+              const flag = (v: string | undefined, goodVal: string) => {
+                if (!v || v === '') return { value: 'Unknown', status: 'neutral' as const }
+                return v === goodVal
+                  ? { value: goodVal === '0' ? 'No' : 'Yes', status: 'ok' as const }
+                  : { value: goodVal === '0' ? 'Yes' : 'No', status: 'warn' as const }
+              }
+              const isRenounced = s
+                ? (s.owner_address === '0x0000000000000000000000000000000000000000' || s.owner_address === '')
+                : null
+
+              const goPlusRows: { label: string; value: string; status: 'ok' | 'warn' | 'neutral' | 'link' }[] = s ? [
+                { label: 'Sell tax', ...fmtTax(s.sell_tax) },
+                { label: 'Buy tax', ...fmtTax(s.buy_tax) },
+                { label: 'Tax modifiable', ...flag(s.slippage_modifiable, '0') },
+                { label: 'External call', ...flag(s.external_call, '0') },
+                { label: 'Ownership renounced', value: isRenounced ? 'Yes' : 'No', status: isRenounced ? 'ok' : 'warn' },
+                { label: 'Hidden owner', ...flag(s.hidden_owner, '0') },
+                { label: 'Open source', ...flag(s.is_open_source, '1') },
+                { label: 'Honeypot', ...flag(s.is_honeypot, '0') },
+                { label: 'Proxy contract', ...flag(s.is_proxy, '0') },
+                { label: 'Mintable', ...flag(s.is_mintable, '0') },
+                { label: 'Transfer pausable', ...flag(s.transfer_pausable, '0') },
+                { label: 'Trading cooldown', ...flag(s.trading_cooldown, '0') },
+                { label: "Can't sell all", ...flag(s.cannot_sell_all, '0') },
+                { label: 'Owner can change balance', ...flag(s.owner_change_balance, '0') },
+                { label: 'Has blacklist', ...flag(s.is_blacklisted, '0') },
+                { label: 'Has whitelist', ...flag(s.is_whitelisted, '0') },
+                { label: 'Is anti whale', ...flag(s.is_anti_whale, '0') },
+                { label: 'LP Holder count', value: s.lp_holder_count || '—', status: 'neutral' },
+                { label: 'Creator address', value: s.creator_address ? shortAddr(s.creator_address) : '—', status: s.creator_address ? 'link' : 'neutral' },
+                { label: 'Creator balance', value: s.creator_balance ? `${parseFloat(s.creator_balance).toLocaleString()} (${(parseFloat(s.creator_percent || '0') * 100).toFixed(2)}%)` : '—', status: 'neutral' },
+                { label: 'Owner address', value: s.owner_address ? shortAddr(s.owner_address) : '—', status: s.owner_address ? 'link' : 'neutral' },
+                { label: 'Owner balance', value: s.owner_balance ? `${parseFloat(s.owner_balance).toLocaleString()} (${(parseFloat(s.owner_percent || '0') * 100).toFixed(2)}%)` : '—', status: 'neutral' },
+              ] : []
+
+              // Count issues for Go+ summary
+              const goPlusIssues = goPlusRows.filter(r => r.status === 'warn').length
+              const goPlusSummary = s ? (goPlusIssues === 0 ? 'No issues' : `${goPlusIssues} issue${goPlusIssues > 1 ? 's' : ''}`) : 'Loading...'
+              const goPlusOk = s ? goPlusIssues === 0 : true
+
+              const audits = [
+                { name: 'Go+ Security', result: goPlusSummary, ok: goPlusOk, expandable: true, rows: goPlusRows },
+                { name: 'Quick Intel',  result: 'N/A', ok: true, expandable: false, rows: [] },
+                { name: 'Token Sniffer', result: 'N/A', ok: true, expandable: false, rows: [] },
+                { name: 'Honeypot.is',  result: 'N/A', ok: true, expandable: false, rows: [] },
+              ]
+
+              return (
+                <div className="flex flex-col gap-2 w-full">
+                  <div className="border border-border rounded-lg">
+                    {audits.map((item, i, arr) => {
+                      const isOpen = expandedAudit === item.name
+                      return (
+                        <div key={item.name} className={clsx(i < arr.length - 1 && 'border-b border-border')}>
+                          <div
+                            className={clsx('flex items-center gap-2 px-2 py-3', item.expandable && 'cursor-pointer')}
+                            onClick={() => item.expandable && setExpandedAudit(isOpen ? null : item.name)}
+                          >
+                            <div className="flex-1 flex items-center justify-between">
+                              <span className="text-[12px] text-text font-medium">{item.name}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[14px] text-text">{item.result}</span>
+                                {item.result !== 'N/A' && item.result !== 'Loading...' && (
+                                  item.ok
+                                    ? <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#2fe06b" strokeWidth="1.5"/><path d="M3.5 6l2 2 3-3" stroke="#2fe06b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                    : <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#ef5350" strokeWidth="1.5"/><path d="M4 4l4 4M8 4l-4 4" stroke="#ef5350" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                                )}
                               </div>
-                            ))}
+                            </div>
+                            {item.expandable ? (
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={clsx('text-sub flex-shrink-0 transition-transform duration-200', isOpen && 'rotate-180')}><path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.2"/></svg>
+                            ) : (
+                              <span className="text-[11px] text-sub flex-shrink-0">—</span>
+                            )}
                           </div>
-                        )
-                      })()}
-                    </div>
-                  )
-                })}
-              </div>
-              <p className="text-[12px] text-sub text-center">
-                Warning! Audits may not be 100% accurate!{' '}
-                <button
-                  onClick={() => setAuditDisclaimer(v => !v)}
-                  className="text-sub underline hover:text-text transition-colors"
-                >
-                  {auditDisclaimer ? 'Less' : 'More'}
-                </button>
-                {auditDisclaimer && (
-                  <span className="block mt-1 text-sub">
-                    Audit results may not be 100% accurate. They are provided for informational purposes only and should not be considered financial or investment advice. Dexpress does not verify or assume responsibility for the accuracy or completeness of data obtained from third-party auditors.
-                  </span>
-                )}
-              </p>
-            </div>
+                          {item.expandable && isOpen && item.rows.length > 0 && (
+                            <div className="border-t border-border">
+                              {item.rows.map((row, ri) => (
+                                <div key={row.label} className={clsx('flex items-center justify-between px-3 py-2.5', ri < item.rows.length - 1 && 'border-b border-border/50')}>
+                                  <div className="flex items-center gap-1.5">
+                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-sub flex-shrink-0"><circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.2"/><path d="M7 4v3M7 9v1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                                    <span className="text-[13px] text-text">{row.label}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    {row.status === 'link' && (
+                                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="text-sub"><path d="M4 1h7v7M11 1L5 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                    )}
+                                    {row.status === 'ok' && (
+                                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#2fe06b" strokeWidth="1.2"/><path d="M3.5 6l2 2 3-3" stroke="#2fe06b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                    )}
+                                    {row.status === 'warn' && (
+                                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-yellow-400"><path d="M6 1L1 11h10L6 1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/><path d="M6 5v3M6 9.5v.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                                    )}
+                                    <span className={clsx('text-[13px] font-mono tabular', row.status === 'ok' ? 'text-green' : row.status === 'warn' ? 'text-yellow-400' : 'text-text')}>{row.value}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[12px] text-sub text-center">
+                    Warning! Audits may not be 100% accurate!{' '}
+                    <button
+                      onClick={() => setAuditDisclaimer(v => !v)}
+                      className="text-sub underline hover:text-text transition-colors"
+                    >
+                      {auditDisclaimer ? 'Less' : 'More'}
+                    </button>
+                    {auditDisclaimer && (
+                      <span className="block mt-1 text-sub">
+                        Audit results may not be 100% accurate. They are provided for informational purposes only and should not be considered financial or investment advice. Dexpress does not verify or assume responsibility for the accuracy or completeness of data obtained from third-party auditors.
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )
+            })()}
 
             {/* ── 11. Token About Card ──────────────────────────────── */}
             <div ref={projectInfoRef} className="flex flex-col gap-4 items-center">

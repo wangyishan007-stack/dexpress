@@ -28,9 +28,13 @@ interface GTPoolAttributes {
   name:                          string
   pool_created_at:               string | null
   base_token_price_usd:          string | null
+  base_token_price_native_currency: string | null
+  quote_token_price_usd:         string | null
   reserve_in_usd:                string | null
   fdv_usd:                       string | null
   market_cap_usd:                string | null
+  locked_liquidity_percentage:   string | null
+  pool_fee:                      string | null
   price_change_percentage: {
     m5?: string; m15?: string; m30?: string
     h1?: string; h6?: string; h24?: string
@@ -279,11 +283,13 @@ async function fetchGTBatch(urls: string[]): Promise<{ pools: GTPool[]; logos: L
   }
 }
 
-// ─── In-memory cache ─────────────────────────────────────────
+// ─── In-memory cache with stale-while-revalidate ─────────────
 
 let _cachedPools: Pool[] = []
 let _cacheTs = 0
-const CACHE_TTL = 90_000 // 90s between real API calls
+let _refreshing = false
+const CACHE_FRESH_TTL = 60_000  // 60s — serve instantly
+const CACHE_STALE_TTL = 300_000 // 5min — serve stale, refresh in bg
 
 // ─── Main export ──────────────────────────────────────────────
 
@@ -350,11 +356,31 @@ async function fetchPoolsFromGT(): Promise<Pool[]> {
 }
 
 export async function fetchDexScreenerClient(): Promise<Pool[]> {
-  // Return cached data if still fresh
-  if (_cachedPools.length > 0 && Date.now() - _cacheTs < CACHE_TTL) {
+  const age = Date.now() - _cacheTs
+
+  // Fresh cache — return instantly
+  if (_cachedPools.length > 0 && age < CACHE_FRESH_TTL) {
     return _cachedPools
   }
 
+  // Stale cache — return instantly but kick off background refresh
+  if (_cachedPools.length > 0 && age < CACHE_STALE_TTL) {
+    if (!_refreshing) {
+      _refreshing = true
+      fetchPoolsFromGT()
+        .then(pools => {
+          if (pools.length > 0) {
+            _cachedPools = pools
+            _cacheTs = Date.now()
+          }
+        })
+        .catch(() => {})
+        .finally(() => { _refreshing = false })
+    }
+    return _cachedPools
+  }
+
+  // No cache or hard-expired — block and wait
   const pools = await fetchPoolsFromGT()
 
   if (pools.length > 0) {
@@ -371,6 +397,14 @@ export async function pairsFetcher(_key: string): Promise<PairsResponse> {
   const pools = await fetchDexScreenerClient()
   pools.sort((a, b) => b.trending_score - a.trending_score)
   return { pairs: pools, total: pools.length, limit: pools.length, offset: 0 }
+}
+
+// ─── Extended pool data for detail page ──────────────────
+
+export interface PoolExtended {
+  base_token_price_native: number
+  quote_token_price_usd: number
+  locked_liquidity_pct: number | null
 }
 
 // ─── Single pair lookup ───────────────────────────────────────
@@ -418,7 +452,7 @@ export async function fetchPoolTrades(address: string): Promise<GTTrade[]> {
 
 export async function fetchPairByAddress(
   address: string
-): Promise<(Pool & { recent_swaps: never[] }) | null> {
+): Promise<(Pool & PoolExtended & { recent_swaps: never[] }) | null> {
   // GeckoTerminal single pool endpoint: /networks/base/pools/{address}
   try {
     const res = await fetchWithTimeout(`${GT_BASE}/networks/base/pools/${address}?include=base_token,quote_token`)
@@ -436,7 +470,15 @@ export async function fetchPairByAddress(
     }
     const pool = mapPool(raw, logos)
     if (!pool) return null
-    return { ...pool, recent_swaps: [] }
+
+    const a = raw.attributes
+    return {
+      ...pool,
+      base_token_price_native: safeFloat(a.base_token_price_native_currency),
+      quote_token_price_usd:   safeFloat(a.quote_token_price_usd),
+      locked_liquidity_pct:    a.locked_liquidity_percentage != null ? safeFloat(a.locked_liquidity_percentage) : null,
+      recent_swaps: [],
+    }
   } catch (e) {
     console.error('[fetchPairByAddress] error:', e)
     return null
