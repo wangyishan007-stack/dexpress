@@ -69,9 +69,47 @@ export async function POST(req: NextRequest) {
   return response
 }
 
+async function fetchOne(url: string, proxyUrl?: string): Promise<{ status: number; data: any }> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      let res: any
+      if (proxyUrl) {
+        const { ProxyAgent, fetch: uFetch } = await import('undici')
+        const agent = new ProxyAgent(proxyUrl)
+        res = await uFetch(url, {
+          dispatcher: agent,
+          headers: GT_HEADERS,
+          signal: AbortSignal.timeout(15_000),
+        })
+      } else {
+        res = await fetch(url, {
+          headers: GT_HEADERS,
+          signal: AbortSignal.timeout(15_000),
+        })
+      }
+
+      if (res.status === 429 && attempt < 1) {
+        await new Promise(r => setTimeout(r, 2000))
+        continue
+      }
+
+      const data = await res.json()
+      if (res.status === 200) setCache(url, data)
+      return { status: res.status, data }
+    } catch (err: any) {
+      if (attempt < 1) {
+        await new Promise(r => setTimeout(r, 1000))
+        continue
+      }
+      return { status: 502, data: { error: err.message } }
+    }
+  }
+  return { status: 502, data: { error: 'unreachable' } }
+}
+
 async function fetchBatch(urls: string[]): Promise<NextResponse> {
   const proxyUrl = process.env.PROXY_URL
-  const results: { status: number; data: any }[] = []
+  const results: { status: number; data: any }[] = new Array(urls.length)
 
   // Split into cached and uncached
   const uncachedIndexes: number[] = []
@@ -84,46 +122,19 @@ async function fetchBatch(urls: string[]): Promise<NextResponse> {
     }
   }
 
-  // Fetch uncached URLs sequentially with delay
-  for (let j = 0; j < uncachedIndexes.length; j++) {
-    if (j > 0) await new Promise(r => setTimeout(r, DELAY_MS))
-    const i = uncachedIndexes[j]
-
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        let res: any
-        if (proxyUrl) {
-          const { ProxyAgent, fetch: uFetch } = await import('undici')
-          const agent = new ProxyAgent(proxyUrl)
-          res = await uFetch(urls[i], {
-            dispatcher: agent,
-            headers: GT_HEADERS,
-            signal: AbortSignal.timeout(15_000),
-          })
-        } else {
-          res = await fetch(urls[i], {
-            headers: GT_HEADERS,
-            signal: AbortSignal.timeout(15_000),
-          })
-        }
-
-        if (res.status === 429 && attempt < 1) {
-          await new Promise(r => setTimeout(r, 3000))
-          continue
-        }
-
-        const data = await res.json()
-        results[i] = { status: res.status, data }
-        if (res.status === 200) setCache(urls[i], data)
-        break
-      } catch (err: any) {
-        if (attempt < 1) {
-          await new Promise(r => setTimeout(r, 1500))
-          continue
-        }
-        results[i] = { status: 502, data: { error: err.message } }
-      }
+  if (proxyUrl) {
+    // With proxy: sequential with short delay to avoid 429
+    for (let j = 0; j < uncachedIndexes.length; j++) {
+      if (j > 0) await new Promise(r => setTimeout(r, DELAY_MS))
+      const i = uncachedIndexes[j]
+      results[i] = await fetchOne(urls[i], proxyUrl)
     }
+  } else {
+    // No proxy (Vercel): fetch all in parallel
+    const promises = uncachedIndexes.map(i =>
+      fetchOne(urls[i]).then(r => { results[i] = r })
+    )
+    await Promise.all(promises)
   }
 
   return NextResponse.json({ results })
