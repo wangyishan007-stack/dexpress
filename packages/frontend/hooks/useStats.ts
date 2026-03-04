@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useMemo } from 'react'
 import useSWR from 'swr'
-import { MOCK_STATS } from '../lib/mockData'
+import type { PairsResponse } from '@dex/shared'
+import { pairsFetcher } from '../lib/dexscreener-client'
 
 export interface Stats {
   volume_24h:   number
@@ -11,27 +12,50 @@ export interface Stats {
   block_ts:     string | null
 }
 
-const USE_MOCK = true
-
 const DEFAULT_STATS: Stats = { volume_24h: 0, txns_24h: 0, latest_block: 0, block_ts: null }
 
-const fetcher = (url: string) => fetch(url).then(r => r.json())
+const BASE_RPC = 'https://mainnet.base.org'
 
+async function fetchLatestBlock(): Promise<{ block: number; ts: string }> {
+  try {
+    const res = await fetch(BASE_RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 }),
+    })
+    const data = await res.json()
+    return { block: parseInt(data.result, 16), ts: new Date().toISOString() }
+  } catch {
+    return { block: 0, ts: null as unknown as string }
+  }
+}
+
+/** Derive stats from the same SWR cache as usePairs — no extra API calls */
 export function useStats(): Stats {
-  const [mockReady, setMockReady] = useState(false)
-
-  // Delay mock data until after hydration to avoid SSR mismatch
-  useEffect(() => {
-    if (USE_MOCK) setMockReady(true)
-  }, [])
-
-  const { data } = useSWR<Stats>(
-    USE_MOCK ? null : '/api/stats',
-    fetcher,
-    { refreshInterval: 10_000, revalidateOnFocus: false }
+  const { data } = useSWR<PairsResponse>(
+    'dexscreener-pairs',
+    pairsFetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 10_000,
+      refreshInterval: 90_000,
+    }
   )
 
-  if (USE_MOCK) return mockReady ? MOCK_STATS : DEFAULT_STATS
+  const { data: blockData } = useSWR(
+    'base-latest-block',
+    fetchLatestBlock,
+    { refreshInterval: 12_000, revalidateOnFocus: false }
+  )
 
-  return data ?? DEFAULT_STATS
+  return useMemo(() => {
+    const volume_24h = data?.pairs?.reduce((sum, p) => sum + (p.volume_24h || 0), 0) ?? 0
+    const txns_24h   = data?.pairs?.reduce((sum, p) => sum + (p.txns_24h || 0), 0) ?? 0
+    return {
+      volume_24h,
+      txns_24h,
+      latest_block: blockData?.block ?? 0,
+      block_ts:     blockData?.ts ?? null,
+    }
+  }, [data?.pairs, blockData])
 }

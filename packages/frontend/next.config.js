@@ -11,12 +11,15 @@ const config = {
     ],
   },
   async rewrites() {
-    return [
-      {
-        source:      '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/:path*`,
-      },
-    ]
+    // Use fallback so App Router API routes (app/api/*) are matched first
+    return {
+      fallback: [
+        {
+          source:      '/api/:path*',
+          destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/:path*`,
+        },
+      ],
+    }
   },
 }
 module.exports = config

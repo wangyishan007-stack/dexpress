@@ -20,9 +20,8 @@ export const COLUMN_DEFS: ColumnDef[] = [
   { key: '1h',           label: '1H',           headerLabel: '1H',        width: '68px'  },
   { key: '6h',           label: '6H',           headerLabel: '6H',        width: '68px'  },
   { key: '24h',          label: '24H',          headerLabel: '24H',       width: '68px'  },
-  { key: 'chart',        label: 'Last 24h',     headerLabel: 'Last 24h',  width: '110px' },
-  { key: 'liquidity',    label: 'Liquidity',    headerLabel: 'Liquidity', width: '90px'  },
   { key: 'mcap',         label: 'Market Cap',   headerLabel: 'MCap',      width: '90px'  },
+  { key: 'liquidity',    label: 'Liquidity',    headerLabel: 'Liquidity', width: '90px'  },
 ]
 
 const COLUMN_DEF_MAP = new Map(COLUMN_DEFS.map(c => [c.key, c]))

@@ -1,10 +1,11 @@
 import type { Pool, PairsResponse } from '@dex/shared'
 import type { PairsQuery } from '@dex/shared'
 import { MOCK_POOLS, MOCK_STATS, buildSwapsForPool } from './mockData'
+import { fetchDexScreenerPairs } from './dexscreener'
 import type { Stats } from '../hooks/useStats'
 import type { FilterValues, TextFilterValues } from '../components/FiltersModal'
 
-const USE_MOCK = true
+const USE_MOCK = false
 
 const PAGE_SIZE = 50
 
@@ -68,12 +69,16 @@ function applyCustomFilters(pools: Pool[], customFilters?: FilterValues): Pool[]
   })
 }
 
-export function getPairs(params: PairsQuery & { customFilters?: FilterValues }): PairsResponse {
-  if (!USE_MOCK) {
-    throw new Error('API mode not implemented — set USE_MOCK = true')
+export async function getPairs(params: PairsQuery & { customFilters?: FilterValues }): Promise<PairsResponse> {
+  let pools: Pool[]
+
+  if (USE_MOCK) {
+    pools = MOCK_POOLS
+  } else {
+    pools = await fetchDexScreenerPairs('base')
   }
 
-  const filtered = filterPools(MOCK_POOLS, params.filter)
+  const filtered = filterPools(pools, params.filter)
   const custom   = applyCustomFilters(filtered, params.customFilters)
   const sorted   = sortPools(custom, params.sort ?? 'trending_score', params.order ?? 'desc')
   const offset   = params.offset ?? 0
@@ -88,19 +93,35 @@ export function getPairs(params: PairsQuery & { customFilters?: FilterValues }):
   }
 }
 
-export function getPair(address: string): (Pool & { recent_swaps: any[] }) | null {
-  if (!USE_MOCK) {
-    throw new Error('API mode not implemented — set USE_MOCK = true')
+export async function getPair(address: string): Promise<(Pool & { recent_swaps: any[] }) | null> {
+  if (USE_MOCK) {
+    const idx = MOCK_POOLS.findIndex(p => p.address === address)
+    if (idx === -1) return null
+    const pool = MOCK_POOLS[idx]
+    return { ...pool, recent_swaps: buildSwapsForPool(idx, pool.price_usd) }
   }
-  const idx = MOCK_POOLS.findIndex(p => p.address === address)
-  if (idx === -1) return null
-  const pool = MOCK_POOLS[idx]
-  return { ...pool, recent_swaps: buildSwapsForPool(idx, pool.price_usd) }
+
+  // In live mode: look up the pair from DexScreener by address
+  const pools = await fetchDexScreenerPairs('base')
+  const pool  = pools.find(p => p.address.toLowerCase() === address.toLowerCase())
+  if (!pool) return null
+  return { ...pool, recent_swaps: [] }
 }
 
-export function getStats(): Stats {
-  if (!USE_MOCK) {
-    throw new Error('API mode not implemented — set USE_MOCK = true')
+export async function getStats(): Promise<Stats> {
+  if (USE_MOCK) {
+    return MOCK_STATS
   }
-  return MOCK_STATS
+
+  // Derive stats from live pair data
+  const pools = await fetchDexScreenerPairs('base')
+  const volume_24h = pools.reduce((sum, p) => sum + p.volume_24h, 0)
+  const txns_24h   = pools.reduce((sum, p) => sum + p.txns_24h,  0)
+
+  return {
+    volume_24h,
+    txns_24h,
+    latest_block: 0,
+    block_ts:     new Date().toISOString(),
+  }
 }

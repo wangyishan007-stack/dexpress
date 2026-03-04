@@ -2,6 +2,7 @@
 
 import { PrivyProvider } from '@privy-io/react-auth'
 import { WatchlistProvider } from '../hooks/useWatchlist'
+import { ToastProvider } from './Toast'
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID
 
@@ -18,7 +19,11 @@ const BASE_CHAIN = {
 export function Providers({ children }: { children: React.ReactNode }) {
   // Skip PrivyProvider when App ID is not configured
   if (!PRIVY_APP_ID) {
-    return <WatchlistProvider>{children}</WatchlistProvider>
+    return (
+      <ToastProvider>
+        <WatchlistProvider>{children}</WatchlistProvider>
+      </ToastProvider>
+    )
   }
 
   return (
@@ -41,9 +46,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       }}
     >
-      <WatchlistProvider>
-        {children}
-      </WatchlistProvider>
+      <ToastProvider>
+        <WatchlistProvider>
+          {children}
+        </WatchlistProvider>
+      </ToastProvider>
     </PrivyProvider>
   )
 }

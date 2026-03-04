@@ -6,6 +6,7 @@ import type { Pool } from '@dex/shared'
 import { fmtPrice, fmtUsd, fmtAge, fmtNum, fmtPct, shortAddr } from '../../../lib/formatters'
 import { usePairWebSocket } from '../../../hooks/useWebSocket'
 import { getPair } from '../../../lib/dataProvider'
+import { fetchPoolTrades } from '../../../lib/dexscreener-client'
 import { PairTabs } from '../../../components/PairTabs'
 import { TradingViewChart } from '../../../components/TradingViewChart'
 import clsx from 'clsx'
@@ -175,11 +176,15 @@ const QUOTE_ADDRS = new Set([
 
 /* ── Main ─────────────────────────────────────────────────── */
 export function PairDetailClient({ address }: Props) {
-  // Mock mode: read from local data provider
-  const mockPool = useMemo(() => getPair(address), [address])
-  const pair = mockPool as PairDetail | null
-  const error = !mockPool ? new Error('Not found') : null
-  const isLoading = false
+  // Fetch pair from DexScreener client-side
+  const { data: pair, error, isLoading } = useSWR<PairDetail | null>(
+    `pair-${address}`,
+    async () => {
+      const { fetchPairByAddress } = await import('../../../lib/dexscreener-client')
+      return fetchPairByAddress(address) as Promise<PairDetail | null>
+    },
+    { revalidateOnFocus: false }
+  )
 
   const [livePrice, setLivePrice] = useState<number | null>(null)
   const [flash,     setFlash]     = useState<'up' | 'down' | null>(null)
@@ -221,20 +226,20 @@ export function PairDetailClient({ address }: Props) {
   }, [chartHeight])
 
   const [swaps,       setSwaps]       = useState<RecentSwap[]>([])
-  const [swapCursor,  setSwapCursor]  = useState<string | null>(null)
-  const [swapHasMore, setSwapHasMore] = useState(true)
+  const [swapHasMore, setSwapHasMore] = useState(false)
   const [swapLoading, setSwapLoading] = useState(false)
-  const seededRef = useRef('')
+  const tradesLoadedRef = useRef('')
 
   useEffect(() => {
-    if (pair && address !== seededRef.current) {
-      seededRef.current = address
-      const initial = pair.recent_swaps ?? []
-      setSwaps(initial)
-      setSwapCursor(initial.at(-1)?.timestamp ?? null)
-      setSwapHasMore(initial.length >= 50)
-    }
-  }, [pair, address])
+    if (!address || address === tradesLoadedRef.current) return
+    tradesLoadedRef.current = address
+    setSwapLoading(true)
+    fetchPoolTrades(address).then(trades => {
+      setSwaps(trades)
+      setSwapHasMore(false) // GT returns up to 300 trades, no pagination
+      setSwapLoading(false)
+    }).catch(() => setSwapLoading(false))
+  }, [address])
 
   // Live price
   const prevPrice = useRef(0)
@@ -253,19 +258,7 @@ export function PairDetailClient({ address }: Props) {
   )
   usePairWebSocket([address], handleUpdate)
 
-  const loadMoreSwaps = useCallback(async () => {
-    if (swapLoading || !swapHasMore) return
-    setSwapLoading(true)
-    try {
-      const qs   = swapCursor ? `?limit=50&before=${encodeURIComponent(swapCursor)}` : '?limit=50'
-      const data: RecentSwap[] = await fetch(`${BASE_URL}/api/pairs/${address}/swaps${qs}`).then(r => r.json())
-      setSwaps(s => [...s, ...data])
-      setSwapCursor(data.at(-1)?.timestamp ?? null)
-      setSwapHasMore(data.length >= 50)
-    } finally {
-      setSwapLoading(false)
-    }
-  }, [address, swapCursor, swapHasMore, swapLoading])
+  const loadMoreSwaps = useCallback(() => {}, [])
 
   /* ── Loading / error ─────────────────────────────────────── */
   if (isLoading) {

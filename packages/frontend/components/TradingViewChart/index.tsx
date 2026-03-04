@@ -169,7 +169,7 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
             bars.map((b: any) => ({
               time: b.time,
               value: b.volume,
-              color: b.close >= b.open ? 'rgba(38,166,154,0.3)' : 'rgba(239,83,80,0.3)',
+              color: b.close >= b.open ? 'rgba(38,166,154,0.5)' : 'rgba(239,83,80,0.5)',
             }))
           )
         }
@@ -185,24 +185,28 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
     const chart = createChart(containerRef.current, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: '#0a0a0a' },
-        textColor: '#666',
+        background: { type: ColorType.Solid, color: '#131722' },
+        textColor: '#787b86',
         fontSize: 12,
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: '#1a1a1a' },
-        horzLines: { color: '#1a1a1a' },
+        vertLines: { color: '#1e222d' },
+        horzLines: { color: '#1e222d' },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
+        vertLine: { color: '#758696', width: 1, style: 3, labelBackgroundColor: '#2a2e39' },
+        horzLine: { color: '#758696', width: 1, style: 3, labelBackgroundColor: '#2a2e39' },
       },
       rightPriceScale: {
-        borderColor: '#222',
+        borderColor: '#2a2e39',
+        autoScale: true,
       },
       timeScale: {
-        borderColor: '#222',
+        borderColor: '#2a2e39',
         timeVisible: true,
+        secondsVisible: false,
       },
     })
 
@@ -213,6 +217,7 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
       borderDownColor: '#ef5350',
       wickUpColor: '#26a69a',
       wickDownColor: '#ef5350',
+      priceFormat: { type: 'price', minMove: 0.00000001, precision: 8 },
     })
 
     const volumeSeries = chart.addHistogramSeries({
@@ -221,7 +226,7 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
     })
 
     chart.priceScale('volume').applyOptions({
-      scaleMargins: { top: 0.8, bottom: 0 },
+      scaleMargins: { top: 0.75, bottom: 0 },
     })
 
     chartRef.current = chart
@@ -246,7 +251,7 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
   return (
     <div className="flex flex-col w-full h-full">
       {/* Resolution toolbar */}
-      <div className="flex items-center gap-0.5 px-4 py-2 border-b border-border flex-shrink-0 bg-[#0a0a0a]">
+      <div className="flex items-center gap-0.5 px-4 py-2 border-b border-border flex-shrink-0 bg-[#131722]">
         {RESOLUTIONS.map((r) => (
           <button
             key={r.value}

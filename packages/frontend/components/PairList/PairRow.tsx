@@ -6,7 +6,7 @@ import { WatchToggle } from '../WatchToggle'
 import { getVisibleColumns, buildGridCols, buildDataGridCols, DEFAULT_DATA_GRID } from '../../lib/columnConfig'
 import type { ScreenerConfig, ColumnDef } from '../../lib/columnConfig'
 
-// "报价"代币地址（小写）
+// Quote token addresses (lowercase)
 const QUOTE_TOKEN_ADDRS = new Set([
   '0x4200000000000000000000000000000000000006', // WETH
   '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC

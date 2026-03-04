@@ -7,7 +7,8 @@
     "packages/*"
   ],
   "dependencies": {
-    "next": "14.2.35"
+    "next": "14.2.35",
+    "undici": "^7.22.0"
   },
   "scripts": {
     "dev": "pnpm --parallel --filter='./packages/*' dev",
@@ -15,7 +16,7 @@
     "workers": "pnpm --filter='@dex/workers' dev",
     "api": "pnpm --filter='@dex/api' dev",
     "frontend": "pnpm --filter='@dex/frontend' dev",
-    "db:migrate":        "pnpm --filter='@dex/database' migrate",
+    "db:migrate": "pnpm --filter='@dex/database' migrate",
     "db:migrate:simple": "pnpm --filter='@dex/database' migrate:simple"
   }
 }

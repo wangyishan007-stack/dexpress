@@ -1,0 +1,130 @@
+import { NextRequest, NextResponse } from 'next/server'
+
+const ALLOWED_HOST = 'api.geckoterminal.com'
+const GT_HEADERS = { Accept: 'application/json;version=20230302' }
+const DELAY_MS = 1200 // Delay between GT requests to avoid 429
+
+// ─── Server-side per-URL cache (survives across requests) ─────
+const urlCache = new Map<string, { data: any; ts: number }>()
+const URL_CACHE_TTL = 90_000
+
+function getCached(url: string): any | null {
+  const entry = urlCache.get(url)
+  if (entry && Date.now() - entry.ts < URL_CACHE_TTL) return entry.data
+  return null
+}
+
+function setCache(url: string, data: any) {
+  urlCache.set(url, { data, ts: Date.now() })
+}
+
+// Coalesce simultaneous batch requests
+let pendingBatch: Promise<NextResponse> | null = null
+
+export async function POST(req: NextRequest) {
+  let body: { urls: string[] }
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const { urls } = body
+  if (!Array.isArray(urls) || urls.length === 0 || urls.length > 10) {
+    return NextResponse.json({ error: 'Need 1-10 urls' }, { status: 400 })
+  }
+
+  for (const url of urls) {
+    try {
+      if (new URL(url).host !== ALLOWED_HOST) {
+        return NextResponse.json({ error: 'Disallowed host' }, { status: 400 })
+      }
+    } catch {
+      return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
+    }
+  }
+
+  // Check if all URLs are cached — return instantly
+  const allCached = urls.every(url => getCached(url) !== null)
+  if (allCached) {
+    const results = urls.map(url => ({ status: 200, data: getCached(url)! }))
+    return NextResponse.json({ results })
+  }
+
+  // Coalesce: if another batch is in progress, wait for it
+  if (pendingBatch) {
+    await pendingBatch
+    // After coalesced batch, try cache again
+    const results = urls.map(url => {
+      const cached = getCached(url)
+      return cached ? { status: 200, data: cached } : { status: 502, data: { error: 'miss' } }
+    })
+    return NextResponse.json({ results })
+  }
+
+  const promise = fetchBatch(urls)
+  pendingBatch = promise
+  const response = await promise
+  pendingBatch = null
+  return response
+}
+
+async function fetchBatch(urls: string[]): Promise<NextResponse> {
+  const proxyUrl = process.env.PROXY_URL
+  const results: { status: number; data: any }[] = []
+
+  // Split into cached and uncached
+  const uncachedIndexes: number[] = []
+  for (let i = 0; i < urls.length; i++) {
+    const cached = getCached(urls[i])
+    if (cached) {
+      results[i] = { status: 200, data: cached }
+    } else {
+      uncachedIndexes.push(i)
+    }
+  }
+
+  // Fetch uncached URLs sequentially with delay
+  for (let j = 0; j < uncachedIndexes.length; j++) {
+    if (j > 0) await new Promise(r => setTimeout(r, DELAY_MS))
+    const i = uncachedIndexes[j]
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        let res: any
+        if (proxyUrl) {
+          const { ProxyAgent, fetch: uFetch } = await import('undici')
+          const agent = new ProxyAgent(proxyUrl)
+          res = await uFetch(urls[i], {
+            dispatcher: agent,
+            headers: GT_HEADERS,
+            signal: AbortSignal.timeout(15_000),
+          })
+        } else {
+          res = await fetch(urls[i], {
+            headers: GT_HEADERS,
+            signal: AbortSignal.timeout(15_000),
+          })
+        }
+
+        if (res.status === 429 && attempt < 1) {
+          await new Promise(r => setTimeout(r, 3000))
+          continue
+        }
+
+        const data = await res.json()
+        results[i] = { status: res.status, data }
+        if (res.status === 200) setCache(urls[i], data)
+        break
+      } catch (err: any) {
+        if (attempt < 1) {
+          await new Promise(r => setTimeout(r, 1500))
+          continue
+        }
+        results[i] = { status: 502, data: { error: err.message } }
+      }
+    }
+  }
+
+  return NextResponse.json({ results })
+}
