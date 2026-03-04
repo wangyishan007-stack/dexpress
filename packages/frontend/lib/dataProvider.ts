@@ -2,6 +2,7 @@ import type { Pool, PairsResponse } from '@dex/shared'
 import type { PairsQuery } from '@dex/shared'
 import { MOCK_POOLS, MOCK_STATS, buildSwapsForPool } from './mockData'
 import { fetchDexScreenerPairs } from './dexscreener'
+import { fetchPairByAddress, fetchDexScreenerClient } from './dexscreener-client'
 import type { Stats } from '../hooks/useStats'
 import type { FilterValues, TextFilterValues } from '../components/FiltersModal'
 
@@ -75,7 +76,7 @@ export async function getPairs(params: PairsQuery & { customFilters?: FilterValu
   if (USE_MOCK) {
     pools = MOCK_POOLS
   } else {
-    pools = await fetchDexScreenerPairs('base')
+    pools = await fetchDexScreenerClient()
   }
 
   const filtered = filterPools(pools, params.filter)
@@ -101,9 +102,13 @@ export async function getPair(address: string): Promise<(Pool & { recent_swaps: 
     return { ...pool, recent_swaps: buildSwapsForPool(idx, pool.price_usd) }
   }
 
-  // In live mode: look up the pair from DexScreener by address
-  const pools = await fetchDexScreenerPairs('base')
-  const pool  = pools.find(p => p.address.toLowerCase() === address.toLowerCase())
+  // Try cached GT pools first, then single pool lookup
+  const pools = await fetchDexScreenerClient()
+  const cached = pools.find(p => p.address.toLowerCase() === address.toLowerCase())
+  if (cached) return { ...cached, recent_swaps: [] }
+
+  // Fallback: fetch single pool from GeckoTerminal
+  const pool = await fetchPairByAddress(address)
   if (!pool) return null
   return { ...pool, recent_swaps: [] }
 }
@@ -113,8 +118,8 @@ export async function getStats(): Promise<Stats> {
     return MOCK_STATS
   }
 
-  // Derive stats from live pair data
-  const pools = await fetchDexScreenerPairs('base')
+  // Derive stats from live GT data
+  const pools = await fetchDexScreenerClient()
   const volume_24h = pools.reduce((sum, p) => sum + p.volume_24h, 0)
   const txns_24h   = pools.reduce((sum, p) => sum + p.txns_24h,  0)
 
