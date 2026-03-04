@@ -185,14 +185,14 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
     const chart = createChart(containerRef.current, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: '#131722' },
+        background: { type: ColorType.Solid, color: '#000000' },
         textColor: '#787b86',
         fontSize: 12,
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: '#1e222d' },
-        horzLines: { color: '#1e222d' },
+        vertLines: { color: '#1a1a1a' },
+        horzLines: { color: '#1a1a1a' },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
@@ -251,7 +251,7 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
   return (
     <div className="flex flex-col w-full h-full">
       {/* Resolution toolbar */}
-      <div className="flex items-center gap-0.5 px-4 py-2 border-b border-border flex-shrink-0 bg-[#131722]">
+      <div className="flex items-center gap-0.5 px-4 py-2 border-b border-border flex-shrink-0 bg-black">
         {RESOLUTIONS.map((r) => (
           <button
             key={r.value}
