@@ -36,9 +36,9 @@ export function RankByDropdown({ sort, order, onSort, onOrder, rankLabel }: Prop
     <Dropdown
       align="right"
       trigger={
-        <button className="flex items-center gap-2 h-full px-3 md:px-4 text-sub hover:text-white transition-colors">
+        <button className="flex items-center gap-2 h-full px-3 md:px-4 text-sub hover:text-white transition-colors whitespace-nowrap">
           <IconRank />
-          <span className="hidden md:inline text-[14px] text-text whitespace-nowrap">Rank by:&nbsp; {rankLabel}</span>
+          <span className="text-[12px] md:text-[14px] text-text">{rankLabel}</span>
         </button>
       }
     >

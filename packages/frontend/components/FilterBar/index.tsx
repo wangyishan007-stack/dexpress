@@ -114,9 +114,9 @@ export function FilterBar({
   })()
 
   return (
-    <div className="flex flex-col gap-2 py-2 md:flex-row md:items-center md:justify-between md:py-3">
+    <div className="flex items-center gap-2 py-2 md:gap-4 md:py-3 overflow-x-auto scrollbar-hide">
       {/* Left group */}
-      <div className="flex items-center gap-2 md:gap-4 flex-nowrap overflow-x-auto scrollbar-hide md:overflow-visible">
+      <div className="flex items-center gap-2 md:gap-4 flex-nowrap">
 
         {/* Last X hours dropdown — controls data columns */}
         <TimeRangeDropdown window={dataWindow} onWindow={onDataWindow} />
@@ -246,7 +246,7 @@ export function FilterBar({
       </div>
 
       {/* Right group — single bordered container */}
-      <div className="flex items-center border border-border rounded-lg h-[30px] md:h-[36px] flex-shrink-0">
+      <div className="flex items-center border border-border rounded-lg h-[30px] md:h-[36px] flex-shrink-0 ml-auto">
         {/* Rank by */}
         <RankByDropdown
           sort={sort ?? 'trending_score'}
