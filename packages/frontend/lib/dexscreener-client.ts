@@ -531,6 +531,18 @@ const DETAIL_CACHE_TTL = 60_000 // 60s
 
 // ─── Single pair lookup ───────────────────────────────────────
 
+function _poolFromList(addrLower: string): (Pool & PoolExtended & { recent_swaps: never[] }) | null {
+  const fromList = _cachedPools.find(p => p.address.toLowerCase() === addrLower)
+  if (!fromList) return null
+  return {
+    ...fromList,
+    base_token_price_native: 0,
+    quote_token_price_usd: 0,
+    locked_liquidity_pct: null as number | null,
+    recent_swaps: [] as never[],
+  }
+}
+
 export async function fetchPairByAddress(
   address: string
 ): Promise<(Pool & PoolExtended & { recent_swaps: never[] }) | null> {
@@ -544,25 +556,24 @@ export async function fetchPairByAddress(
 
   // 2. Check list page cache — if we already have this pool from trending/volume lists,
   //    use it as instant fallback (missing extended fields get defaults)
-  const fromList = _cachedPools.find(p => p.address.toLowerCase() === addrLower)
-  if (fromList && !cached) {
-    // Return list data immediately with default extended fields.
-    // A background API fetch will update with full data on next SWR revalidation.
-    const fallback = {
-      ...fromList,
-      base_token_price_native: 0,
-      quote_token_price_usd: 0,
-      locked_liquidity_pct: null as number | null,
-      recent_swaps: [] as never[],
-    }
-    // Don't cache this fallback — let the API fetch replace it
-    // But still try API in background for extended data
+  const fromList = _poolFromList(addrLower)
+  if (fromList) {
+    // Return list data immediately. Background fetch updates with full data.
     _fetchAndCacheDetail(address, addrLower).catch(() => {})
-    return fallback
+    return fromList
   }
 
-  // 3. Fetch from GT API
-  return _fetchAndCacheDetail(address, addrLower)
+  // 3. If list cache empty, trigger list load in background so future calls benefit
+  if (_cachedPools.length === 0) {
+    fetchDexScreenerClient().catch(() => {})
+  }
+
+  // 4. Fetch from GT API
+  const result = await _fetchAndCacheDetail(address, addrLower)
+  if (result) return result
+
+  // 5. API failed — check list cache one more time (may have been populated by step 3)
+  return _poolFromList(addrLower)
 }
 
 async function _fetchAndCacheDetail(
