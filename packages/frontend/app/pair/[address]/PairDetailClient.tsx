@@ -368,10 +368,17 @@ export function PairDetailClient({ address }: Props) {
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-sub"><path d="M4.5 2L8.5 6L4.5 10" stroke="currentColor" strokeWidth="1.2"/></svg>
                 <div className="flex items-center gap-1">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/branding/uniswap-icon.svg" alt="Uniswap" width={16} height={16} />
-                  <span className="text-[14px] text-sub">Uniswap</span>
+                  {pair.dex === 'aerodrome'
+                    ? <span className="text-[14px] text-sub">Aerodrome</span>
+                    : <>
+                        <img src="/branding/uniswap-icon.svg" alt="Uniswap" width={16} height={16} />
+                        <span className="text-[14px] text-sub">Uniswap</span>
+                      </>
+                  }
                 </div>
-                <span className="border border-border rounded px-1 py-0.5 text-[12px] text-sub">V4</span>
+                {pair.dex !== 'aerodrome' && (
+                  <span className="border border-border rounded px-1 py-0.5 text-[12px] text-sub">{pair.dex === 'uniswap_v4' ? 'V4' : 'V3'}</span>
+                )}
               </div>
             </div>
             {/* Banner: token logo as blurred cover, fallback to gradient */}
@@ -666,13 +673,12 @@ export function PairDetailClient({ address }: Props) {
                     const buyVolPct  = vol > 0 ? Math.max(0.1, (buyVol / vol) * 100) : 50
                     const sellVolPct = vol > 0 ? Math.max(0.1, (sellVol / vol) * 100) : 50
 
-                    // GT transactions provide buyers/sellers counts per window
-                    const t = pair as any
+                    // GT transactions provide buyers/sellers (unique wallets) per window
                     const periodMap: Record<string, { buyers: number; sellers: number }> = {
-                      '5m':  { buyers: t.buys_5m ?? 0,  sellers: t.sells_5m ?? 0 },
-                      '1h':  { buyers: t.buys_1h ?? 0,  sellers: t.sells_1h ?? 0 },
-                      '6h':  { buyers: t.buys_6h ?? 0,  sellers: t.sells_6h ?? 0 },
-                      '24h': { buyers: t.buys_24h ?? 0, sellers: t.sells_24h ?? 0 },
+                      '5m':  { buyers: pair.buyers_5m ?? 0,  sellers: pair.sellers_5m ?? 0 },
+                      '1h':  { buyers: pair.buyers_1h ?? 0,  sellers: pair.sellers_1h ?? 0 },
+                      '6h':  { buyers: pair.buyers_6h ?? 0,  sellers: pair.sellers_6h ?? 0 },
+                      '24h': { buyers: pair.buyers_24h ?? 0, sellers: pair.sellers_24h ?? 0 },
                     }
                     const pm = periodMap[active.key] ?? { buyers: 0, sellers: 0 }
                     const totalMakers = pm.buyers + pm.sellers || 1
@@ -968,7 +974,7 @@ export function PairDetailClient({ address }: Props) {
                   </span>
                 </div>
               </div>
-              <p className="text-[14px] text-sub text-center">This is a live and tradable layer one token blockdag contract address</p>
+              <p className="text-[14px] text-sub text-center">{base.symbol} on Base chain · {dexLabel}{feeLabel ? ` · ${feeLabel} fee` : ''}</p>
             </div>
           </div>
 

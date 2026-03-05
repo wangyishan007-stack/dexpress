@@ -225,6 +225,10 @@ export async function fetchDexScreenerPairs(chain = 'base'): Promise<Pool[]> {
         sells_6h:       sells6h,
         sells_24h:      sells24h,
 
+        // DexScreener doesn't expose unique buyer/seller counts
+        buyers_5m: 0, buyers_1h: 0, buyers_6h: 0, buyers_24h: 0,
+        sellers_5m: 0, sellers_1h: 0, sellers_6h: 0, sellers_24h: 0,
+
         // DexScreener doesn't expose unique maker counts
         makers_5m:      0,
         makers_1h:      0,

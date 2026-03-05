@@ -57,6 +57,14 @@ export interface Pool {
   sells_1h:      number
   sells_6h:      number
   sells_24h:     number
+  buyers_5m:     number
+  buyers_1h:     number
+  buyers_6h:     number
+  buyers_24h:    number
+  sellers_5m:    number
+  sellers_1h:    number
+  sellers_6h:    number
+  sellers_24h:   number
   trending_score: number
   trending_5m:   number
   trending_1h:   number

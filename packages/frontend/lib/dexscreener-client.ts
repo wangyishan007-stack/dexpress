@@ -218,6 +218,8 @@ function mapPool(p: GTPool, logos?: LogoMap): Pool | null {
       txns_5m: txns5m,   txns_1h: txns1h,   txns_6h: txns6h,   txns_24h: txns24h,
       buys_5m:  t.m5.buys,  buys_1h:  t.h1.buys,  buys_6h:  t.h6.buys,  buys_24h:  t.h24.buys,
       sells_5m: t.m5.sells, sells_1h: t.h1.sells, sells_6h: t.h6.sells, sells_24h: t.h24.sells,
+      buyers_5m:  t.m5.buyers,  buyers_1h:  t.h1.buyers,  buyers_6h:  t.h6.buyers,  buyers_24h:  t.h24.buyers,
+      sellers_5m: t.m5.sellers, sellers_1h: t.h1.sellers, sellers_6h: t.h6.sellers, sellers_24h: t.h24.sellers,
 
       makers_5m: makers5m, makers_1h: makers1h, makers_6h: makers6h, makers_24h: makers24h,
 
