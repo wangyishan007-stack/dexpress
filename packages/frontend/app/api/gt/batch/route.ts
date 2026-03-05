@@ -67,14 +67,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ results })
   }
 
-  // Coalesce: if another batch is already in-flight, wait for it then use cache
+  // Coalesce: if another batch is already in-flight, wait for it then check cache
   if (pendingBatch) {
     await pendingBatch
-    const results = urls.map(url => {
-      const cached = getCached(url) ?? getFallback(url)
-      return cached ? { status: 200, data: cached } : { status: 502, data: { error: 'miss' } }
-    })
-    return NextResponse.json({ results })
+    const allCached = urls.every(url => (getCached(url) ?? getFallback(url)) !== null)
+    if (allCached) {
+      const results = urls.map(url => ({ status: 200, data: (getCached(url) ?? getFallback(url))! }))
+      return NextResponse.json({ results })
+    }
+    // Cache miss for some URLs — fall through to fetch them
   }
 
   // Not all fresh — fetch uncached URLs (block and wait)
@@ -98,12 +99,12 @@ async function fetchOne(url: string, proxyUrl?: string): Promise<{ status: numbe
         res = await uFetch(url, {
           dispatcher: agent,
           headers: GT_HEADERS,
-          signal: AbortSignal.timeout(15_000),
+          signal: AbortSignal.timeout(8_000),
         })
       } else {
         res = await fetch(url, {
           headers: GT_HEADERS,
-          signal: AbortSignal.timeout(15_000),
+          signal: AbortSignal.timeout(8_000),
         })
       }
 

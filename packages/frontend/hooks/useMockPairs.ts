@@ -16,7 +16,7 @@ export { useLivePrices } from './usePairs'
 const FILTER_KEY_MAP: Record<string, string> = {
   liquidity: 'liquidity_usd',
   mcap:      'mcap_usd',
-  fdv:       'mcap_usd',
+  fdv:       '_fdv', // computed below
 }
 
 function applyCustomFilters(pools: Pool[], customFilters?: FilterValues, textFilters?: TextFilterValues): Pool[] {
@@ -32,6 +32,12 @@ function applyCustomFilters(pools: Pool[], customFilters?: FilterValues, textFil
         let value: number | undefined
         if (key === 'pair_age') {
           value = (now - new Date(pool.created_at).getTime()) / 3600_000
+        } else if (key === 'fdv') {
+          // FDV = totalSupply * price (not mcap)
+          const base = pool.token0 ?? pool.token1
+          const rawSupply = BigInt(base?.total_supply || '0')
+          const totalSupply = Number(rawSupply) / Math.pow(10, base?.decimals ?? 18)
+          value = totalSupply > 0 ? totalSupply * Number(pool.price_usd) : 0
         } else {
           const field = FILTER_KEY_MAP[key] ?? key
           value = (pool as unknown as Record<string, unknown>)[field] as number | undefined

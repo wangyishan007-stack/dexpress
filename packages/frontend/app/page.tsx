@@ -21,8 +21,18 @@ export default function HomePage() {
   const [trendingWindow, setTrendingWindow] = useState<TimeWindow>('6h')
   const [sort, setSort]                   = useState<SortField>('trending_6h')
   const [order, setOrder]                 = useState<'asc' | 'desc'>('desc')
-  const [customFilters, setCustomFilters] = useState<FilterValues>(buildInitialFilters)
-  const [textFilters, setTextFilters]     = useState<TextFilterValues>({ labels: '', addressSuffixes: '' })
+  const [customFilters, setCustomFilters] = useState<FilterValues>(() => {
+    try {
+      const saved = localStorage.getItem('custom_filters_allcoins')
+      return saved ? JSON.parse(saved) : buildInitialFilters()
+    } catch { return buildInitialFilters() }
+  })
+  const [textFilters, setTextFilters] = useState<TextFilterValues>(() => {
+    try {
+      const saved = localStorage.getItem('text_filters_allcoins')
+      return saved ? JSON.parse(saved) : { labels: '', addressSuffixes: '' }
+    } catch { return { labels: '', addressSuffixes: '' } }
+  })
   const [screenerConfig, setScreenerConfig] = useState<ScreenerConfig>(DEFAULT_CONFIG)
   useEffect(() => { setScreenerConfig(loadConfig('allcoins')) }, [])
 
@@ -34,11 +44,17 @@ export default function HomePage() {
   const handleFiltersChange = useCallback((f: FilterValues, t: TextFilterValues) => {
     setCustomFilters(f)
     setTextFilters(t)
+    try { localStorage.setItem('custom_filters_allcoins', JSON.stringify(f)) } catch {}
+    try { localStorage.setItem('text_filters_allcoins', JSON.stringify(t)) } catch {}
   }, [])
 
   const handleFiltersReset = useCallback(() => {
-    setCustomFilters(buildInitialFilters())
-    setTextFilters({ labels: '', addressSuffixes: '' })
+    const empty = buildInitialFilters()
+    const emptyText = { labels: '', addressSuffixes: '' }
+    setCustomFilters(empty)
+    setTextFilters(emptyText)
+    try { localStorage.removeItem('custom_filters_allcoins') } catch {}
+    try { localStorage.removeItem('text_filters_allcoins') } catch {}
   }, [])
 
   const sortField: SortField =
@@ -50,6 +66,7 @@ export default function HomePage() {
     window: dataWindow,
     order,
     customFilters,
+    textFilters,
   })
 
   const { showToast } = useToast()

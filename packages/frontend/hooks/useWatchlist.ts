@@ -38,7 +38,6 @@ function makeDefault(): WatchlistsState {
   return {
     lists: [
       { id: MAIN_ID, name: 'Main Watchlist', pairIds: [], updatedAt: new Date().toISOString() },
-      { id: 'xx',    name: 'xx',              pairIds: [], updatedAt: new Date().toISOString() },
     ],
     activeListId: MAIN_ID,
   }

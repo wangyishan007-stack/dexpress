@@ -5,7 +5,7 @@ import Link from 'next/link'
 import clsx from 'clsx'
 import { useWatchlist } from '../../hooks/useWatchlist'
 import { useAuth } from '../../hooks/useAuth'
-import { MOCK_POOLS } from '../../lib/mockData'
+import { getCachedPools } from '../../lib/dexscreener-client'
 import { fmtPrice } from '../../lib/formatters'
 
 const QUOTE_TOKEN_ADDRS = new Set([
@@ -27,9 +27,10 @@ export function WatchlistPanel() {
     return null
   }
 
+  const allPools = getCachedPools()
   const watchedPools = activeList.pairIds
-    .map(addr => MOCK_POOLS.find(p => p.address === addr))
-    .filter(Boolean) as typeof MOCK_POOLS
+    .map(addr => allPools.find(p => p.address.toLowerCase() === addr.toLowerCase()))
+    .filter(Boolean) as typeof allPools
 
   const visiblePools = expanded ? watchedPools : watchedPools.slice(0, COLLAPSED_COUNT)
   const canExpand = watchedPools.length > COLLAPSED_COUNT

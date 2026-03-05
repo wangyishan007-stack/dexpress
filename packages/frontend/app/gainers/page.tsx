@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import clsx from 'clsx'
 import type { TimeWindow, SortField } from '@dex/shared'
 import { useMockPairs, useLivePrices } from '../../hooks/useMockPairs'
@@ -9,7 +9,8 @@ import { PairList }                from '../../components/PairList'
 import { StatsBar }                from '../../components/StatsBar'
 import { TimeRangeDropdown }       from '../../components/FilterBar/TimeRangeDropdown'
 import { ScreenerSettingsModal }   from '../../components/ScreenerSettingsModal'
-import { FiltersModal }            from '../../components/FiltersModal'
+import { FiltersModal, buildInitialFilters }            from '../../components/FiltersModal'
+import type { FilterValues, TextFilterValues } from '../../components/FiltersModal'
 import { loadConfig, saveConfig, DEFAULT_CONFIG }  from '../../lib/columnConfig'
 import type { ScreenerConfig }     from '../../lib/columnConfig'
 
@@ -56,10 +57,22 @@ const BTN = 'flex items-center gap-2 rounded-lg font-medium transition-colors fl
 
 export default function GainersPage() {
   const [tab, setTab] = useState<Tab>('gainers')
-  const [window, setWindow] = useState<TimeWindow>('24h')
+  const [timeWindow, setTimeWindow] = useState<TimeWindow>('24h')
   const [sortBy, setSortBy] = useState<SortBy>('change')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [customFilters, setCustomFilters] = useState<FilterValues>(() => {
+    try {
+      const saved = localStorage.getItem('custom_filters_gainers')
+      return saved ? JSON.parse(saved) : buildInitialFilters()
+    } catch { return buildInitialFilters() }
+  })
+  const [textFilters, setTextFilters] = useState<TextFilterValues>(() => {
+    try {
+      const saved = localStorage.getItem('text_filters_gainers')
+      return saved ? JSON.parse(saved) : { labels: '', addressSuffixes: '' }
+    } catch { return { labels: '', addressSuffixes: '' } }
+  })
   const [screenerConfig, setScreenerConfig] = useState<ScreenerConfig>(DEFAULT_CONFIG)
   useEffect(() => { setScreenerConfig(loadConfig('gainers')) }, [])
 
@@ -68,16 +81,34 @@ export default function GainersPage() {
     saveConfig(config, 'gainers')
   }
 
+  const handleFiltersChange = useCallback((f: FilterValues, t: TextFilterValues) => {
+    setCustomFilters(f)
+    setTextFilters(t)
+    try { localStorage.setItem('custom_filters_gainers', JSON.stringify(f)) } catch {}
+    try { localStorage.setItem('text_filters_gainers', JSON.stringify(t)) } catch {}
+  }, [])
+
+  const handleFiltersReset = useCallback(() => {
+    const empty = buildInitialFilters()
+    const emptyText = { labels: '', addressSuffixes: '' }
+    setCustomFilters(empty)
+    setTextFilters(emptyText)
+    try { localStorage.removeItem('custom_filters_gainers') } catch {}
+    try { localStorage.removeItem('text_filters_gainers') } catch {}
+  }, [])
+
   const sortField = (
-    sortBy === 'volume'    ? `volume_${window}` :
-    sortBy === 'liquidity' ? 'liquidity_usd'    :
-                             `change_${window}`
+    sortBy === 'volume'    ? `volume_${timeWindow}` :
+    sortBy === 'liquidity' ? 'liquidity_usd'        :
+                             `change_${timeWindow}`
   ) as SortField
 
   const { pairs, hasMore, isLoading, isValidating, loadMore } = useMockPairs({
     sort:   sortField,
-    filter: 'trending',
+    filter: tab,
     order:  tab === 'gainers' ? 'desc' : 'asc',
+    customFilters,
+    textFilters,
   })
 
   const { prices, flashing, handlePriceUpdate } = useLivePrices(pairs)
@@ -101,10 +132,10 @@ export default function GainersPage() {
       <div className="flex flex-col gap-2 py-2 md:flex-row md:items-center md:justify-between md:py-3">
         {/* Left group */}
         <div className="flex items-center gap-2 md:gap-4 flex-nowrap overflow-x-auto scrollbar-hide md:overflow-visible">
-          <TimeRangeDropdown window={window} onWindow={setWindow} />
+          <TimeRangeDropdown window={timeWindow} onWindow={setTimeWindow} />
 
           <button
-            onClick={() => { setTab('gainers'); setSortBy('change') }}
+            onClick={() => setTab('gainers')}
             className={clsx(BTN, tab === 'gainers' ? 'bg-blue text-white' : 'bg-border text-text hover:text-white')}
           >
             <IconUp />
@@ -112,7 +143,7 @@ export default function GainersPage() {
           </button>
 
           <button
-            onClick={() => { setTab('losers'); setSortBy('change') }}
+            onClick={() => setTab('losers')}
             className={clsx(BTN, tab === 'losers' ? 'bg-blue text-white' : 'bg-border text-text hover:text-white')}
           >
             <IconDown />
@@ -129,6 +160,13 @@ export default function GainersPage() {
           >
             <IconFilter />
             <span className="hidden md:inline text-[14px]">Filters</span>
+            {(() => {
+              const cnt = (customFilters ? Object.values(customFilters).filter(v => v.min !== '' || v.max !== '').length : 0)
+                + (textFilters?.labels ? 1 : 0) + (textFilters?.addressSuffixes ? 1 : 0)
+              return cnt > 0 ? (
+                <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-blue text-white text-[11px] font-bold leading-none">{cnt}</span>
+              ) : null
+            })()}
           </button>
           <button
             onClick={() => setSettingsOpen(true)}
@@ -140,7 +178,14 @@ export default function GainersPage() {
       </div>
 
       <ScreenerSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} config={screenerConfig} onApply={handleScreenerConfigChange} />
-      <FiltersModal open={filtersOpen} onClose={() => setFiltersOpen(false)} />
+      <FiltersModal
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        initialFilters={customFilters}
+        initialTextFilters={textFilters}
+        onApply={handleFiltersChange}
+        onReset={handleFiltersReset}
+      />
 
       {/* Pair list */}
       <PairList
@@ -150,7 +195,7 @@ export default function GainersPage() {
         isValidating={isValidating}
         livePrices={prices}
         flashing={flashing}
-        timeWindow={window}
+        timeWindow={timeWindow}
         loading={isLoading}
         columnConfig={screenerConfig}
       />

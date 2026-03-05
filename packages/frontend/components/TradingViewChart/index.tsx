@@ -126,8 +126,8 @@ function generateMockCandles(address: string, resolution: Resolution) {
   return bars
 }
 
-/* ── Fetch real candles, fallback to mock ───────────────────── */
-async function fetchCandles(address: string, resolution: Resolution) {
+/* ── Fetch real candles ─────────────────────────────────────── */
+async function fetchCandles(address: string, resolution: Resolution): Promise<{ bars: any[]; isMock: boolean }> {
   if (BASE_URL) {
     const apiRes = RESOLUTION_API_MAP[resolution] || '5m'
     const to = Math.floor(Date.now() / 1000)
@@ -137,19 +137,22 @@ async function fetchCandles(address: string, resolution: Resolution) {
         `${BASE_URL}/api/pairs/${address}/candles?resolution=${apiRes}&from=${from}&to=${to}`
       ).then((r) => r.json())
       if (Array.isArray(data) && data.length > 0) {
-        return data.map((d: any) => ({
-          time: d.time as number,
-          open: Number(d.open),
-          high: Number(d.high),
-          low: Number(d.low),
-          close: Number(d.close),
-          volume: Number(d.volume || 0),
-        }))
+        return {
+          bars: data.map((d: any) => ({
+            time: d.time as number,
+            open: Number(d.open),
+            high: Number(d.high),
+            low: Number(d.low),
+            close: Number(d.close),
+            volume: Number(d.volume || 0),
+          })),
+          isMock: false,
+        }
       }
     } catch {}
   }
-  // Fallback: generate mock candles
-  return generateMockCandles(address, resolution)
+  // Fallback: generate mock candles (flagged so UI can warn user)
+  return { bars: generateMockCandles(address, resolution), isMock: true }
 }
 
 /* ── Calculate Moving Average ──────────────────────────────── */
@@ -294,6 +297,7 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
   const [chartType, setChartType] = useState<ChartType>('candles')
   const [showMA, setShowMA] = useState(false)
   const [logScale, setLogScale] = useState(false)
+  const [isMockData, setIsMockData] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   const [chartTypeOpen, setChartTypeOpen] = useState(false)
@@ -332,8 +336,9 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
 
   const loadData = useCallback(
     async (res: Resolution, type: ChartType, showMaOverlay: boolean) => {
-      const bars = await fetchCandles(pairAddress, res)
+      const { bars, isMock } = await fetchCandles(pairAddress, res)
       barsRef.current = bars
+      setIsMockData(isMock)
       if (!chartRef.current || bars.length === 0) return
 
       // Clear previous series
@@ -597,7 +602,9 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
       </div>
 
       {/* ── Chart ────────────────────────────────────────────── */}
-      <div ref={containerRef} className="flex-1 min-h-0" />
+      <div className="relative flex-1 min-h-0">
+        <div ref={containerRef} className="absolute inset-0" />
+      </div>
 
       {/* ── MA Legend (when active) ───────────────────────────── */}
       {showMA && (

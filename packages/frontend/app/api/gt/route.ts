@@ -50,14 +50,14 @@ async function doFetch(url: string): Promise<NextResponse> {
       const res = await uFetch(url, {
         dispatcher: agent,
         headers: GT_HEADERS,
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(8_000),
       })
       body = await res.text()
       status = res.status
     } else {
       const res = await fetch(url, {
         headers: GT_HEADERS,
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(8_000),
       })
       body = await res.text()
       status = res.status

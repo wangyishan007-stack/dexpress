@@ -25,7 +25,7 @@ interface Props {
   newSwapIds?: Set<string>
 }
 
-type TypeFilterValue = 'all' | 'buy_sell' | 'buy' | 'sell' | 'add_remove' | 'add' | 'remove'
+type TypeFilterValue = 'all' | 'buy_sell' | 'buy' | 'sell'
 
 interface Filters {
   dateFrom: string
@@ -241,13 +241,10 @@ function DateFilter({ from, to, onFromChange, onToChange }: {
 /* ── Type Dropdown ──────────────────────────────────────── */
 
 const TYPE_OPTIONS: { key: TypeFilterValue; label: string }[] = [
-  { key: 'all',        label: 'All' },
-  { key: 'buy_sell',   label: 'Buy / Sell' },
-  { key: 'buy',        label: 'Buy' },
-  { key: 'sell',       label: 'Sell' },
-  { key: 'add_remove', label: 'Add / Remove' },
-  { key: 'add',        label: 'Add' },
-  { key: 'remove',     label: 'Remove' },
+  { key: 'all',      label: 'All' },
+  { key: 'buy_sell', label: 'Buy / Sell' },
+  { key: 'buy',      label: 'Buy' },
+  { key: 'sell',     label: 'Sell' },
 ]
 
 function TypeDropdown({ value, onChange, onClose }: {
@@ -417,9 +414,6 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
       if (filters.type === 'buy' && !s.is_buy) return false
       if (filters.type === 'sell' && s.is_buy) return false
       if (filters.type === 'buy_sell') { /* show both buy & sell — no filter */ }
-      if (filters.type === 'add_remove') return false
-      if (filters.type === 'add') return false
-      if (filters.type === 'remove') return false
       if (filters.usdMin && s.amount_usd < Number(filters.usdMin)) return false
       if (filters.usdMax && s.amount_usd > Number(filters.usdMax)) return false
       const ethAmt = Math.abs(Number(s.amount0))
@@ -460,7 +454,11 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
 
       {filtered.length === 0 && (
         <div className="flex items-center justify-center py-8 text-sub text-[13px]">
-          No transactions yet.
+          {swapLoading ? (
+            <span className="flex items-center gap-2"><Spinner /> Loading transactions...</span>
+          ) : (
+            'No transactions yet.'
+          )}
         </div>
       )}
 

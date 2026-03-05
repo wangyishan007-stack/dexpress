@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import useSWR from 'swr'
 import Link from 'next/link'
 import type { TimeWindow } from '@dex/shared'
 import { useAuth } from '../../hooks/useAuth'
@@ -11,7 +12,7 @@ import { StatsBar }             from '../../components/StatsBar'
 import { useWatchlist }         from '../../hooks/useWatchlist'
 import { useLivePrices }        from '../../hooks/useMockPairs'
 import { usePairWebSocket }     from '../../hooks/useWebSocket'
-import { MOCK_POOLS }           from '../../lib/mockData'
+import { getCachedPools, fetchDexScreenerClient } from '../../lib/dexscreener-client'
 import { ManageListsModal }    from '../../components/ManageListsModal'
 import { AddPairModal }        from '../../components/AddPairModal'
 import { loadConfig, saveConfig, DEFAULT_CONFIG } from '../../lib/columnConfig'
@@ -201,22 +202,41 @@ export default function WatchlistPage() {
     saveConfig(config, 'watchlist')
   }, [])
 
-  const watchedPairs = useMemo(
-    () => MOCK_POOLS.filter(p => isWatched(p.address)),
+  // Ensure pool cache is populated
+  const { data: _pools } = useSWR('watchlist-pools', fetchDexScreenerClient, {
+    revalidateOnFocus: false,
+    dedupingInterval: 30_000,
+  })
+
+  const watchedPairs = useMemo(() => {
+    const allPools = getCachedPools()
+    return allPools.filter(p => isWatched(p.address))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeList.pairIds]
-  )
+  }, [activeList.pairIds, _pools])
 
   const sortedPairs = useMemo(() => {
     const s = sort || 'trending_score'
-    return [...watchedPairs].sort((a, b) => {
+    // Apply filter
+    const dayAgo = Date.now() - 24 * 3600_000
+    let filtered = watchedPairs
+    if (filter === 'new') {
+      filtered = filtered.filter(p => new Date(p.created_at).getTime() > dayAgo)
+    } else if (filter === 'gainers') {
+      const changeField = (s.startsWith('change_') ? s : 'change_24h') as keyof typeof filtered[0]
+      filtered = filtered.filter(p => ((p[changeField] as number) ?? 0) > 0)
+    } else if (filter === 'losers') {
+      const changeField = (s.startsWith('change_') ? s : 'change_24h') as keyof typeof filtered[0]
+      filtered = filtered.filter(p => ((p[changeField] as number) ?? 0) < 0)
+    }
+    // Sort
+    return [...filtered].sort((a, b) => {
       const aVal = (a as any)[s] ?? 0
       const bVal = (b as any)[s] ?? 0
       const aNum = typeof aVal === 'string' ? new Date(aVal).getTime() : Number(aVal)
       const bNum = typeof bVal === 'string' ? new Date(bVal).getTime() : Number(bVal)
       return order === 'desc' ? bNum - aNum : aNum - bNum
     })
-  }, [watchedPairs, sort, order])
+  }, [watchedPairs, sort, order, filter])
 
   const { prices, flashing, handlePriceUpdate } = useLivePrices(sortedPairs)
   usePairWebSocket(sortedPairs.map(p => p.address), handlePriceUpdate)

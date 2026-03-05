@@ -112,8 +112,10 @@ export function SearchModal({ open, onClose }: Props) {
     const cached = getCachedPools()
     const ql = q.toLowerCase()
     const localResults = cached.filter(p => {
-      const b = p.token0
-      return b.symbol.toLowerCase().includes(ql) || b.name.toLowerCase().includes(ql) || b.address.toLowerCase().includes(ql) || p.address.toLowerCase().includes(ql)
+      const t0 = p.token0, t1 = p.token1
+      return t0.symbol.toLowerCase().includes(ql) || t0.name.toLowerCase().includes(ql) || t0.address.toLowerCase().includes(ql)
+        || t1.symbol.toLowerCase().includes(ql) || t1.name.toLowerCase().includes(ql) || t1.address.toLowerCase().includes(ql)
+        || p.address.toLowerCase().includes(ql)
     }).slice(0, 12)
     if (localResults.length > 0) {
       setResults(localResults)
@@ -188,16 +190,12 @@ export function SearchModal({ open, onClose }: Props) {
             placeholder="Search by token name, symbol, or address"
             className="flex-1 bg-transparent text-[14px] text-text placeholder-sub outline-none"
           />
-          {query ? (
+          {query && (
             <button
               onClick={() => setQuery('')}
               className="text-sub hover:text-text transition-colors ml-2"
             >
               <IconClose />
-            </button>
-          ) : (
-            <button className="flex items-center justify-center h-[30px] px-3 rounded-[100px] ml-2" style={{ backgroundColor: '#333' }}>
-              <span className="text-[14px] text-blue">Search</span>
             </button>
           )}
         </div>

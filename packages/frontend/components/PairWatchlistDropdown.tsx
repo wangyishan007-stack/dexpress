@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useWatchlist } from '../hooks/useWatchlist'
+import { useAuth } from '../hooks/useAuth'
 import { ManageListsModal } from './ManageListsModal'
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function PairWatchlistDropdown({ pairAddress }: Props) {
+  const { authenticated, login } = useAuth()
   const { lists, activeListId, setActiveList, toggle } = useWatchlist()
   const [open, setOpen] = useState(false)
   const [managing, setManaging] = useState(false)
@@ -49,6 +51,17 @@ export function PairWatchlistDropdown({ pairAddress }: Props) {
   return (
     <>
       <div ref={ref} className="relative flex-1">
+        {!authenticated ? (
+          <button
+            onClick={() => login()}
+            className="w-full flex items-center justify-center gap-2 h-10 rounded bg-muted text-[13px] text-sub hover:text-text transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2">
+              <path d="M7 1l1.8 3.6L13 5.3l-3 2.9.7 4.1L7 10.3 3.3 12.3l.7-4.1-3-2.9 4.2-.7z"/>
+            </svg>
+            Log in to add to watchlist
+          </button>
+        ) : (
         <button
           onClick={() => setOpen(o => !o)}
           className="w-full flex items-center justify-center gap-2 h-10 rounded bg-muted text-[13px] text-sub hover:text-text transition-colors"
@@ -64,6 +77,7 @@ export function PairWatchlistDropdown({ pairAddress }: Props) {
           )}
           {isInAnyList ? 'Watchlisted' : 'Add to watchlist'}
         </button>
+        )}
 
         {/* Dropdown */}
         {open && (

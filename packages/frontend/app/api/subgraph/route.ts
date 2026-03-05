@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const GRAPH_API_KEY = process.env.NEXT_PUBLIC_GRAPH_API_KEY || ''
+const GRAPH_API_KEY = process.env.GRAPH_API_KEY || ''
 const SUBGRAPH_ID = 'HMuAwufqZ1YCRmzL2SfHTVkzZovC9VL2UAKhjvRqKiR1'
 const GRAPH_URL = `https://gateway.thegraph.com/api/${GRAPH_API_KEY}/subgraphs/id/${SUBGRAPH_ID}`
 

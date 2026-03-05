@@ -120,7 +120,11 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <div className="flex flex-col gap-1.5 items-center w-4">
                     <img src="/branding/base-icon.svg" alt="Base" className="w-4 h-4" />
-                    <img src="/branding/uniswap-icon.svg" alt={dexLabel} className="w-4 h-4" />
+                    {p.dex === 'aerodrome' ? (
+                      <span className="text-[9px] font-bold text-sub leading-none">Aero</span>
+                    ) : (
+                      <img src="/branding/uniswap-icon.svg" alt={dexLabel} className="w-4 h-4" />
+                    )}
                   </div>
                   <div className="w-[54px] h-[54px] rounded bg-muted flex-shrink-0 overflow-hidden">
                     {base.logo_url ? (

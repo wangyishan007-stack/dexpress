@@ -1,9 +1,16 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { MOCK_POOLS } from '../lib/mockData'
+import { getCachedPools } from '../lib/dexscreener-client'
 import { useWatchlist } from '../hooks/useWatchlist'
 import { TokenAvatar } from './TokenAvatar'
+
+const QUOTE_ADDRS = new Set([
+  '0x4200000000000000000000000000000000000006',
+  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+  '0xfde4c96c8593536e31f229ea8f37b2ada2699bb2',
+  '0x50c5725949a6f0c72e6c4a641f24049a917db0cb',
+])
 
 interface Props {
   open: boolean
@@ -28,18 +35,23 @@ export function AddPairModal({ open, onClose }: Props) {
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
 
+  const allPools = useMemo(() => getCachedPools(), [])
   const results = useMemo(() => {
-    if (!query.trim()) return MOCK_POOLS.slice(0, 20)
+    if (!query.trim()) return allPools.slice(0, 20)
     const q = query.toLowerCase()
-    return MOCK_POOLS.filter(p => {
-      const base = p.token1
+    return allPools.filter(p => {
+      const t0 = p.token0, t1 = p.token1
       return (
-        base.symbol.toLowerCase().includes(q) ||
-        base.name.toLowerCase().includes(q) ||
+        t0.symbol.toLowerCase().includes(q) ||
+        t0.name.toLowerCase().includes(q) ||
+        t0.address.toLowerCase().includes(q) ||
+        t1.symbol.toLowerCase().includes(q) ||
+        t1.name.toLowerCase().includes(q) ||
+        t1.address.toLowerCase().includes(q) ||
         p.address.toLowerCase().includes(q)
       )
     }).slice(0, 20)
-  }, [query])
+  }, [query, allPools])
 
   if (!open) return null
 
@@ -93,12 +105,12 @@ export function AddPairModal({ open, onClose }: Props) {
         <div className="flex-1 min-h-0 overflow-y-auto">
           {results.length === 0 && (
             <div className="flex items-center justify-center py-8 text-sub text-[13px]">
-              No pairs found.
+              {allPools.length === 0 ? 'Loading pairs...' : 'No pairs found.'}
             </div>
           )}
 
           {results.map((p) => {
-            const base = p.token1
+            const base = QUOTE_ADDRS.has(p.token0.address.toLowerCase()) ? p.token1 : p.token0
             const watched = isWatched(p.address)
 
             return (

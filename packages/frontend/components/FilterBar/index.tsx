@@ -11,7 +11,7 @@ import type { FilterValues, TextFilterValues } from '../FiltersModal'
 import { DEFAULT_CONFIG } from '../../lib/columnConfig'
 import type { ScreenerConfig } from '../../lib/columnConfig'
 
-export type FilterMode = 'trending' | 'new' | 'gainers' | 'top'
+export type FilterMode = 'trending' | 'new' | 'gainers' | 'losers' | 'top'
 
 interface Props {
   filter:          FilterMode

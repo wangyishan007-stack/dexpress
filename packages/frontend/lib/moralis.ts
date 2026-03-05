@@ -1,10 +1,8 @@
 /**
- * Moralis API client — Top Traders (top-gainers) endpoint
- * Free tier: 40K CU/day
+ * Moralis API client — proxied through /api/moralis (server-side)
+ * The actual API key lives in MORALIS_API_KEY (server env only).
+ * This file is safe to bundle in browser JS — no secrets here.
  */
-
-const MORALIS_BASE = 'https://deep-index.moralis.io/api/v2.2'
-const MORALIS_API_KEY = process.env.NEXT_PUBLIC_MORALIS_API_KEY || ''
 
 export interface MoralisTrader {
   address: string
@@ -20,7 +18,7 @@ export interface MoralisTrader {
 }
 
 const _tradersCache = new Map<string, { data: MoralisTrader[]; ts: number }>()
-const TRADERS_CACHE_TTL = 300_000 // 5min
+const CACHE_TTL = 300_000 // 5min
 
 /* ── Token Holders ─────────────────────────────────────── */
 
@@ -41,19 +39,15 @@ const _holdersCache = new Map<string, { data: MoralisHoldersResult; ts: number }
 
 export async function fetchTokenHolders(tokenAddress: string, limit = 50): Promise<MoralisHoldersResult> {
   const empty: MoralisHoldersResult = { holders: [], totalSupply: '0' }
-  if (!MORALIS_API_KEY) return empty
-
   const addrLower = tokenAddress.toLowerCase()
+
   const cached = _holdersCache.get(addrLower)
-  if (cached && Date.now() - cached.ts < TRADERS_CACHE_TTL) return cached.data
+  if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data
 
   try {
     const res = await fetch(
-      `${MORALIS_BASE}/erc20/${tokenAddress}/owners?chain=base&order=DESC&limit=${limit}`,
-      {
-        headers: { 'x-api-key': MORALIS_API_KEY },
-        signal: AbortSignal.timeout(15_000),
-      }
+      `/api/moralis?type=holders&address=${tokenAddress}&limit=${limit}`,
+      { signal: AbortSignal.timeout(15_000) }
     )
     if (!res.ok) return empty
     const data = await res.json()
@@ -78,19 +72,15 @@ export async function fetchTokenHolders(tokenAddress: string, limit = 50): Promi
 /* ── Top Traders ──────────────────────────────────────── */
 
 export async function fetchTopTraders(tokenAddress: string): Promise<MoralisTrader[]> {
-  if (!MORALIS_API_KEY) return []
-
   const addrLower = tokenAddress.toLowerCase()
+
   const cached = _tradersCache.get(addrLower)
-  if (cached && Date.now() - cached.ts < TRADERS_CACHE_TTL) return cached.data
+  if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data
 
   try {
     const res = await fetch(
-      `${MORALIS_BASE}/erc20/${tokenAddress}/top-gainers?chain=base`,
-      {
-        headers: { 'x-api-key': MORALIS_API_KEY },
-        signal: AbortSignal.timeout(15_000),
-      }
+      `/api/moralis?type=traders&address=${tokenAddress}`,
+      { signal: AbortSignal.timeout(15_000) }
     )
     if (!res.ok) return []
     const data = await res.json()

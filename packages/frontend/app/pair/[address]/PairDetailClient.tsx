@@ -1,17 +1,18 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import useSWR from 'swr'
 import type { Pool } from '@dex/shared'
 import { fmtPrice, fmtUsd, fmtAge, fmtNum, fmtPct, shortAddr } from '../../../lib/formatters'
 import { usePairWebSocket } from '../../../hooks/useWebSocket'
-import { fetchPoolTrades, type PoolExtended } from '../../../lib/dexscreener-client'
+import { fetchPoolTrades, getPoolFromCache, type PoolExtended } from '../../../lib/dexscreener-client'
 import { useTokenSecurity } from '../../../hooks/useTokenSecurity'
 import { useTokenInfo } from '../../../hooks/useTokenInfo'
 import { useTopTraders } from '../../../hooks/useTopTraders'
 import { useTokenHolders } from '../../../hooks/useTokenHolders'
 import { useLiquidityProviders } from '../../../hooks/useLiquidityProviders'
 import { PairTabs } from '../../../components/PairTabs'
+import { TrendingTicker } from '../../../components/TrendingTicker'
 import { TradingViewChart } from '../../../components/TradingViewChart'
 import clsx from 'clsx'
 import { TokenAvatar, addrToHue } from '../../../components/TokenAvatar'
@@ -149,21 +150,28 @@ const QUOTE_ADDRS = new Set([
 
 /* ── Main ─────────────────────────────────────────────────── */
 export function PairDetailClient({ address }: Props) {
-  // Fetch pair from DexScreener client-side
-  const { data: pair, error, isLoading } = useSWR<PairDetail>(
+  // Instant fallback from list/detail cache — renders page immediately
+  const fallback = useMemo(() => {
+    const cached = getPoolFromCache(address)
+    return cached ? ({ ...cached, recent_swaps: [] } as PairDetail) : undefined
+  }, [address])
+
+  // Fetch full pair data from GT API (SWR revalidates in background)
+  const { data: pair, error, isLoading, isValidating } = useSWR<PairDetail>(
     `pair-${address}`,
     async () => {
       const { fetchPairByAddress } = await import('../../../lib/dexscreener-client')
       const result = await fetchPairByAddress(address)
-      if (!result) throw new Error('Pool not found or API rate limited')
+      if (!result) throw new Error('Pool not found')
       return result as PairDetail
     },
     {
+      fallbackData: fallback,
       revalidateOnFocus: false,
       refreshInterval: 30_000,
-      dedupingInterval: 0,
-      errorRetryCount: 8,
-      errorRetryInterval: 5000,
+      dedupingInterval: 2000,
+      errorRetryCount: 2,
+      errorRetryInterval: 3000,
     }
   )
 
@@ -187,14 +195,12 @@ export function PairDetailClient({ address }: Props) {
   const [swapAmount, setSwapAmount] = useState('1')
   const [embedOpen, setEmbedOpen] = useState(false)
   const [embedCopied, setEmbedCopied] = useState(false)
-  const [alertsOpen, setAlertsOpen] = useState(false)
-  const [alertsNotifEnabled, setAlertsNotifEnabled] = useState(false)
-  const [alerts, setAlerts] = useState<{ id: string; condition: string; price: string; createdAt: number }[]>([])
-  const [alertPriceInput, setAlertPriceInput] = useState('')
-  const [alertCondition, setAlertCondition] = useState<'goes over' | 'goes under'>('goes over')
-  const [editingAlertId, setEditingAlertId] = useState<string | null>(null)
-  const [editAlertCondition, setEditAlertCondition] = useState<'goes over' | 'goes under'>('goes over')
-  const [editAlertPrice, setEditAlertPrice] = useState('')
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  // Cleanup all timers on unmount
+  useEffect(() => {
+    return () => { timersRef.current.forEach(clearTimeout) }
+  }, [])
 
   // Swaps
   const projectInfoRef = useRef<HTMLDivElement>(null)
@@ -221,29 +227,37 @@ export function PairDetailClient({ address }: Props) {
 
   const [swaps,       setSwaps]       = useState<RecentSwap[]>([])
   const [swapHasMore, setSwapHasMore] = useState(false)
-  const [swapLoading, setSwapLoading] = useState(false)
   const [newSwapIds,  setNewSwapIds]  = useState<Set<string>>(new Set())
+  const swapsInitializedRef = useRef(false)
+
+  // Initialize swaps from SWR pair data (trades come bundled with pool data)
+  useEffect(() => {
+    if (!pair) return
+    if (pair.recent_swaps && pair.recent_swaps.length > 0 && !swapsInitializedRef.current) {
+      swapsInitializedRef.current = true
+      setSwaps(pair.recent_swaps as RecentSwap[])
+      setSwapHasMore(pair.recent_swaps.length >= 50)
+    }
+  }, [pair])
+
+  // Derived: loading while SWR is still fetching and we have no swaps yet
+  const swapLoading = swaps.length === 0 && (isLoading || isValidating)
 
   // Poll trades every 10s, merge new trades to top with animation
   useEffect(() => {
     if (!address) return
     let cancelled = false
-    let firstLoad = true
 
     const poll = async () => {
-      if (firstLoad) setSwapLoading(true)
       try {
         const trades = await fetchPoolTrades(address)
-        if (cancelled || trades.length === 0) {
-          if (firstLoad) setSwapLoading(false)
-          return
-        }
+        if (cancelled || trades.length === 0) return
         setSwaps(prev => {
           const existingIds = new Set(prev.map(s => s.id))
           const fresh = trades.filter(t => !existingIds.has(t.id))
-          if (!firstLoad && fresh.length > 0) {
+          if (fresh.length > 0) {
             setNewSwapIds(new Set(fresh.map(t => t.id)))
-            setTimeout(() => setNewSwapIds(new Set()), 700)
+            timersRef.current.push(setTimeout(() => setNewSwapIds(new Set()), 700))
           }
           if (prev.length === 0) {
             setSwapHasMore(trades.length >= 50)
@@ -253,11 +267,9 @@ export function PairDetailClient({ address }: Props) {
           return [...fresh, ...prev]
         })
       } catch {}
-      if (firstLoad) setSwapLoading(false)
-      firstLoad = false
     }
 
-    poll()
+    // Start polling after 10s — initial data comes from SWR pair fetch
     const timer = setInterval(poll, 10_000)
     return () => { cancelled = true; clearInterval(timer) }
   }, [address])
@@ -272,16 +284,17 @@ export function PairDetailClient({ address }: Props) {
       setLivePrice(evt.price_usd)
       if (prev > 0 && evt.price_usd !== prev) {
         setFlash(evt.price_usd > prev ? 'up' : 'down')
-        setTimeout(() => setFlash(null), 700)
+        timersRef.current.push(setTimeout(() => setFlash(null), 700))
       }
     },
     [address]
   )
   usePairWebSocket([address], handleUpdate)
 
+  const [loadingMore, setLoadingMore] = useState(false)
   const loadMoreSwaps = useCallback(async () => {
-    if (swapLoading || swaps.length === 0) return
-    setSwapLoading(true)
+    if (loadingMore || swaps.length === 0) return
+    setLoadingMore(true)
     try {
       const lastSwap = swaps[swaps.length - 1]
       const trades = await fetchPoolTrades(address, lastSwap.timestamp)
@@ -296,8 +309,8 @@ export function PairDetailClient({ address }: Props) {
       })
       setSwapHasMore(trades.length >= 50)
     } catch {}
-    setSwapLoading(false)
-  }, [address, swaps, swapLoading])
+    setLoadingMore(false)
+  }, [address, swaps, loadingMore])
 
   /* ── Loading / error ─────────────────────────────────────── */
   if (isLoading) {
@@ -339,35 +352,8 @@ export function PairDetailClient({ address }: Props) {
         {/* ── Chart Card ──────────────────────────────────────── */}
         <Card className="flex flex-col overflow-hidden flex-shrink-0">
 
-          {/* Chart header: token identity */}
-          <div className="flex items-start gap-4 px-5 py-4 border-b border-border flex-shrink-0">
-            <TokenAvatar symbol={base.symbol} logoUrl={baseLogoUrl} address={base.address} size={44} rounded="md" />
-            <div className="min-w-0">
-              {/* Token pair + DEX badge + age */}
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <h1 className="text-[15px] md:text-[18px] font-bold text-text leading-none">
-                  {base.symbol}
-                  <span className="text-sub font-normal text-[15px]"> / {quote.symbol}</span>
-                </h1>
-                {/* DEX badge */}
-                <span className="inline-flex items-center rounded-md bg-blue/10 border border-blue/20 px-2 py-0.5 text-[11px] font-semibold text-blue">
-                  {dexLabel}
-                </span>
-                {/* Age */}
-                <span className="text-[12px] text-sub">
-                  {pair.created_at ? `${fmtAge(pair.created_at)} old` : '—'}
-                </span>
-              </div>
-              {/* CA address */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] uppercase text-sub/50 font-medium tracking-wide">CA</span>
-                <span className="font-mono text-[12px] text-sub">{shortAddr(base.address)}</span>
-                <CopyButton text={base.address} />
-                <a href={`https://basescan.org/token/${base.address}`} target="_blank" rel="noopener"
-                  className="text-sub hover:text-blue text-[11px]">↗</a>
-              </div>
-            </div>
-          </div>
+          {/* Trending ticker — replaces chart header */}
+          <TrendingTicker />
 
           {/* TradingView Chart */}
           <div className="w-full" style={{ height: chartHeight }}>
@@ -390,7 +376,7 @@ export function PairDetailClient({ address }: Props) {
         <PairTabs
           swaps={swaps}
           swapHasMore={swapHasMore}
-          swapLoading={swapLoading}
+          swapLoading={swapLoading || loadingMore}
           onLoadMore={loadMoreSwaps}
           tokenAddress={base.address}
           security={security ?? undefined}
@@ -408,22 +394,13 @@ export function PairDetailClient({ address }: Props) {
         <div className="w-full md:w-[340px] flex-shrink-0 flex flex-col gap-4 md:h-[calc(100vh_-_40px)] md:overflow-y-auto scrollbar-hide bg-surface border border-border rounded-xl px-4 py-2">
 
           {/* ── 1. Token Header ──────────────────────────────────── */}
-          <div className="flex flex-col gap-2 items-center">
-            <div className="flex items-center justify-between w-full py-2">
-              <div className="flex items-center gap-1.5">
-                <TokenAvatar symbol={base.symbol} logoUrl={baseLogoUrl} address={base.address} size={30} rounded="md" />
-                <span className="text-[16px] text-text">{base.name || base.symbol}</span>
-              </div>
-            </div>
-            {/* Symbol / Quote */}
-            <div className="flex flex-col gap-[5px] items-center">
-              <div className="flex items-end gap-2">
-                <div className="flex items-center gap-1">
-                  <span className="text-[16px] text-text">${base.symbol}</span>
-                  <CopyButton text={base.address} />
-                </div>
-                <span className="text-[14px] text-text">/</span>
-                <span className="text-[14px] text-text">{quote.symbol}</span>
+          <div className="flex items-center gap-4 py-2">
+            <TokenAvatar symbol={base.symbol} logoUrl={baseLogoUrl} address={base.address} size={54} rounded="md" />
+            <div className="flex flex-col gap-1.5 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[16px] font-bold text-text">${base.symbol}</span>
+                <CopyButton text={base.address} />
+                <span className="text-[14px] text-sub">/ {quote.symbol}</span>
               </div>
               <div className="flex items-center gap-[5px]">
                 <div className="flex items-center gap-[2px]">
@@ -484,16 +461,17 @@ export function PairDetailClient({ address }: Props) {
               <span className="text-[16px] font-bold tabular text-text">{fmtPrice(price)}</span>
             </div>
             <div className="flex-1 border border-border rounded-lg p-2 flex flex-col gap-1 items-center text-center">
-              <span className="text-[12px] text-sub">Price ETH</span>
+              <span className="text-[12px] text-sub">Price {quote.symbol}</span>
               <span className="text-[16px] font-bold tabular text-text">
                 {(() => {
-                  const native = pair.base_token_price_native || (pair.quote_token_price_usd ? price / pair.quote_token_price_usd : 0)
-                  if (!native) return '—'
-                  return `${native < 0.0001
-                    ? native.toExponential(4)
-                    : native < 1
-                    ? native.toFixed(8)
-                    : native.toFixed(4)} ETH`
+                  const quoteUsd = pair.quote_token_price_usd ?? 0
+                  const priceInQuote = quoteUsd > 0 ? price / quoteUsd : 0
+                  if (!priceInQuote) return '—'
+                  return `${priceInQuote < 0.0001
+                    ? priceInQuote.toExponential(4)
+                    : priceInQuote < 1
+                    ? priceInQuote.toFixed(8)
+                    : priceInQuote.toFixed(4)} ${quote.symbol}`
                 })()}
               </span>
             </div>
@@ -501,11 +479,7 @@ export function PairDetailClient({ address }: Props) {
 
           {/* ── 4. Liquidity / FDV / Market Cap ──────────────────── */}
           {(() => {
-            const rawSupply = BigInt(base.total_supply || '0')
-            const totalSupply = Number(rawSupply) / Math.pow(10, base.decimals)
-            const fmtSupply = totalSupply > 0
-              ? `${totalSupply.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${base.symbol}`
-              : '—'
+            const fdv = (pair as any).fdv_usd ?? pair.mcap_usd ?? 0
             return (
               <div className="flex gap-2 w-full">
                 <div className="flex-1 border border-border rounded-lg p-2 flex flex-col gap-1 items-center text-center">
@@ -515,12 +489,12 @@ export function PairDetailClient({ address }: Props) {
                 <Tooltip content={
                   <div className="flex flex-col gap-1">
                     <span className="text-[13px] font-semibold text-text">Fully diluted valuation:</span>
-                    <span className="text-[12px] text-sub font-mono">(total supply − burned supply) * price</span>
+                    <span className="text-[12px] text-sub font-mono">total supply × price</span>
                   </div>
                 }>
                   <div className="flex-1 border border-border rounded-lg p-2 flex flex-col gap-1 items-center text-center cursor-help">
                     <span className="text-[12px] text-sub underline decoration-dotted">FDV</span>
-                    <span className="text-[16px] font-bold tabular text-text">{Number(pair.mcap_usd) > 0 ? fmtUsd(pair.mcap_usd) : '—'}</span>
+                    <span className="text-[16px] font-bold tabular text-text">{fdv > 0 ? fmtUsd(fdv) : '—'}</span>
                   </div>
                 </Tooltip>
                 <div className="flex-1 border border-border rounded-lg p-2 flex flex-col gap-1 items-center text-center">
@@ -730,23 +704,18 @@ export function PairDetailClient({ address }: Props) {
           {/* ── 7. Action Buttons ────────────────────────────────── */}
           <div className="flex gap-2">
             <PairWatchlistDropdown pairAddress={pair.address} />
-            <button
-              onClick={() => setAlertsOpen(true)}
-              className="flex-1 flex items-center justify-center gap-2 h-10 rounded bg-muted text-[13px] text-sub hover:text-text transition-colors"
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7.00148 2.91667C5.37398 2.91667 4.06556 4.16267 4.06556 5.83334V7.67667C4.06556 8.0185 4.01248 8.35917 3.90748 8.68409L3.69806 9.33334H10.2839L10.0721 8.67417C9.96937 8.35565 9.91702 8.02303 9.91698 7.68834V5.83334C9.91698 4.2175 8.61731 2.91667 7.00206 2.91667H7.00148ZM2.89889 5.83334C2.89889 3.49534 4.75389 1.75 7.00206 1.75C7.53842 1.74924 8.06967 1.85434 8.56533 2.0593C9.06099 2.26425 9.51132 2.56503 9.89051 2.94438C10.2697 3.32373 10.5703 3.77419 10.775 4.26994C10.9798 4.76569 11.0846 5.29697 11.0836 5.83334V7.68834C11.0836 7.90184 11.1169 8.11359 11.1828 8.316L11.6162 9.66175C11.6472 9.758 11.655 9.8602 11.639 9.96003C11.6229 10.0599 11.5836 10.1545 11.524 10.2362C11.4645 10.3179 11.3865 10.3844 11.2964 10.4302C11.2063 10.4761 11.1066 10.5 11.0055 10.5H2.97298C2.51273 10.5 2.24148 10.0503 2.36631 9.6635L2.79681 8.3265C2.86448 8.11709 2.89889 7.89775 2.89889 7.67609V5.83334ZM5.02106 11.2805C5.07176 11.223 5.13328 11.1761 5.20212 11.1424C5.27096 11.1087 5.34576 11.0889 5.42226 11.0842C5.49875 11.0794 5.57543 11.0897 5.64792 11.1146C5.72041 11.1395 5.78729 11.1784 5.84473 11.2292C6.15389 11.5022 6.55756 11.6667 7.00206 11.6667C7.44598 11.6667 7.85023 11.5022 8.15939 11.2292C8.27543 11.1268 8.42736 11.0748 8.58177 11.0845C8.73618 11.0941 8.88043 11.1648 8.98277 11.2808C9.08511 11.3968 9.13716 11.5488 9.12748 11.7032C9.1178 11.8576 9.04718 12.0018 8.93114 12.1042C8.39879 12.5747 7.71258 12.8341 7.00206 12.8333C6.29134 12.8343 5.6049 12.5749 5.07239 12.1042C5.01492 12.0535 4.96799 11.9919 4.9343 11.9231C4.90061 11.8543 4.88082 11.7795 4.87605 11.703C4.87128 11.6265 4.88164 11.5498 4.90652 11.4773C4.9314 11.4048 4.97032 11.3379 5.02106 11.2805Z" fill="currentColor"/></svg>
-              Alerts
-            </button>
           </div>
 
-          {/* ── 8. Trade on Uniswap ──────────────────────────────── */}
+          {/* ── 8. Trade on DEX ──────────────────────────────────── */}
           <a
-            href={`https://app.uniswap.org/swap?chain=base&inputCurrency=ETH&outputCurrency=${base.address}`}
+            href={pair.dex === 'aerodrome'
+              ? `https://aerodrome.finance/swap?from=eth&to=${base.address}`
+              : `https://app.uniswap.org/swap?chain=base&inputCurrency=ETH&outputCurrency=${base.address}`}
             target="_blank"
             rel="noopener"
             className="flex items-center justify-center gap-2.5 rounded bg-muted text-[13px] text-sub hover:text-text transition-colors py-[10px]"
           >
-            Trade on Uniswap
+            Trade on {pair.dex === 'aerodrome' ? 'Aerodrome' : 'Uniswap'}
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 1h7v7M11 1L5 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </a>
 
@@ -767,11 +736,11 @@ export function PairDetailClient({ address }: Props) {
                   <>
                     <div className="flex items-center justify-between px-2 py-3 border-b border-border">
                       <span className="text-[12px] text-sub">Pooled {base.symbol}</span>
-                      <span className="text-[14px] text-text">{basePooled > 0 ? `${fmtNum(basePooled)}   ${fmtUsd(halfLiq)}` : '—'}</span>
+                      <span className="text-[14px] text-text">{basePooled > 0 ? <><span>≈{fmtNum(basePooled)}</span> <span className="text-sub text-[12px]">({fmtUsd(halfLiq)})</span></> : '—'}</span>
                     </div>
                     <div className="flex items-center justify-between px-2 py-3 border-b border-border">
                       <span className="text-[12px] text-sub">Pooled {quote.symbol}</span>
-                      <span className="text-[14px] text-text">{quotePooled > 0 ? `${fmtNum(quotePooled)}   ${fmtUsd(halfLiq)}` : '—'}</span>
+                      <span className="text-[14px] text-text">{quotePooled > 0 ? <><span>≈{fmtNum(quotePooled)}</span> <span className="text-sub text-[12px]">({fmtUsd(halfLiq)})</span></> : '—'}</span>
                     </div>
                   </>
                 )
@@ -1036,8 +1005,9 @@ export function PairDetailClient({ address }: Props) {
                   const amt = parseFloat(swapAmount)
                   if (!amt || price <= 0) return '—'
                   if (swapUnit === 'USD') return fmtPrice(amt * price)
-                  const ethPrice = pair.base_token_price_native || (pair.quote_token_price_usd ? price / pair.quote_token_price_usd : 0)
-                  return ethPrice > 0 ? (amt * ethPrice).toFixed(8) : '—'
+                  const quoteUsd = pair.quote_token_price_usd ?? 0
+                  const priceInQuote = quoteUsd > 0 ? price / quoteUsd : 0
+                  return priceInQuote > 0 ? (amt * priceInQuote).toFixed(8) : '—'
                 })()}
                 readOnly
                 className="flex-1 text-[14px] text-text bg-transparent outline-none min-w-0"
@@ -1078,14 +1048,14 @@ export function PairDetailClient({ address }: Props) {
                   </div>
                   <textarea
                     readOnly
-                    value={`<iframe src="https://www.geckoterminal.com/base/pools/${address}?embed=1&info=0&swaps=0" width="100%" height="400" frameborder="0"></iframe>`}
+                    value={`<iframe src="${typeof window !== 'undefined' ? window.location.origin : ''}/pair/${address}?embed=1" width="100%" height="400" frameborder="0"></iframe>`}
                     className="w-full h-[72px] rounded-lg border border-border bg-transparent text-[12px] text-sub font-mono p-2 resize-none outline-none focus:border-blue"
                   />
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(`<iframe src="https://www.geckoterminal.com/base/pools/${address}?embed=1&info=0&swaps=0" width="100%" height="400" frameborder="0"></iframe>`)
+                      navigator.clipboard.writeText(`<iframe src="${typeof window !== 'undefined' ? window.location.origin : ''}/pair/${address}?embed=1" width="100%" height="400" frameborder="0"></iframe>`)
                       setEmbedCopied(true)
-                      setTimeout(() => setEmbedCopied(false), 2000)
+                      timersRef.current.push(setTimeout(() => setEmbedCopied(false), 2000))
                     }}
                     className="bg-blue text-white hover:bg-blue/90 rounded-lg text-[13px] font-medium py-2 transition-colors"
                   >
@@ -1094,7 +1064,7 @@ export function PairDetailClient({ address }: Props) {
                 </div>
               )}
             </div>
-            <span className="text-[12px] text-sub">Crypto charts by TradingView</span>
+            <span className="text-[12px] text-sub">Charts powered by Lightweight Charts</span>
           </div>
 
         </div>
@@ -1107,231 +1077,6 @@ export function PairDetailClient({ address }: Props) {
         tokenAddress={base.address}
       />
 
-      {/* ── Price Alerts Modal ───────────────────────────────── */}
-      {alertsOpen && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60"
-          onClick={(e) => { if (e.target === e.currentTarget) setAlertsOpen(false) }}
-        >
-          <div className="w-full max-w-[560px] mx-4 rounded-xl border border-border bg-[#111] shadow-2xl">
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <h2 className="text-[16px] font-bold text-text">Manage Price Alerts</h2>
-              <button
-                onClick={() => setAlertsOpen(false)}
-                className="flex items-center justify-center w-[28px] h-[28px] rounded-md text-sub hover:text-text hover:bg-border/40 transition-colors"
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-                </svg>
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="px-5 py-8">
-              {!alertsNotifEnabled ? (
-                /* State 1: Enable notifications */
-                <div className="flex flex-col items-center gap-6">
-                  <p className="text-[14px] text-text text-center">
-                    To set price alerts please enable <span className="underline cursor-pointer text-blue">browser notifications</span> for Dex Express first:
-                  </p>
-                  <button
-                    onClick={() => setAlertsNotifEnabled(true)}
-                    className="flex items-center gap-2.5 rounded-lg px-8 py-3 text-[14px] font-medium text-white bg-blue hover:bg-blue/90 transition-colors"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7.00148 2.91667C5.37398 2.91667 4.06556 4.16267 4.06556 5.83334V7.67667C4.06556 8.0185 4.01248 8.35917 3.90748 8.68409L3.69806 9.33334H10.2839L10.0721 8.67417C9.96937 8.35565 9.91702 8.02303 9.91698 7.68834V5.83334C9.91698 4.2175 8.61731 2.91667 7.00206 2.91667H7.00148ZM2.89889 5.83334C2.89889 3.49534 4.75389 1.75 7.00206 1.75C7.53842 1.74924 8.06967 1.85434 8.56533 2.0593C9.06099 2.26425 9.51132 2.56503 9.89051 2.94438C10.2697 3.32373 10.5703 3.77419 10.775 4.26994C10.9798 4.76569 11.0846 5.29697 11.0836 5.83334V7.68834C11.0836 7.90184 11.1169 8.11359 11.1828 8.316L11.6162 9.66175C11.6472 9.758 11.655 9.8602 11.639 9.96003C11.6229 10.0599 11.5836 10.1545 11.524 10.2362C11.4645 10.3179 11.3865 10.3844 11.2964 10.4302C11.2063 10.4761 11.1066 10.5 11.0055 10.5H2.97298C2.51273 10.5 2.24148 10.0503 2.36631 9.6635L2.79681 8.3265C2.86448 8.11709 2.89889 7.89775 2.89889 7.67609V5.83334ZM5.02106 11.2805C5.07176 11.223 5.13328 11.1761 5.20212 11.1424C5.27096 11.1087 5.34576 11.0889 5.42226 11.0842C5.49875 11.0794 5.57543 11.0897 5.64792 11.1146C5.72041 11.1395 5.78729 11.1784 5.84473 11.2292C6.15389 11.5022 6.55756 11.6667 7.00206 11.6667C7.44598 11.6667 7.85023 11.5022 8.15939 11.2292C8.27543 11.1268 8.42736 11.0748 8.58177 11.0845C8.73618 11.0941 8.88043 11.1648 8.98277 11.2808C9.08511 11.3968 9.13716 11.5488 9.12748 11.7032C9.1178 11.8576 9.04718 12.0018 8.93114 12.1042C8.39879 12.5747 7.71258 12.8341 7.00206 12.8333C6.29134 12.8343 5.6049 12.5749 5.07239 12.1042C5.01492 12.0535 4.96799 11.9919 4.9343 11.9231C4.90061 11.8543 4.88082 11.7795 4.87605 11.703C4.87128 11.6265 4.88164 11.5498 4.90652 11.4773C4.9314 11.4048 4.97032 11.3379 5.02106 11.2805Z" fill="currentColor"/></svg>
-                    Enable Notifications
-                  </button>
-                </div>
-              ) : (
-                /* State 2: Create alert form + alerts list */
-                <div className="flex flex-col gap-5">
-                  {/* Row 1: Alert me when + Price in USD */}
-                  <div className="flex items-center gap-3">
-                    <span className="text-[14px] text-text flex-shrink-0">Alert me when</span>
-                    <div className="relative">
-                      <select className="appearance-none bg-transparent border border-border rounded-lg px-4 py-2.5 pr-8 text-[13px] text-text cursor-pointer outline-none focus:border-blue transition-colors">
-                        <option>Price in USD</option>
-                        <option>Price in ETH</option>
-                      </select>
-                      <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-sub"><path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.2"/></svg>
-                    </div>
-                  </div>
-
-                  {/* Row 2: Goes over + $ input + Create Alert */}
-                  <div className="flex items-center gap-3">
-                    <div className="relative flex-shrink-0">
-                      <select
-                        value={alertCondition}
-                        onChange={(e) => setAlertCondition(e.target.value as 'goes over' | 'goes under')}
-                        className="appearance-none bg-transparent border border-border rounded-lg px-4 py-2.5 pr-8 text-[13px] text-text cursor-pointer outline-none w-[160px] focus:border-blue transition-colors"
-                      >
-                        <option value="goes over">Goes over</option>
-                        <option value="goes under">Goes under</option>
-                      </select>
-                      <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-sub"><path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.2"/></svg>
-                    </div>
-                    <div className="flex-1 flex items-center border border-border rounded-lg overflow-hidden focus-within:border-blue transition-colors">
-                      <span className="px-3 py-2.5 text-[13px] text-sub border-r border-border">$</span>
-                      <input
-                        type="text"
-                        value={alertPriceInput}
-                        onChange={(e) => setAlertPriceInput(e.target.value)}
-                        placeholder="0"
-                        className="flex-1 px-3 py-2.5 text-[13px] text-text bg-transparent outline-none min-w-0"
-                      />
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (!alertPriceInput.trim()) return
-                        setAlerts(prev => [...prev, { id: crypto.randomUUID(), condition: alertCondition, price: alertPriceInput.trim(), createdAt: Date.now() }])
-                        setAlertPriceInput('')
-                      }}
-                      className="flex items-center gap-2 rounded-lg px-5 py-2.5 text-[13px] font-medium text-white bg-blue hover:bg-blue/90 flex-shrink-0 transition-colors"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5"/><path d="M7 4v6M4 7h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                      Create Alert
-                    </button>
-                  </div>
-
-                  {/* Row 3: Note */}
-                  <div className="flex items-center border border-border rounded-lg px-3 py-2.5 gap-2.5 focus-within:border-blue transition-colors">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-sub flex-shrink-0"><rect x="2" y="2" width="10" height="10" rx="2" stroke="currentColor" strokeWidth="1.2"/><path d="M5 5h4M5 7h4M5 9h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
-                    <input
-                      type="text"
-                      placeholder="Add a note to your alert (optional)"
-                      className="flex-1 text-[13px] text-text bg-transparent outline-none placeholder:text-sub/50"
-                    />
-                  </div>
-
-                  {/* Created alerts list */}
-                  {alerts.length > 0 && (
-                    <div className="flex flex-col gap-3 mt-1">
-                      {alerts.map(a => {
-                        const isEditing = editingAlertId === a.id
-                        const ago = Math.floor((Date.now() - a.createdAt) / 60000)
-                        const agoText = ago < 1 ? 'less than a minute ago' : ago < 60 ? `${ago} minute${ago > 1 ? 's' : ''} ago` : `${Math.floor(ago / 60)} hour${Math.floor(ago / 60) > 1 ? 's' : ''} ago`
-
-                        if (isEditing) {
-                          return (
-                            <div key={a.id} className="border border-border rounded-lg px-4 py-4 flex flex-col gap-4">
-                              {/* ACTIVE header */}
-                              <div className="flex items-center gap-1.5">
-                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7.00148 2.91667C5.37398 2.91667 4.06556 4.16267 4.06556 5.83334V7.67667C4.06556 8.0185 4.01248 8.35917 3.90748 8.68409L3.69806 9.33334H10.2839L10.0721 8.67417C9.96937 8.35565 9.91702 8.02303 9.91698 7.68834V5.83334C9.91698 4.2175 8.61731 2.91667 7.00206 2.91667H7.00148ZM2.89889 5.83334C2.89889 3.49534 4.75389 1.75 7.00206 1.75C7.53842 1.74924 8.06967 1.85434 8.56533 2.0593C9.06099 2.26425 9.51132 2.56503 9.89051 2.94438C10.2697 3.32373 10.5703 3.77419 10.775 4.26994C10.9798 4.76569 11.0846 5.29697 11.0836 5.83334V7.68834C11.0836 7.90184 11.1169 8.11359 11.1828 8.316L11.6162 9.66175C11.6472 9.758 11.655 9.8602 11.639 9.96003C11.6229 10.0599 11.5836 10.1545 11.524 10.2362C11.4645 10.3179 11.3865 10.3844 11.2964 10.4302C11.2063 10.4761 11.1066 10.5 11.0055 10.5H2.97298C2.51273 10.5 2.24148 10.0503 2.36631 9.6635L2.79681 8.3265C2.86448 8.11709 2.89889 7.89775 2.89889 7.67609V5.83334ZM5.02106 11.2805C5.07176 11.223 5.13328 11.1761 5.20212 11.1424C5.27096 11.1087 5.34576 11.0889 5.42226 11.0842C5.49875 11.0794 5.57543 11.0897 5.64792 11.1146C5.72041 11.1395 5.78729 11.1784 5.84473 11.2292C6.15389 11.5022 6.55756 11.6667 7.00206 11.6667C7.44598 11.6667 7.85023 11.5022 8.15939 11.2292C8.27543 11.1268 8.42736 11.0748 8.58177 11.0845C8.73618 11.0941 8.88043 11.1648 8.98277 11.2808C9.08511 11.3968 9.13716 11.5488 9.12748 11.7032C9.1178 11.8576 9.04718 12.0018 8.93114 12.1042C8.39879 12.5747 7.71258 12.8341 7.00206 12.8333C6.29134 12.8343 5.6049 12.5749 5.07239 12.1042C5.01492 12.0535 4.96799 11.9919 4.9343 11.9231C4.90061 11.8543 4.88082 11.7795 4.87605 11.703C4.87128 11.6265 4.88164 11.5498 4.90652 11.4773C4.9314 11.4048 4.97032 11.3379 5.02106 11.2805Z" fill="#2fe06b"/></svg>
-                                <span className="text-[13px] font-semibold text-green uppercase tracking-wide">Active</span>
-                              </div>
-
-                              {/* Alert me when + Price in USD */}
-                              <div className="flex items-center gap-3">
-                                <span className="text-[14px] text-text flex-shrink-0">Alert me when</span>
-                                <div className="relative">
-                                  <select className="appearance-none bg-transparent border border-border rounded-lg px-4 py-2.5 pr-8 text-[13px] text-text cursor-pointer outline-none focus:border-blue transition-colors">
-                                    <option>Price in USD</option>
-                                    <option>Price in ETH</option>
-                                  </select>
-                                  <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-sub"><path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.2"/></svg>
-                                </div>
-                              </div>
-
-                              {/* Goes over + $ input */}
-                              <div className="flex items-center gap-3">
-                                <div className="relative flex-shrink-0">
-                                  <select
-                                    value={editAlertCondition}
-                                    onChange={(e) => setEditAlertCondition(e.target.value as 'goes over' | 'goes under')}
-                                    className="appearance-none bg-transparent border border-border rounded-lg px-4 py-2.5 pr-8 text-[13px] text-text cursor-pointer outline-none w-[160px] focus:border-blue transition-colors"
-                                  >
-                                    <option value="goes over">Goes over</option>
-                                    <option value="goes under">Goes under</option>
-                                  </select>
-                                  <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-sub"><path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.2"/></svg>
-                                </div>
-                                <div className="flex-1 flex items-center border border-border rounded-lg overflow-hidden focus-within:border-blue transition-colors">
-                                  <span className="px-3 py-2.5 text-[13px] text-sub border-r border-border">$</span>
-                                  <input
-                                    type="text"
-                                    value={editAlertPrice}
-                                    onChange={(e) => setEditAlertPrice(e.target.value)}
-                                    className="flex-1 px-3 py-2.5 text-[13px] text-text bg-transparent outline-none min-w-0"
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Note */}
-                              <div className="flex items-center border border-border rounded-lg px-3 py-2.5 gap-2.5 focus-within:border-blue transition-colors">
-                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-sub flex-shrink-0"><rect x="2" y="2" width="10" height="10" rx="2" stroke="currentColor" strokeWidth="1.2"/><path d="M5 5h4M5 7h4M5 9h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
-                                <input
-                                  type="text"
-                                  placeholder="Add a note to your alert (optional)"
-                                  className="flex-1 text-[13px] text-text bg-transparent outline-none placeholder:text-sub/50"
-                                />
-                              </div>
-
-                              {/* Save / Cancel */}
-                              <div className="flex items-center justify-end gap-3">
-                                <button
-                                  onClick={() => {
-                                    if (editAlertPrice.trim()) {
-                                      setAlerts(prev => prev.map(x => x.id === a.id ? { ...x, condition: editAlertCondition, price: editAlertPrice.trim() } : x))
-                                    }
-                                    setEditingAlertId(null)
-                                  }}
-                                  className="flex items-center gap-1.5 rounded-lg px-5 py-2 text-[13px] font-medium text-white bg-blue hover:bg-blue/90 transition-colors"
-                                >
-                                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                  Save
-                                </button>
-                                <button
-                                  onClick={() => setEditingAlertId(null)}
-                                  className="flex items-center gap-1.5 text-[13px] font-medium text-sub hover:text-text transition-colors"
-                                >
-                                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          )
-                        }
-
-                        return (
-                          <div key={a.id} className="border border-border rounded-lg px-4 py-3">
-                            <div className="flex items-start justify-between">
-                              <div className="flex flex-col gap-1.5">
-                                <div className="flex items-center gap-1.5">
-                                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7.00148 2.91667C5.37398 2.91667 4.06556 4.16267 4.06556 5.83334V7.67667C4.06556 8.0185 4.01248 8.35917 3.90748 8.68409L3.69806 9.33334H10.2839L10.0721 8.67417C9.96937 8.35565 9.91702 8.02303 9.91698 7.68834V5.83334C9.91698 4.2175 8.61731 2.91667 7.00206 2.91667H7.00148ZM2.89889 5.83334C2.89889 3.49534 4.75389 1.75 7.00206 1.75C7.53842 1.74924 8.06967 1.85434 8.56533 2.0593C9.06099 2.26425 9.51132 2.56503 9.89051 2.94438C10.2697 3.32373 10.5703 3.77419 10.775 4.26994C10.9798 4.76569 11.0846 5.29697 11.0836 5.83334V7.68834C11.0836 7.90184 11.1169 8.11359 11.1828 8.316L11.6162 9.66175C11.6472 9.758 11.655 9.8602 11.639 9.96003C11.6229 10.0599 11.5836 10.1545 11.524 10.2362C11.4645 10.3179 11.3865 10.3844 11.2964 10.4302C11.2063 10.4761 11.1066 10.5 11.0055 10.5H2.97298C2.51273 10.5 2.24148 10.0503 2.36631 9.6635L2.79681 8.3265C2.86448 8.11709 2.89889 7.89775 2.89889 7.67609V5.83334ZM5.02106 11.2805C5.07176 11.223 5.13328 11.1761 5.20212 11.1424C5.27096 11.1087 5.34576 11.0889 5.42226 11.0842C5.49875 11.0794 5.57543 11.0897 5.64792 11.1146C5.72041 11.1395 5.78729 11.1784 5.84473 11.2292C6.15389 11.5022 6.55756 11.6667 7.00206 11.6667C7.44598 11.6667 7.85023 11.5022 8.15939 11.2292C8.27543 11.1268 8.42736 11.0748 8.58177 11.0845C8.73618 11.0941 8.88043 11.1648 8.98277 11.2808C9.08511 11.3968 9.13716 11.5488 9.12748 11.7032C9.1178 11.8576 9.04718 12.0018 8.93114 12.1042C8.39879 12.5747 7.71258 12.8341 7.00206 12.8333C6.29134 12.8343 5.6049 12.5749 5.07239 12.1042C5.01492 12.0535 4.96799 11.9919 4.9343 11.9231C4.90061 11.8543 4.88082 11.7795 4.87605 11.703C4.87128 11.6265 4.88164 11.5498 4.90652 11.4773C4.9314 11.4048 4.97032 11.3379 5.02106 11.2805Z" fill="#2fe06b"/></svg>
-                                  <span className="text-[13px] font-semibold text-green uppercase tracking-wide">Active</span>
-                                </div>
-                                <p className="text-[14px] text-text">
-                                  Alert me when price <span className="text-green font-semibold">{a.condition} ${a.price}</span>
-                                </p>
-                                <span className="text-[12px] text-sub">Created {agoText}</span>
-                              </div>
-                              <div className="flex items-center gap-2 flex-shrink-0 ml-4 pt-1">
-                                <button
-                                  onClick={() => { setEditingAlertId(a.id); setEditAlertCondition(a.condition as 'goes over' | 'goes under'); setEditAlertPrice(a.price) }}
-                                  className="flex items-center justify-center w-[28px] h-[28px] rounded-md text-sub hover:text-text hover:bg-border/40 transition-colors"
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1.5l3 3L5 12H2v-3L9.5 1.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
-                                </button>
-                                <button
-                                  onClick={() => setAlerts(prev => prev.filter(x => x.id !== a.id))}
-                                  className="flex items-center justify-center w-[28px] h-[28px] rounded-md text-sub hover:text-red hover:bg-red/10 transition-colors"
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 4h9M5 4V2.5a1 1 0 011-1h2a1 1 0 011 1V4M6 6.5v3M8 6.5v3M3.5 4l.5 7.5a1 1 0 001 1h4a1 1 0 001-1L10.5 4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

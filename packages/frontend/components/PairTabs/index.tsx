@@ -131,23 +131,29 @@ export function PairTabs({ swaps, swapHasMore, swapLoading, onLoadMore, tokenAdd
         </div>
       </div>
 
-      {/* Tab content */}
+      {/* Tab content — keep all tabs mounted to preserve filter state */}
       <div className="rounded-xl border border-border bg-surface overflow-hidden">
-        <div key={activeTab} className="animate-fadeIn">
-          {activeTab === 'transactions' && (
-            <TransactionsTable
-              swaps={swaps}
-              swapHasMore={swapHasMore}
-              swapLoading={swapLoading}
-              onLoadMore={onLoadMore}
-              baseTokenSymbol={baseTokenSymbol}
-              newSwapIds={newSwapIds}
-            />
-          )}
-          {activeTab === 'top-traders' && <TopTradersTable traders={traders} />}
-          {activeTab === 'holders' && <HoldersTable holdersData={holdersData} />}
-          {activeTab === 'liquidity' && <LiquidityTable lpHolders={security?.lp_holders} subgraphData={lpProvidersData} />}
-          {activeTab === 'bubblemaps' && <BubblemapsEmbed tokenAddress={tokenAddress} />}
+        <div style={{ display: activeTab === 'transactions' ? 'block' : 'none' }}>
+          <TransactionsTable
+            swaps={swaps}
+            swapHasMore={swapHasMore}
+            swapLoading={swapLoading}
+            onLoadMore={onLoadMore}
+            baseTokenSymbol={baseTokenSymbol}
+            newSwapIds={newSwapIds}
+          />
+        </div>
+        <div style={{ display: activeTab === 'top-traders' ? 'block' : 'none' }}>
+          <TopTradersTable traders={traders} />
+        </div>
+        <div style={{ display: activeTab === 'holders' ? 'block' : 'none' }}>
+          <HoldersTable holdersData={holdersData} />
+        </div>
+        <div style={{ display: activeTab === 'liquidity' ? 'block' : 'none' }}>
+          <LiquidityTable lpHolders={security?.lp_holders} subgraphData={lpProvidersData} />
+        </div>
+        <div style={{ display: activeTab === 'bubblemaps' ? 'block' : 'none' }}>
+          <BubblemapsEmbed tokenAddress={tokenAddress} />
         </div>
       </div>
     </div>

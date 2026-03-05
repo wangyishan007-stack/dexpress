@@ -14,7 +14,7 @@ const PAGE_SIZE = 50
 const FILTER_KEY_MAP: Record<string, string> = {
   liquidity: 'liquidity_usd',
   mcap: 'mcap_usd',
-  fdv: 'mcap_usd', // FDV approximated by mcap for mock data
+  fdv: '_fdv', // computed in applyCustomFilters
 }
 
 function sortPools(pools: Pool[], sort: string, order: 'asc' | 'desc'): Pool[] {
@@ -27,18 +27,18 @@ function sortPools(pools: Pool[], sort: string, order: 'asc' | 'desc'): Pool[] {
   })
 }
 
-function filterPools(pools: Pool[], filter?: string): Pool[] {
+function filterPools(pools: Pool[], filter?: string, sort?: string): Pool[] {
   if (!filter || filter === 'trending' || filter === 'top') return pools
-  const now = Date.now()
-  const dayAgo = now - 24 * 3600_000
+  const dayAgo = Date.now() - 24 * 3600_000
   if (filter === 'new') {
     return pools.filter(p => new Date(p.created_at).getTime() > dayAgo)
   }
+  const changeField = (sort?.startsWith('change_') ? sort : 'change_24h') as keyof Pool
   if (filter === 'gainers') {
-    return pools.filter(p => p.change_24h > 0)
+    return pools.filter(p => ((p[changeField] as number) ?? 0) > 0)
   }
   if (filter === 'losers') {
-    return pools.filter(p => p.change_24h < 0)
+    return pools.filter(p => ((p[changeField] as number) ?? 0) < 0)
   }
   return pools
 }
@@ -55,6 +55,11 @@ function applyCustomFilters(pools: Pool[], customFilters?: FilterValues): Pool[]
 
       if (key === 'pair_age') {
         value = (now - new Date(pool.created_at).getTime()) / 3600_000
+      } else if (key === 'fdv') {
+        const base = pool.token0 ?? pool.token1
+        const rawSupply = BigInt(base?.total_supply || '0')
+        const totalSupply = Number(rawSupply) / Math.pow(10, base?.decimals ?? 18)
+        value = totalSupply > 0 ? totalSupply * Number(pool.price_usd) : 0
       } else {
         const field = FILTER_KEY_MAP[key] ?? key
         value = (pool as any)[field]
@@ -79,7 +84,7 @@ export async function getPairs(params: PairsQuery & { customFilters?: FilterValu
     pools = await fetchDexScreenerClient()
   }
 
-  const filtered = filterPools(pools, params.filter)
+  const filtered = filterPools(pools, params.filter, params.sort)
   const custom   = applyCustomFilters(filtered, params.customFilters)
   const sorted   = sortPools(custom, params.sort ?? 'trending_score', params.order ?? 'desc')
   const offset   = params.offset ?? 0

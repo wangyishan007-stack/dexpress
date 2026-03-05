@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import clsx from 'clsx'
 
-/** Covalent logo CDN — accepts lowercase addresses, good coverage for Base tokens */
-const COVALENT_CDN = 'https://logos.covalenthq.com/tokens/8453'
+/** DexScreener token logo CDN — better coverage than Covalent */
+const DS_LOGO_CDN = 'https://dd.dexscreener.com/ds-data/tokens/base'
 
 export function addrToHue(address: string): number {
   let h = 0
@@ -26,8 +26,8 @@ export function TokenAvatar({ symbol, logoUrl, address, size = 22, rounded = 'fu
   const hue = addrToHue(address)
   const rCls = rounded === 'md' ? 'rounded-md' : 'rounded-full'
 
-  // Build fallback URL from Covalent CDN
-  const fallbackUrl = address ? `${COVALENT_CDN}/${address.toLowerCase()}.png` : null
+  // Build fallback URL from DexScreener CDN
+  const fallbackUrl = address ? `${DS_LOGO_CDN}/${address.toLowerCase()}.png?size=lg` : null
 
   // Track which image source to show: 'primary' -> 'fallback' -> 'none'
   const [imgSrc, setImgSrc] = useState<'primary' | 'fallback' | 'none'>(
@@ -35,11 +35,9 @@ export function TokenAvatar({ symbol, logoUrl, address, size = 22, rounded = 'fu
   )
 
   // Reset state when logoUrl changes (e.g. new token selected)
-  const [prevLogoUrl, setPrevLogoUrl] = useState(logoUrl)
-  if (logoUrl !== prevLogoUrl) {
-    setPrevLogoUrl(logoUrl)
+  useEffect(() => {
     setImgSrc(logoUrl ? 'primary' : fallbackUrl ? 'fallback' : 'none')
-  }
+  }, [logoUrl, fallbackUrl])
 
   const currentSrc =
     imgSrc === 'primary' ? logoUrl :
@@ -54,17 +52,21 @@ export function TokenAvatar({ symbol, logoUrl, address, size = 22, rounded = 'fu
     }
   }
 
+  const showingImg = imgSrc !== 'none'
+
   return (
     <div
       className={clsx('relative flex items-center justify-center overflow-hidden flex-shrink-0', rCls)}
-      style={{ backgroundColor: `hsl(${hue},55%,20%)`, width: size, height: size }}
+      style={{ backgroundColor: showingImg ? 'transparent' : `hsl(${hue},55%,20%)`, width: size, height: size }}
     >
-      <span
-        className="font-bold select-none"
-        style={{ color: `hsl(${hue},70%,72%)`, fontSize: Math.max(9, size * 0.36) }}
-      >
-        {symbol.slice(0, 2).toUpperCase()}
-      </span>
+      {!showingImg && (
+        <span
+          className="font-bold select-none"
+          style={{ color: `hsl(${hue},70%,72%)`, fontSize: Math.max(9, size * 0.36) }}
+        >
+          {symbol.slice(0, 2).toUpperCase()}
+        </span>
+      )}
       {currentSrc && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -72,6 +74,7 @@ export function TokenAvatar({ symbol, logoUrl, address, size = 22, rounded = 'fu
           alt={symbol}
           width={size}
           height={size}
+          referrerPolicy="no-referrer"
           className={clsx('absolute inset-0 object-cover', rCls)}
           onError={handleError}
         />

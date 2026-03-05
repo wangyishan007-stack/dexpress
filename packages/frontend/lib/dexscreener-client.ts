@@ -12,7 +12,7 @@ import type { Pool, Token, Dex, PairsResponse } from '@dex/shared'
 
 const GT_BASE     = 'https://api.geckoterminal.com/api/v2'
 const GT_HEADERS  = { Accept: 'application/json;version=20230302' }
-const FETCH_TIMEOUT = 10_000
+const FETCH_TIMEOUT = 6_000
 
 // ─── GeckoTerminal raw types ──────────────────────────────────
 
@@ -416,6 +416,7 @@ export interface PoolExtended {
   base_token_price_native: number
   quote_token_price_usd: number
   locked_liquidity_pct: number | null
+  fdv_usd: number
 }
 
 // ─── Token info (social links, description) ──────────────
@@ -438,10 +439,19 @@ export async function fetchTokenInfo(tokenAddress: string): Promise<TokenInfo | 
   if (cached && Date.now() - cached.ts < TOKEN_INFO_CACHE_TTL) return cached.data
 
   try {
-    const res = await fetchWithTimeout(`${GT_BASE}/networks/base/tokens/${tokenAddress}/info`)
-    if (!res.ok) return null
-    const data = await res.json()
-    const a = data?.data?.attributes
+    const url = `${GT_BASE}/networks/base/tokens/${tokenAddress}/info`
+    const batchRes = await fetch('/api/gt/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: [url] }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT),
+    })
+    if (!batchRes.ok) return null
+    const { results } = await batchRes.json() as { results: { status: number; data: any }[] }
+    const r = results?.[0]
+    if (!r || r.status !== 200) return null
+
+    const a = r.data?.data?.attributes
     if (!a) return null
 
     const info: TokenInfo = {
@@ -480,9 +490,19 @@ export async function fetchPoolTrades(address: string, beforeTimestamp?: string)
     if (beforeTimestamp) {
       url += `&before_timestamp=${encodeURIComponent(beforeTimestamp)}`
     }
-    const res = await fetchWithTimeout(url)
-    if (!res.ok) return []
-    const data = await res.json()
+    // Use batch proxy for better 429 handling + server-side cache
+    const batchRes = await fetch('/api/gt/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: [url] }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT),
+    })
+    if (!batchRes.ok) return []
+    const { results } = await batchRes.json() as { results: { status: number; data: any }[] }
+    const r = results?.[0]
+    if (!r || r.status !== 200) return []
+
+    const data = r.data
     if (!Array.isArray(data?.data)) return []
 
     return data.data.map((t: any) => {
@@ -546,14 +566,23 @@ export function getCachedPools(): Pool[] {
   return _cachedPools
 }
 
+// ─── Instant detail lookup from list/detail cache (no network) ──
+
+export function getPoolFromCache(address: string): (Pool & PoolExtended & { recent_swaps: GTTrade[] }) | null {
+  const addrLower = address.toLowerCase()
+  const detail = _detailCache.get(addrLower)
+  if (detail) return detail.data
+  return _poolFromList(addrLower)
+}
+
 // ─── Per-address detail cache ──────────────────────────────
 // Avoids redundant GT API calls when revisiting detail pages
-const _detailCache = new Map<string, { data: Pool & PoolExtended & { recent_swaps: never[] }; ts: number }>()
+const _detailCache = new Map<string, { data: Pool & PoolExtended & { recent_swaps: GTTrade[] }; ts: number }>()
 const DETAIL_CACHE_TTL = 60_000 // 60s
 
 // ─── Single pair lookup ───────────────────────────────────────
 
-function _poolFromList(addrLower: string): (Pool & PoolExtended & { recent_swaps: never[] }) | null {
+function _poolFromList(addrLower: string): (Pool & PoolExtended & { recent_swaps: GTTrade[] }) | null {
   const fromList = _cachedPools.find(p => p.address.toLowerCase() === addrLower)
   if (!fromList) return null
   return {
@@ -561,13 +590,14 @@ function _poolFromList(addrLower: string): (Pool & PoolExtended & { recent_swaps
     base_token_price_native: 0,
     quote_token_price_usd: 0,
     locked_liquidity_pct: null as number | null,
+    fdv_usd: fromList.mcap_usd,
     recent_swaps: [] as never[],
   }
 }
 
 export async function fetchPairByAddress(
   address: string
-): Promise<(Pool & PoolExtended & { recent_swaps: never[] }) | null> {
+): Promise<(Pool & PoolExtended & { recent_swaps: GTTrade[] }) | null> {
   const addrLower = address.toLowerCase()
 
   // 1. Check per-address detail cache (avoids redundant API calls)
@@ -576,12 +606,7 @@ export async function fetchPairByAddress(
     return cached.data
   }
 
-  // 2. If list cache empty, trigger list load in background so future calls benefit
-  if (_cachedPools.length === 0) {
-    fetchDexScreenerClient().catch(() => {})
-  }
-
-  // 3. Fetch from GT API (always await — ensures extended fields like ETH price are real)
+  // 2. Fetch from GT API (always await — ensures extended fields like ETH price are real)
   const result = await _fetchAndCacheDetail(address, addrLower)
   if (result) return result
 
@@ -597,13 +622,30 @@ export async function fetchPairByAddress(
 async function _fetchAndCacheDetail(
   address: string,
   addrLower: string,
-): Promise<(Pool & PoolExtended & { recent_swaps: never[] }) | null> {
+): Promise<(Pool & PoolExtended & { recent_swaps: GTTrade[] }) | null> {
   try {
-    const res = await fetchWithTimeout(`${GT_BASE}/networks/base/pools/${address}?include=base_token,quote_token`)
-    if (!res.ok) return null
-    const data = await res.json()
-    const raw  = data?.data as GTPool | undefined
+    const poolUrl = `${GT_BASE}/networks/base/pools/${address}?include=base_token,quote_token`
+    const tradesUrl = `${GT_BASE}/networks/base/pools/${address}/trades?trade_volume_in_usd_greater_than=0`
+
+    // Fetch pool + trades in ONE batch call — avoids coalesce delay + rate-limit contention
+    const batchRes = await fetch('/api/gt/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: [poolUrl, tradesUrl] }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT),
+    })
+    if (!batchRes.ok) return null
+    const { results } = await batchRes.json() as { results: { status: number; data: any }[] }
+
+    // --- Parse pool data (index 0) ---
+    const poolR = results?.[0]
+    if (!poolR || poolR.status !== 200) return null
+
+    const data = poolR.data
+    // Single pool endpoint returns data as object, not array
+    const raw = data?.data as GTPool | undefined
     if (!raw) return null
+
     const logos: LogoMap = new Map()
     if (Array.isArray(data?.included)) {
       for (const t of data.included as GTIncludedToken[]) {
@@ -616,12 +658,38 @@ async function _fetchAndCacheDetail(
     if (!pool) return null
 
     const a = raw.attributes
+    console.log('[detail] extended fields:', {
+      base_token_price_native_currency: a.base_token_price_native_currency,
+      quote_token_price_usd: a.quote_token_price_usd,
+      fdv_usd: a.fdv_usd,
+    })
     const result = {
       ...pool,
       base_token_price_native: safeFloat(a.base_token_price_native_currency),
       quote_token_price_usd:   safeFloat(a.quote_token_price_usd),
       locked_liquidity_pct:    a.locked_liquidity_percentage != null ? safeFloat(a.locked_liquidity_percentage) : null,
-      recent_swaps: [] as never[],
+      fdv_usd:                 safeFloat(a.fdv_usd),
+      recent_swaps: [] as GTTrade[],
+    }
+
+    // --- Parse trades (index 1) and include in result ---
+    const tradesR = results?.[1]
+    if (tradesR?.status === 200 && Array.isArray(tradesR.data?.data)) {
+      result.recent_swaps = tradesR.data.data.map((t: any) => {
+        const ta = t.attributes
+        const isBuy = ta.kind === 'buy'
+        return {
+          id: t.id,
+          tx_hash: ta.tx_hash,
+          timestamp: ta.block_timestamp,
+          is_buy: isBuy,
+          amount_usd: safeFloat(ta.volume_in_usd),
+          amount0: safeFloat(isBuy ? ta.to_token_amount : ta.from_token_amount),
+          amount1: safeFloat(isBuy ? ta.from_token_amount : ta.to_token_amount),
+          price_usd: safeFloat(isBuy ? ta.price_to_in_usd : ta.price_from_in_usd),
+          sender: ta.tx_from_address ?? null,
+        }
+      })
     }
 
     // Cache for subsequent visits
