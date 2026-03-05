@@ -10,6 +10,7 @@ import { useTokenSecurity } from '../../../hooks/useTokenSecurity'
 import { PairTabs } from '../../../components/PairTabs'
 import { TradingViewChart } from '../../../components/TradingViewChart'
 import clsx from 'clsx'
+import { TokenAvatar, addrToHue } from '../../../components/TokenAvatar'
 import { PairWatchlistDropdown } from '../../../components/PairWatchlistDropdown'
 import { OtherPairsModal } from '../../../components/OtherPairsModal'
 
@@ -51,39 +52,7 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-/* ── Token logo with HSL fallback ─────────────────────────── */
-function addrToHue(address: string): number {
-  let h = 0
-  for (let i = 2; i < address.length; i++) {
-    h = (h * 31 + address.charCodeAt(i)) >>> 0
-  }
-  return h % 360
-}
-
-function TokenLogo({ symbol, logoUrl, address, size = 30 }: { symbol: string; logoUrl: string | null; address: string; size?: number }) {
-  const hue = addrToHue(address)
-  return (
-    <div
-      className="relative flex items-center justify-center rounded-md overflow-hidden flex-shrink-0"
-      style={{ backgroundColor: `hsl(${hue},55%,20%)`, width: size, height: size }}
-    >
-      <span className="font-bold select-none" style={{ color: `hsl(${hue},70%,72%)`, fontSize: size * 0.36 }}>
-        {symbol.slice(0, 2).toUpperCase()}
-      </span>
-      {logoUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={logoUrl}
-          alt={symbol}
-          width={size}
-          height={size}
-          className="absolute inset-0 rounded-md object-cover"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-        />
-      )}
-    </div>
-  )
-}
+/* ── TokenAvatar imported from components/TokenAvatar ──── */
 
 /* ── Tooltip on hover ─────────────────────────────────────── */
 function Tooltip({ children, content }: { children: React.ReactNode; content: React.ReactNode }) {
@@ -315,7 +284,7 @@ export function PairDetailClient({ address }: Props) {
 
           {/* Chart header: token identity */}
           <div className="flex items-start gap-4 px-5 py-4 border-b border-border flex-shrink-0">
-            <TokenLogo symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={44} />
+            <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={44} rounded="md" />
             <div className="min-w-0">
               {/* Token pair + DEX badge + age */}
               <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -378,7 +347,7 @@ export function PairDetailClient({ address }: Props) {
           <div className="flex flex-col gap-2 items-center">
             <div className="flex items-center justify-between w-full py-2">
               <div className="flex items-center gap-1.5">
-                <TokenLogo symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={30} />
+                <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={30} rounded="md" />
                 <span className="text-[16px] text-text">{base.name || base.symbol}</span>
               </div>
             </div>
@@ -984,7 +953,7 @@ export function PairDetailClient({ address }: Props) {
             {/* ── 11. Token About Card ──────────────────────────────── */}
             <div ref={projectInfoRef} className="flex flex-col gap-4 items-center">
               <div className="flex flex-col gap-[13px] items-center">
-                <TokenLogo symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={74} />
+                <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={74} rounded="md" />
                 <span className="text-[16px] text-text text-center">{base.name || base.symbol}</span>
                 <div className="flex items-center justify-center gap-2">
                   <span className="flex items-center gap-1 bg-muted rounded px-2 py-1 text-[14px] text-text">

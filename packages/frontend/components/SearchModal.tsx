@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { MOCK_POOLS } from '../lib/mockData'
+import { TokenAvatar } from './TokenAvatar'
 import type { Pool } from '@dex/shared'
 
 function IconSearch() {
@@ -30,38 +31,7 @@ function IconClose() {
   )
 }
 
-function addrToHue(address: string): number {
-  let h = 0
-  for (let i = 2; i < address.length; i++) h = (h * 31 + address.charCodeAt(i)) & 0xffff
-  return h % 360
-}
-
-function TokenAvatar({ symbol, logoUrl, address, size = 40 }: { symbol: string; logoUrl: string | null; address: string; size?: number }) {
-  const hue = addrToHue(address)
-  return (
-    <div
-      className="relative flex items-center justify-center rounded-[4px] overflow-hidden flex-shrink-0"
-      style={{ backgroundColor: `hsl(${hue},55%,20%)`, width: size, height: size }}
-    >
-      <span
-        className="font-bold select-none"
-        style={{ color: `hsl(${hue},70%,72%)`, fontSize: size * 0.35 }}
-      >
-        {symbol.slice(0, 2).toUpperCase()}
-      </span>
-      {logoUrl && (
-        <img
-          src={logoUrl}
-          alt={symbol}
-          width={size}
-          height={size}
-          className="absolute inset-0 rounded-[4px] object-cover"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-        />
-      )}
-    </div>
-  )
-}
+// TokenAvatar imported from ./TokenAvatar
 
 interface Props {
   open: boolean

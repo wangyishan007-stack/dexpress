@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import type { Pool, TimeWindow } from '@dex/shared'
 import { fmtPrice, fmtUsd, fmtAge, fmtNum } from '../../lib/formatters'
 import { WatchToggle } from '../WatchToggle'
+import { TokenAvatar } from '../TokenAvatar'
 import { getVisibleColumns, buildGridCols, buildDataGridCols, DEFAULT_DATA_GRID } from '../../lib/columnConfig'
 import type { ScreenerConfig, ColumnDef } from '../../lib/columnConfig'
 
@@ -41,42 +42,7 @@ function PctCell({ v, className }: { v: number; className?: string }) {
   )
 }
 
-function addrToHue(address: string): number {
-  let h = 0
-  for (let i = 2; i < address.length; i++) {
-    h = (h * 31 + address.charCodeAt(i)) >>> 0
-  }
-  return h % 360
-}
-
-function TokenAvatar({ symbol, logoUrl, address, size = 22, rounded = 'full' }: { symbol: string; logoUrl: string | null; address: string; size?: number; rounded?: 'full' | 'md' }) {
-  const hue = addrToHue(address)
-  const rCls = rounded === 'md' ? 'rounded-md' : 'rounded-full'
-  return (
-    <div
-      className={clsx('relative flex items-center justify-center overflow-hidden flex-shrink-0', rCls)}
-      style={{ backgroundColor: `hsl(${hue},55%,20%)`, width: size, height: size }}
-    >
-      <span
-        className="font-bold select-none"
-        style={{ color: `hsl(${hue},70%,72%)`, fontSize: Math.max(9, size * 0.36) }}
-      >
-        {symbol.slice(0, 2).toUpperCase()}
-      </span>
-      {logoUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={logoUrl}
-          alt={symbol}
-          width={size}
-          height={size}
-          className={clsx('absolute inset-0 object-cover', rCls)}
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-        />
-      )}
-    </div>
-  )
-}
+// TokenAvatar imported from ../TokenAvatar
 
 function DexBadge({ dex, extraPools = 0 }: { dex: string; extraPools?: number }) {
   const label =

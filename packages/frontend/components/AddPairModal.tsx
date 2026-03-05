@@ -3,16 +3,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { MOCK_POOLS } from '../lib/mockData'
 import { useWatchlist } from '../hooks/useWatchlist'
+import { TokenAvatar } from './TokenAvatar'
 
 interface Props {
   open: boolean
   onClose: () => void
-}
-
-function addrToHue(address: string): number {
-  let h = 0
-  for (let i = 2; i < address.length; i++) h = (h * 31 + address.charCodeAt(i)) & 0xffff
-  return h % 360
 }
 
 export function AddPairModal({ open, onClose }: Props) {
@@ -105,7 +100,6 @@ export function AddPairModal({ open, onClose }: Props) {
           {results.map((p) => {
             const base = p.token1
             const watched = isWatched(p.address)
-            const hue = addrToHue(base.address)
 
             return (
               <button
@@ -114,22 +108,7 @@ export function AddPairModal({ open, onClose }: Props) {
                 className="flex items-center gap-3 w-full px-5 py-3 text-left hover:bg-white/5 transition-colors border-b border-border/50 last:border-0"
               >
                 {/* Token avatar */}
-                <div
-                  className="relative flex items-center justify-center w-[36px] h-[36px] rounded flex-shrink-0 overflow-hidden"
-                  style={{ backgroundColor: `hsl(${hue},55%,20%)` }}
-                >
-                  <span className="text-[12px] font-bold select-none" style={{ color: `hsl(${hue},70%,72%)` }}>
-                    {base.symbol.slice(0, 2).toUpperCase()}
-                  </span>
-                  {base.logo_url && (
-                    <img
-                      src={base.logo_url}
-                      alt={base.symbol}
-                      className="absolute inset-0 w-full h-full object-cover rounded"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                    />
-                  )}
-                </div>
+                <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={36} rounded="md" />
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
