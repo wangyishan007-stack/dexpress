@@ -41,9 +41,10 @@ export function TimeRangeDropdown({ window, onWindow }: Props) {
   return (
     <Dropdown
       trigger={
-        <button className={clsx(BTN_BASE, BTN_SIZE, 'bg-blue text-white flex-shrink-0')}>
+        <button className={clsx(BTN_BASE, BTN_SIZE, 'bg-blue text-white flex-shrink-0 whitespace-nowrap')}>
           <span><IconClock /></span>
-          <span>{window.toUpperCase()}</span>
+          <span className="hidden md:inline">{current?.label ?? 'Last 24 hours'}</span>
+          <span className="md:hidden">{window.toUpperCase()}</span>
           <IconChevron />
         </button>
       }
