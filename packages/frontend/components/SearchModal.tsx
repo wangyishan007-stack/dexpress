@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { MOCK_POOLS } from '../lib/mockData'
 import { TokenAvatar } from './TokenAvatar'
+import { searchPools, getCachedPools } from '../lib/dexscreener-client'
+import { fmtUsd, fmtPrice } from '../lib/formatters'
 import type { Pool } from '@dex/shared'
 
 function IconSearch() {
@@ -31,7 +32,37 @@ function IconClose() {
   )
 }
 
-// TokenAvatar imported from ./TokenAvatar
+// ─── Search history in localStorage ─────────────────────────
+
+const HISTORY_KEY = 'search_history_v1'
+const MAX_HISTORY = 5
+
+interface HistoryItem {
+  address: string
+  symbol: string
+  logoUrl: string | null
+  tokenAddress: string
+}
+
+function getHistory(): HistoryItem[] {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
+  } catch { return [] }
+}
+
+function addHistory(pool: Pool) {
+  const base = pool.token0
+  const item: HistoryItem = {
+    address: pool.address,
+    symbol: base.symbol,
+    logoUrl: base.logo_url,
+    tokenAddress: base.address,
+  }
+  const prev = getHistory().filter(h => h.address !== pool.address)
+  localStorage.setItem(HISTORY_KEY, JSON.stringify([item, ...prev].slice(0, MAX_HISTORY)))
+}
+
+// ─── Component ──────────────────────────────────────────────
 
 interface Props {
   open: boolean
@@ -40,33 +71,76 @@ interface Props {
 
 export function SearchModal({ open, onClose }: Props) {
   const [query, setQuery] = useState('')
+  const [results, setResults] = useState<Pool[]>([])
+  const [searching, setSearching] = useState(false)
+  const [history, setHistory] = useState<HistoryItem[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
 
-  // History: use first 3 tokens as mock history
-  const history = useMemo(() => MOCK_POOLS.slice(0, 3), [])
+  // Recently updated: top pools from cache sorted by volume
+  const recentTokens = useMemo(() => {
+    const pools = getCachedPools()
+    return [...pools].sort((a, b) => b.volume_24h - a.volume_24h).slice(0, 12)
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Search results: filter mock pools by query
-  const results = useMemo(() => {
-    if (!query.trim()) return []
-    const q = query.toLowerCase()
-    return MOCK_POOLS.filter(p => {
-      const base = p.token1
-      return base.symbol.toLowerCase().includes(q) || base.name.toLowerCase().includes(q) || base.address.toLowerCase().includes(q)
-    }).slice(0, 12)
-  }, [query])
-
-  // Recently updated: show 12 tokens when no search query
-  const recentTokens = useMemo(() => MOCK_POOLS.slice(0, 12), [])
-
-  // Auto-focus input when opened
+  // Load history from localStorage when modal opens
   useEffect(() => {
     if (open) {
+      setHistory(getHistory())
       setTimeout(() => inputRef.current?.focus(), 50)
     } else {
       setQuery('')
+      setResults([])
     }
   }, [open])
+
+  // Debounced search
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    const q = query.trim()
+    if (!q) {
+      setResults([])
+      setSearching(false)
+      return
+    }
+
+    setSearching(true)
+
+    // First: instant local filter from cached pools
+    const cached = getCachedPools()
+    const ql = q.toLowerCase()
+    const localResults = cached.filter(p => {
+      const b = p.token0
+      return b.symbol.toLowerCase().includes(ql) || b.name.toLowerCase().includes(ql) || b.address.toLowerCase().includes(ql) || p.address.toLowerCase().includes(ql)
+    }).slice(0, 12)
+    if (localResults.length > 0) {
+      setResults(localResults)
+    }
+
+    // Then: debounced API search for broader results
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const apiResults = await searchPools(q)
+        if (apiResults.length > 0) {
+          // Merge: local results first (deduplicated), then API results
+          const seen = new Set(localResults.map(p => p.address))
+          const merged = [...localResults]
+          for (const p of apiResults) {
+            if (!seen.has(p.address)) {
+              seen.add(p.address)
+              merged.push(p)
+            }
+          }
+          setResults(merged.slice(0, 20))
+        }
+      } catch { /* ignore */ }
+      setSearching(false)
+    }, 400)
+
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [query])
 
   // Close on Escape
   useEffect(() => {
@@ -77,8 +151,14 @@ export function SearchModal({ open, onClose }: Props) {
   }, [open, onClose])
 
   const goToPair = useCallback((pool: Pool) => {
+    addHistory(pool)
     onClose()
     router.push(`/pair/${pool.address}`)
+  }, [onClose, router])
+
+  const goToHistory = useCallback((item: HistoryItem) => {
+    onClose()
+    router.push(`/pair/${item.address}`)
   }, [onClose, router])
 
   if (!open) return null
@@ -105,7 +185,7 @@ export function SearchModal({ open, onClose }: Props) {
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search for coin"
+            placeholder="Search by token name, symbol, or address"
             className="flex-1 bg-transparent text-[14px] text-text placeholder-sub outline-none"
           />
           {query ? (
@@ -127,13 +207,16 @@ export function SearchModal({ open, onClose }: Props) {
           {showResults ? (
             /* Search results */
             <div>
-              <p className="text-[14px] font-bold text-text mb-4">Search Results</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <p className="text-[14px] font-bold text-text mb-4">
+                Search Results
+                {searching && <span className="ml-2 text-sub font-normal">searching...</span>}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {results.map(pool => (
                   <TokenCard key={pool.address} pool={pool} onClick={() => goToPair(pool)} />
                 ))}
               </div>
-              {results.length === 0 && (
+              {results.length === 0 && !searching && (
                 <p className="text-[14px] text-sub text-center py-8">No results found</p>
               )}
             </div>
@@ -141,33 +224,35 @@ export function SearchModal({ open, onClose }: Props) {
             /* Default: history + recently updated */
             <>
               {/* History */}
-              <div className="flex items-center gap-3 px-2 mb-5 flex-wrap">
-                <div className="flex items-center gap-[7px]">
-                  <span className="text-sub"><IconHistory /></span>
-                  <span className="text-[14px] text-sub">History</span>
-                </div>
-                {history.map(pool => {
-                  const base = pool.token1
-                  return (
+              {history.length > 0 && (
+                <div className="flex items-center gap-3 px-2 mb-5 flex-wrap">
+                  <div className="flex items-center gap-[7px]">
+                    <span className="text-sub"><IconHistory /></span>
+                    <span className="text-[14px] text-sub">History</span>
+                  </div>
+                  {history.map(item => (
                     <button
-                      key={pool.address}
-                      onClick={() => goToPair(pool)}
+                      key={item.address}
+                      onClick={() => goToHistory(item)}
                       className="flex items-center gap-1 hover:opacity-80 transition-opacity"
                     >
-                      <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={18} />
-                      <span className="text-[14px] text-sub">${base.symbol}</span>
+                      <TokenAvatar symbol={item.symbol} logoUrl={item.logoUrl} address={item.tokenAddress} size={18} />
+                      <span className="text-[14px] text-sub">${item.symbol}</span>
                     </button>
-                  )
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
 
-              {/* Recently Updated Token Info */}
-              <p className="text-[14px] font-bold text-text mb-4">Recently Updated Token Info</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Top Tokens by Volume */}
+              <p className="text-[14px] font-bold text-text mb-4">Top Tokens</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {recentTokens.map(pool => (
                   <TokenCard key={pool.address} pool={pool} onClick={() => goToPair(pool)} />
                 ))}
               </div>
+              {recentTokens.length === 0 && (
+                <p className="text-[14px] text-sub text-center py-8">Loading...</p>
+              )}
             </>
           )}
         </div>
@@ -177,51 +262,24 @@ export function SearchModal({ open, onClose }: Props) {
 }
 
 function TokenCard({ pool, onClick }: { pool: Pool; onClick: () => void }) {
-  const base = pool.token1
+  const base = pool.token0
+  const quote = pool.token1
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-4 p-2 rounded-[8px] text-left hover:bg-white/5 transition-colors"
-      style={{ border: '1px solid #333' }}
+      className="flex items-center gap-3 p-3 rounded-lg text-left hover:bg-white/5 transition-colors border border-border/50"
     >
-      <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={64} />
-      <div className="flex flex-col gap-2 min-w-0">
-        <span className="text-[14px] font-bold text-text truncate">{base.name}</span>
-        <div className="flex items-center gap-[5px]">
-          <div className="w-[14px] h-[14px] rounded-[1px] bg-[#0021F5] flex-shrink-0" />
-          <span className="text-[14px] text-sub">Base</span>
+      <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={40} rounded="md" />
+      <div className="flex flex-col gap-1 min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[13px] font-bold text-text truncate">${base.symbol}</span>
+          <span className="text-[11px] text-sub">/ {quote.symbol}</span>
         </div>
-        <div className="flex items-center gap-1">
-          <IconWeb />
-          <IconX />
-          <IconTelegram />
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] text-sub">{fmtPrice(pool.price_usd)}</span>
+          <span className="text-[11px] text-sub">Vol {fmtUsd(pool.volume_24h)}</span>
         </div>
       </div>
     </button>
-  )
-}
-
-function IconWeb() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <circle cx="7" cy="7" r="5.5" stroke="#999" strokeWidth="1"/>
-      <path d="M1.5 7H12.5M7 1.5C8.5 3.5 8.5 10.5 7 12.5M7 1.5C5.5 3.5 5.5 10.5 7 12.5" stroke="#999" strokeWidth="1"/>
-    </svg>
-  )
-}
-
-function IconX() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M8.36 5.93L12.05 1.75H11.1L7.94 5.33L5.43 1.75H2L5.87 7.35L2 11.75H2.95L6.29 7.95L8.94 11.75H12.37L8.36 5.93ZM6.77 7.41L6.35 6.81L3.28 2.45H5.01L7.15 5.6L7.57 6.2L11.1 11.09H9.37L6.77 7.41Z" fill="#999"/>
-    </svg>
-  )
-}
-
-function IconTelegram() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M11.78 2.56L10.14 11.09C10.14 11.09 9.91 11.66 9.28 11.39L6.02 8.87L4.73 8.25L2.37 7.49C2.37 7.49 2 7.36 1.97 7.09C1.94 6.82 2.38 6.67 2.38 6.67L11.08 3.22C11.08 3.22 11.78 2.92 11.78 3.39V2.56Z" fill="#999"/>
-    </svg>
   )
 }

@@ -459,6 +459,31 @@ export async function fetchPoolTrades(address: string): Promise<GTTrade[]> {
   }
 }
 
+// ─── Search pools ────────────────────────────────────────────
+
+export async function searchPools(query: string): Promise<Pool[]> {
+  if (!query.trim()) return []
+  try {
+    const url = `${GT_BASE}/search/pools?query=${encodeURIComponent(query)}&network=base&include=base_token,quote_token&page=1`
+    const res = await fetchWithTimeout(url)
+    if (!res.ok) return []
+    const data = await res.json()
+    const { pools: rawPools, logos } = parseGTResponse(data)
+    return rawPools.map(p => mapPool(p, logos)).filter((p): p is Pool => p !== null)
+  } catch (e) {
+    console.error('[searchPools] error:', e)
+    return []
+  }
+}
+
+// ─── Get cached pools (for search modal "recently updated") ──
+
+export function getCachedPools(): Pool[] {
+  return _cachedPools
+}
+
+// ─── Single pair lookup ───────────────────────────────────────
+
 export async function fetchPairByAddress(
   address: string
 ): Promise<(Pool & PoolExtended & { recent_swaps: never[] }) | null> {
