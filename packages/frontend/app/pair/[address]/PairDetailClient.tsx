@@ -146,20 +146,19 @@ const QUOTE_ADDRS = new Set([
 /* ── Main ─────────────────────────────────────────────────── */
 export function PairDetailClient({ address }: Props) {
   // Fetch pair from DexScreener client-side
-  const { data: pair, error, isLoading } = useSWR<PairDetail | null>(
+  const { data: pair, error, isLoading } = useSWR<PairDetail>(
     `pair-${address}`,
     async () => {
-      try {
-        const { fetchPairByAddress } = await import('../../../lib/dexscreener-client')
-        const result = await fetchPairByAddress(address)
-        if (!result) console.warn('[PairDetail] fetchPairByAddress returned null for', address)
-        return result as PairDetail | null
-      } catch (e) {
-        console.error('[PairDetail] SWR fetcher error:', e)
-        throw e
-      }
+      const { fetchPairByAddress } = await import('../../../lib/dexscreener-client')
+      const result = await fetchPairByAddress(address)
+      if (!result) throw new Error('Pool not found or API rate limited')
+      return result as PairDetail
     },
-    { revalidateOnFocus: false }
+    {
+      revalidateOnFocus: false,
+      errorRetryCount: 5,
+      errorRetryInterval: 3000,
+    }
   )
 
   // GoPlus security data for base token
@@ -251,13 +250,11 @@ export function PairDetailClient({ address }: Props) {
     )
   }
   if (error || !pair) {
-    if (error) console.error('[PairDetail] SWR error state:', error)
-    if (!pair && !error) console.warn('[PairDetail] pair is null/undefined, no error')
     return (
       <div className="flex flex-col items-center justify-center h-48 gap-2">
-        <p className="text-sub text-sm">Failed to load pair data.</p>
-        {error && <p className="text-red text-xs font-mono">{String(error?.message ?? error)}</p>}
-        <a href="/" className="text-blue text-xs hover:underline">← Back to all coins</a>
+        <p className="text-sub text-sm">{isLoading ? 'Loading...' : 'Failed to load pair data. Retrying...'}</p>
+        {error && <p className="text-sub text-xs font-mono">{String(error?.message ?? error)}</p>}
+        <a href="/" className="text-blue text-xs hover:underline mt-2">← Back to all coins</a>
       </div>
     )
   }
