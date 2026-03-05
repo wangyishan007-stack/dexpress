@@ -297,8 +297,8 @@ async function fetchGTBatch(urls: string[]): Promise<{ pools: GTPool[]; logos: L
 let _cachedPools: Pool[] = []
 let _cacheTs = 0
 let _refreshing = false
-const CACHE_FRESH_TTL = 60_000  // 60s — serve instantly
-const CACHE_STALE_TTL = 300_000 // 5min — serve stale, refresh in bg
+const CACHE_FRESH_TTL = 30_000  // 30s — serve instantly
+const CACHE_STALE_TTL = 120_000 // 2min — serve stale, refresh in bg
 
 // ─── Main export ──────────────────────────────────────────────
 

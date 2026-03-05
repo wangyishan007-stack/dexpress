@@ -3,12 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 const ALLOWED_HOST = 'api.geckoterminal.com'
 const GT_HEADERS = { Accept: 'application/json;version=20230302' }
 
-// ─── Per-URL cache with stale-while-revalidate ─────────────
+// ─── Per-URL cache ──────────────────────────────────────────
 const urlCache = new Map<string, { body: string; status: number; ts: number }>()
-const FRESH_TTL = 30_000    // 30s — return cached instantly
-const STALE_TTL = 300_000   // 5min — return stale, refresh in bg
-
-let refreshing = new Set<string>()
+const FRESH_TTL    = 30_000   // 30s — return cached instantly
+const FALLBACK_TTL = 300_000  // 5min — fallback on fetch failure only
 
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get('url')
@@ -25,30 +23,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
   }
 
-  const now = Date.now()
   const cached = urlCache.get(url)
 
   // Fresh cache — return instantly
-  if (cached && now - cached.ts < FRESH_TTL) {
+  if (cached && Date.now() - cached.ts < FRESH_TTL) {
     return new NextResponse(cached.body, {
       status: cached.status,
       headers: { 'Content-Type': 'application/json', 'X-Cache': 'HIT' },
     })
   }
 
-  // Stale cache — return immediately, refresh in background
-  if (cached && now - cached.ts < STALE_TTL) {
-    if (!refreshing.has(url)) {
-      refreshing.add(url)
-      doFetch(url).finally(() => refreshing.delete(url))
-    }
-    return new NextResponse(cached.body, {
-      status: cached.status,
-      headers: { 'Content-Type': 'application/json', 'X-Cache': 'STALE' },
-    })
-  }
-
-  // No cache — fetch and wait
+  // Not fresh — fetch and wait (stale data used as fallback on failure)
   return doFetch(url)
 }
 
@@ -78,9 +63,19 @@ async function doFetch(url: string): Promise<NextResponse> {
       status = res.status
     }
 
-    // Cache successful responses (and also 429 briefly to avoid hammering)
     if (status === 200) {
       urlCache.set(url, { body, status, ts: Date.now() })
+    }
+
+    // On non-200 (e.g. 429), fall back to stale cached data if available
+    if (status !== 200) {
+      const fallback = urlCache.get(url)
+      if (fallback && Date.now() - fallback.ts < FALLBACK_TTL) {
+        return new NextResponse(fallback.body, {
+          status: fallback.status,
+          headers: { 'Content-Type': 'application/json', 'X-Cache': 'FALLBACK' },
+        })
+      }
     }
 
     return new NextResponse(body, {
@@ -89,12 +84,11 @@ async function doFetch(url: string): Promise<NextResponse> {
     })
   } catch (err: any) {
     console.error('[/api/gt] proxy error:', err.message)
-    // If we have stale data, return it on error
-    const stale = urlCache.get(url)
-    if (stale) {
-      return new NextResponse(stale.body, {
-        status: stale.status,
-        headers: { 'Content-Type': 'application/json', 'X-Cache': 'ERROR-STALE' },
+    const fallback = urlCache.get(url)
+    if (fallback && Date.now() - fallback.ts < FALLBACK_TTL) {
+      return new NextResponse(fallback.body, {
+        status: fallback.status,
+        headers: { 'Content-Type': 'application/json', 'X-Cache': 'ERROR-FALLBACK' },
       })
     }
     return NextResponse.json({ error: err.message }, { status: 502 })

@@ -5,10 +5,10 @@ const GT_HEADERS = { Accept: 'application/json;version=20230302' }
 const DELAY_MS = 400            // Delay between concurrent batches (proxy mode)
 const PROXY_CONCURRENCY = 3     // Parallel requests even with proxy
 
-// ─── Server-side per-URL cache with stale-while-revalidate ────
+// ─── Server-side per-URL cache ────────────────────────────────
 const urlCache = new Map<string, { data: any; ts: number }>()
-const FRESH_TTL  = 90_000       // 90s — data considered fresh
-const STALE_TTL  = 300_000      // 5min — serve stale, revalidate in background
+const FRESH_TTL  = 45_000       // 45s — data considered fresh
+const FALLBACK_TTL = 300_000    // 5min — stale fallback on fetch failure only
 
 function getCached(url: string): any | null {
   const entry = urlCache.get(url)
@@ -16,13 +16,21 @@ function getCached(url: string): any | null {
   return null
 }
 
-function getStale(url: string): any | null {
+function getFallback(url: string): any | null {
   const entry = urlCache.get(url)
-  if (entry && Date.now() - entry.ts < STALE_TTL) return entry.data
+  if (entry && Date.now() - entry.ts < FALLBACK_TTL) return entry.data
   return null
 }
 
+/** Only cache responses that contain valid pool data */
 function setCache(url: string, data: any) {
+  // Validate: must have data array (GT pool responses) or be a valid object
+  if (data && typeof data === 'object') {
+    // Skip caching if GT returned an error body with 200 status
+    if (data.status?.error_code) return
+    // Skip caching empty pool responses for trending/pool endpoints
+    if (Array.isArray(data.data) && data.data.length === 0) return
+  }
   urlCache.set(url, { data, ts: Date.now() })
 }
 
@@ -52,43 +60,32 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Check if all URLs are cached (fresh) — return instantly
+  // All fresh — return instantly
   const allFresh = urls.every(url => getCached(url) !== null)
   if (allFresh) {
     const results = urls.map(url => ({ status: 200, data: getCached(url)! }))
     return NextResponse.json({ results })
   }
 
-  // Stale-while-revalidate: if we have stale data for ALL urls, return it
-  // immediately and trigger background refresh
-  const allStale = urls.every(url => getStale(url) !== null)
-  if (allStale) {
-    const results = urls.map(url => ({ status: 200, data: getStale(url)! }))
-    // Fire-and-forget background refresh (works in dev server, best-effort on serverless)
-    if (!pendingBatch) {
-      const bgPromise = fetchBatch(urls)
-      pendingBatch = bgPromise
-      bgPromise.finally(() => { pendingBatch = null })
-    }
-    return NextResponse.json({ results })
-  }
-
-  // Coalesce: if another batch is in progress, wait for it
+  // Coalesce: if another batch is already in-flight, wait for it then use cache
   if (pendingBatch) {
     await pendingBatch
-    // After coalesced batch, try cache again (fresh or stale)
     const results = urls.map(url => {
-      const cached = getCached(url) ?? getStale(url)
+      const cached = getCached(url) ?? getFallback(url)
       return cached ? { status: 200, data: cached } : { status: 502, data: { error: 'miss' } }
     })
     return NextResponse.json({ results })
   }
 
+  // Not all fresh — fetch uncached URLs (block and wait)
   const promise = fetchBatch(urls)
   pendingBatch = promise
-  const response = await promise
-  pendingBatch = null
-  return response
+  try {
+    const response = await promise
+    return response
+  } finally {
+    pendingBatch = null
+  }
 }
 
 async function fetchOne(url: string, proxyUrl?: string): Promise<{ status: number; data: any }> {
@@ -117,12 +114,21 @@ async function fetchOne(url: string, proxyUrl?: string): Promise<{ status: numbe
 
       const data = await res.json()
       if (res.status === 200) setCache(url, data)
+
+      // On non-200, try returning stale fallback instead
+      if (res.status !== 200) {
+        const fallback = getFallback(url)
+        if (fallback) return { status: 200, data: fallback }
+      }
       return { status: res.status, data }
     } catch (err: any) {
       if (attempt < 1) {
         await new Promise(r => setTimeout(r, 1000))
         continue
       }
+      // On error, return stale fallback if available
+      const fallback = getFallback(url)
+      if (fallback) return { status: 200, data: fallback }
       return { status: 502, data: { error: err.message } }
     }
   }
