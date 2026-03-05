@@ -418,6 +418,46 @@ export interface PoolExtended {
   locked_liquidity_pct: number | null
 }
 
+// ─── Token info (social links, description) ──────────────
+
+export interface TokenInfo {
+  websites: string[]
+  twitter_handle: string | null
+  telegram_handle: string | null
+  discord_url: string | null
+  description: string | null
+}
+
+const _tokenInfoCache = new Map<string, { data: TokenInfo; ts: number }>()
+const TOKEN_INFO_CACHE_TTL = 300_000 // 5min — social links rarely change
+
+export async function fetchTokenInfo(tokenAddress: string): Promise<TokenInfo | null> {
+  const addrLower = tokenAddress.toLowerCase()
+  const cached = _tokenInfoCache.get(addrLower)
+  if (cached && Date.now() - cached.ts < TOKEN_INFO_CACHE_TTL) return cached.data
+
+  try {
+    const res = await fetchWithTimeout(`${GT_BASE}/networks/base/tokens/${tokenAddress}/info`)
+    if (!res.ok) return null
+    const data = await res.json()
+    const a = data?.data?.attributes
+    if (!a) return null
+
+    const info: TokenInfo = {
+      websites:         Array.isArray(a.websites) ? a.websites : [],
+      twitter_handle:   a.twitter_handle || null,
+      telegram_handle:  a.telegram_handle || null,
+      discord_url:      a.discord_url || null,
+      description:      a.description || null,
+    }
+    _tokenInfoCache.set(addrLower, { data: info, ts: Date.now() })
+    return info
+  } catch (e) {
+    console.error('[fetchTokenInfo] error:', e)
+    return null
+  }
+}
+
 // ─── Single pair lookup ───────────────────────────────────────
 
 export interface GTTrade {

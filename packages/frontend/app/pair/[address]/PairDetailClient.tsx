@@ -7,6 +7,7 @@ import { fmtPrice, fmtUsd, fmtAge, fmtNum, fmtPct, shortAddr } from '../../../li
 import { usePairWebSocket } from '../../../hooks/useWebSocket'
 import { fetchPoolTrades, type PoolExtended } from '../../../lib/dexscreener-client'
 import { useTokenSecurity } from '../../../hooks/useTokenSecurity'
+import { useTokenInfo } from '../../../hooks/useTokenInfo'
 import { PairTabs } from '../../../components/PairTabs'
 import { TradingViewChart } from '../../../components/TradingViewChart'
 import clsx from 'clsx'
@@ -167,6 +168,7 @@ export function PairDetailClient({ address }: Props) {
     ? (QUOTE_ADDRS.has(pair.token0.address.toLowerCase()) ? pair.token1.address : pair.token0.address)
     : undefined
   const { data: security } = useTokenSecurity(baseTokenAddr)
+  const { data: tokenInfo } = useTokenInfo(baseTokenAddr)
 
   const [livePrice, setLivePrice] = useState<number | null>(null)
   const [flash,     setFlash]     = useState<'up' | 'down' | null>(null)
@@ -410,26 +412,37 @@ export function PairDetailClient({ address }: Props) {
           </div>
 
           {/* ── 2. Social Links ──────────────────────────────────── */}
-          <div className="flex items-center bg-surface border border-border rounded">
-            <button className="flex-1 flex items-center justify-center gap-2 py-2 border-r border-border text-[13px] text-sub hover:text-text transition-colors">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="7" cy="7" r="5"/><path d="M2 7h10M7 2c1.5 1.5 2 3.5 2 5s-.5 3.5-2 5M7 2c-1.5 1.5-2 3.5-2 5s.5 3.5 2 5"/></svg>
-              Website
-            </button>
-            <button className="flex-1 flex items-center justify-center gap-2 py-2 border-r border-border text-[13px] text-sub hover:text-text transition-colors">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M8.3 6.1L12.7 1h-1L7.8 5.4 4.8 1H1l4.6 6.7L1 13h1l4-4.6 3.2 4.6H13L8.3 6.1zm-1.4 1.6l-.5-.7L2.8 1.9h1.6l3 4.3.5.7 3.8 5.4h-1.6L6.9 7.7z"/></svg>
-              Twitter
-            </button>
-            <button className="flex-1 flex items-center justify-center gap-2 py-2 border-r border-border text-[13px] text-sub hover:text-text transition-colors">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M12.4707 2.10583C12.2591 1.88667 11.9702 1.75896 11.6657 1.75C11.5093 1.7503 11.3545 1.78204 11.2107 1.84333L1.52732 6.0375C1.41312 6.08402 1.3166 6.16554 1.25162 6.27035C1.18664 6.37515 1.15655 6.49786 1.16566 6.62083V7C1.1594 7.12794 1.19542 7.25437 1.26816 7.3598C1.34091 7.46523 1.44633 7.54378 1.56816 7.58333L4.08232 8.42334L4.84066 10.9842C4.89163 11.1637 4.99005 11.3261 5.12555 11.4545C5.26105 11.5828 5.42863 11.6722 5.61066 11.7133C5.68039 11.7219 5.75092 11.7219 5.82066 11.7133C6.07939 11.7124 6.32788 11.6122 6.51483 11.4333L7.44233 10.5583L9.23899 11.9758C9.41147 12.1105 9.61835 12.1939 9.83599 12.2166C10.0536 12.2393 10.2733 12.2004 10.4698 12.1042L10.6623 12.005C10.8269 11.9204 10.9699 11.799 11.0801 11.6503C11.1904 11.5016 11.265 11.3296 11.2982 11.1475L12.8323 3.21417C12.8683 3.01393 12.8542 2.80788 12.791 2.61446C12.7279 2.42105 12.6178 2.24629 12.4707 2.10583ZM10.4407 11.0075C10.4311 11.0579 10.4105 11.1055 10.3802 11.1469C10.3499 11.1883 10.3108 11.2224 10.2657 11.2467L10.0732 11.3458C10.0352 11.3651 9.99323 11.3751 9.95066 11.375C9.88854 11.3738 9.82875 11.3512 9.78149 11.3108L7.58816 9.56083C7.53588 9.5145 7.46844 9.48891 7.39858 9.48891C7.32872 9.48891 7.26127 9.5145 7.20899 9.56083L5.91399 10.78C5.89019 10.7975 5.86181 10.8076 5.83233 10.8092V8.75C5.8324 8.70957 5.84072 8.66958 5.85676 8.63247C5.87281 8.59536 5.89625 8.56191 5.92566 8.53417C7.78649 6.78417 8.90066 5.80417 9.56566 5.24417C9.58682 5.22481 9.60391 5.20142 9.61593 5.17538C9.62794 5.14934 9.63465 5.12116 9.63566 5.0925C9.638 5.06446 9.63396 5.03625 9.62386 5.00999C9.61376 4.98372 9.59785 4.96008 9.57733 4.94083C9.54889 4.90512 9.5093 4.87996 9.46489 4.86939C9.42048 4.85882 9.37381 4.86343 9.33233 4.8825L4.92232 7.665C4.88315 7.68366 4.8403 7.69334 4.79691 7.69334C4.75351 7.69334 4.71067 7.68366 4.67149 7.665L2.04066 6.76667L11.5315 2.64833C11.566 2.64015 11.602 2.64015 11.6365 2.64833C11.6787 2.64944 11.7202 2.65935 11.7584 2.67743C11.7966 2.69551 11.8306 2.72136 11.8582 2.75333C11.898 2.79563 11.9272 2.84676 11.9434 2.90253C11.9596 2.9583 11.9624 3.01712 11.9515 3.07417L10.4407 11.0075Z" fill="currentColor"/></svg>
-              Telegram
-            </button>
-            <button
-              onClick={() => projectInfoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-              className="flex items-center justify-center w-[20px] flex-shrink-0 hover:text-text text-sub transition-colors"
-            >
-              <svg width="8" height="4" viewBox="0 0 8 4" fill="none"><path d="M0 0l4 4 4-4" fill="currentColor"/></svg>
-            </button>
-          </div>
+          {(() => {
+            const websiteUrl = tokenInfo?.websites?.[0] || null
+            const twitterUrl = tokenInfo?.twitter_handle ? `https://x.com/${tokenInfo.twitter_handle}` : null
+            const telegramUrl = tokenInfo?.telegram_handle ? `https://t.me/${tokenInfo.telegram_handle}` : null
+            const LinkOrButton = ({ href, children }: { href: string | null; children: React.ReactNode }) => {
+              if (href) return <a href={href} target="_blank" rel="noopener" className="flex-1 flex items-center justify-center gap-2 py-2 border-r border-border text-[13px] text-sub hover:text-text transition-colors">{children}</a>
+              return <span className="flex-1 flex items-center justify-center gap-2 py-2 border-r border-border text-[13px] text-sub/40 cursor-default">{children}</span>
+            }
+            return (
+              <div className="flex items-center bg-surface border border-border rounded">
+                <LinkOrButton href={websiteUrl}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="7" cy="7" r="5"/><path d="M2 7h10M7 2c1.5 1.5 2 3.5 2 5s-.5 3.5-2 5M7 2c-1.5 1.5-2 3.5-2 5s.5 3.5 2 5"/></svg>
+                  Website
+                </LinkOrButton>
+                <LinkOrButton href={twitterUrl}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M8.3 6.1L12.7 1h-1L7.8 5.4 4.8 1H1l4.6 6.7L1 13h1l4-4.6 3.2 4.6H13L8.3 6.1zm-1.4 1.6l-.5-.7L2.8 1.9h1.6l3 4.3.5.7 3.8 5.4h-1.6L6.9 7.7z"/></svg>
+                  Twitter
+                </LinkOrButton>
+                <LinkOrButton href={telegramUrl}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M12.4707 2.10583C12.2591 1.88667 11.9702 1.75896 11.6657 1.75C11.5093 1.7503 11.3545 1.78204 11.2107 1.84333L1.52732 6.0375C1.41312 6.08402 1.3166 6.16554 1.25162 6.27035C1.18664 6.37515 1.15655 6.49786 1.16566 6.62083V7C1.1594 7.12794 1.19542 7.25437 1.26816 7.3598C1.34091 7.46523 1.44633 7.54378 1.56816 7.58333L4.08232 8.42334L4.84066 10.9842C4.89163 11.1637 4.99005 11.3261 5.12555 11.4545C5.26105 11.5828 5.42863 11.6722 5.61066 11.7133C5.68039 11.7219 5.75092 11.7219 5.82066 11.7133C6.07939 11.7124 6.32788 11.6122 6.51483 11.4333L7.44233 10.5583L9.23899 11.9758C9.41147 12.1105 9.61835 12.1939 9.83599 12.2166C10.0536 12.2393 10.2733 12.2004 10.4698 12.1042L10.6623 12.005C10.8269 11.9204 10.9699 11.799 11.0801 11.6503C11.1904 11.5016 11.265 11.3296 11.2982 11.1475L12.8323 3.21417C12.8683 3.01393 12.8542 2.80788 12.791 2.61446C12.7279 2.42105 12.6178 2.24629 12.4707 2.10583ZM10.4407 11.0075C10.4311 11.0579 10.4105 11.1055 10.3802 11.1469C10.3499 11.1883 10.3108 11.2224 10.2657 11.2467L10.0732 11.3458C10.0352 11.3651 9.99323 11.3751 9.95066 11.375C9.88854 11.3738 9.82875 11.3512 9.78149 11.3108L7.58816 9.56083C7.53588 9.5145 7.46844 9.48891 7.39858 9.48891C7.32872 9.48891 7.26127 9.5145 7.20899 9.56083L5.91399 10.78C5.89019 10.7975 5.86181 10.8076 5.83233 10.8092V8.75C5.8324 8.70957 5.84072 8.66958 5.85676 8.63247C5.87281 8.59536 5.89625 8.56191 5.92566 8.53417C7.78649 6.78417 8.90066 5.80417 9.56566 5.24417C9.58682 5.22481 9.60391 5.20142 9.61593 5.17538C9.62794 5.14934 9.63465 5.12116 9.63566 5.0925C9.638 5.06446 9.63396 5.03625 9.62386 5.00999C9.61376 4.98372 9.59785 4.96008 9.57733 4.94083C9.54889 4.90512 9.5093 4.87996 9.46489 4.86939C9.42048 4.85882 9.37381 4.86343 9.33233 4.8825L4.92232 7.665C4.88315 7.68366 4.8403 7.69334 4.79691 7.69334C4.75351 7.69334 4.71067 7.68366 4.67149 7.665L2.04066 6.76667L11.5315 2.64833C11.566 2.64015 11.602 2.64015 11.6365 2.64833C11.6787 2.64944 11.7202 2.65935 11.7584 2.67743C11.7966 2.69551 11.8306 2.72136 11.8582 2.75333C11.898 2.79563 11.9272 2.84676 11.9434 2.90253C11.9596 2.9583 11.9624 3.01712 11.9515 3.07417L10.4407 11.0075Z" fill="currentColor"/></svg>
+                  Telegram
+                </LinkOrButton>
+                <button
+                  onClick={() => projectInfoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className="flex items-center justify-center w-[20px] flex-shrink-0 hover:text-text text-sub transition-colors"
+                >
+                  <svg width="8" height="4" viewBox="0 0 8 4" fill="none"><path d="M0 0l4 4 4-4" fill="currentColor"/></svg>
+                </button>
+              </div>
+            )
+          })()}
 
           {/* ── 3. Price USD / Price ─────────────────────────────── */}
           <div className="flex gap-2 w-full">
@@ -959,22 +972,30 @@ export function PairDetailClient({ address }: Props) {
               <div className="flex flex-col gap-[13px] items-center">
                 <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={74} rounded="md" />
                 <span className="text-[16px] text-text text-center">{base.name || base.symbol}</span>
-                <div className="flex items-center justify-center gap-2">
-                  <span className="flex items-center gap-1 bg-muted rounded px-2 py-1 text-[14px] text-text">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="7" cy="7" r="5"/><path d="M2 7h10M7 2c1.5 1.5 2 3.5 2 5s-.5 3.5-2 5M7 2c-1.5 1.5-2 3.5-2 5s.5 3.5 2 5"/></svg>
-                    Website
-                  </span>
-                  <span className="flex items-center gap-1 bg-muted rounded px-2 py-1 text-[13px] text-text">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M12.4707 2.10583C12.2591 1.88667 11.9702 1.75896 11.6657 1.75C11.5093 1.7503 11.3545 1.78204 11.2107 1.84333L1.52732 6.0375C1.41312 6.08402 1.3166 6.16554 1.25162 6.27035C1.18664 6.37515 1.15655 6.49786 1.16566 6.62083V7C1.1594 7.12794 1.19542 7.25437 1.26816 7.3598C1.34091 7.46523 1.44633 7.54378 1.56816 7.58333L4.08232 8.42334L4.84066 10.9842C4.89163 11.1637 4.99005 11.3261 5.12555 11.4545C5.26105 11.5828 5.42863 11.6722 5.61066 11.7133C5.68039 11.7219 5.75092 11.7219 5.82066 11.7133C6.07939 11.7124 6.32788 11.6122 6.51483 11.4333L7.44233 10.5583L9.23899 11.9758C9.41147 12.1105 9.61835 12.1939 9.83599 12.2166C10.0536 12.2393 10.2733 12.2004 10.4698 12.1042L10.6623 12.005C10.8269 11.9204 10.9699 11.799 11.0801 11.6503C11.1904 11.5016 11.265 11.3296 11.2982 11.1475L12.8323 3.21417C12.8683 3.01393 12.8542 2.80788 12.791 2.61446C12.7279 2.42105 12.6178 2.24629 12.4707 2.10583ZM10.4407 11.0075C10.4311 11.0579 10.4105 11.1055 10.3802 11.1469C10.3499 11.1883 10.3108 11.2224 10.2657 11.2467L10.0732 11.3458C10.0352 11.3651 9.99323 11.3751 9.95066 11.375C9.88854 11.3738 9.82875 11.3512 9.78149 11.3108L7.58816 9.56083C7.53588 9.5145 7.46844 9.48891 7.39858 9.48891C7.32872 9.48891 7.26127 9.5145 7.20899 9.56083L5.91399 10.78C5.89019 10.7975 5.86181 10.8076 5.83233 10.8092V8.75C5.8324 8.70957 5.84072 8.66958 5.85676 8.63247C5.87281 8.59536 5.89625 8.56191 5.92566 8.53417C7.78649 6.78417 8.90066 5.80417 9.56566 5.24417C9.58682 5.22481 9.60391 5.20142 9.61593 5.17538C9.62794 5.14934 9.63465 5.12116 9.63566 5.0925C9.638 5.06446 9.63396 5.03625 9.62386 5.00999C9.61376 4.98372 9.59785 4.96008 9.57733 4.94083C9.54889 4.90512 9.5093 4.87996 9.46489 4.86939C9.42048 4.85882 9.37381 4.86343 9.33233 4.8825L4.92232 7.665C4.88315 7.68366 4.8403 7.69334 4.79691 7.69334C4.75351 7.69334 4.71067 7.68366 4.67149 7.665L2.04066 6.76667L11.5315 2.64833C11.566 2.64015 11.602 2.64015 11.6365 2.64833C11.6787 2.64944 11.7202 2.65935 11.7584 2.67743C11.7966 2.69551 11.8306 2.72136 11.8582 2.75333C11.898 2.79563 11.9272 2.84676 11.9434 2.90253C11.9596 2.9583 11.9624 3.01712 11.9515 3.07417L10.4407 11.0075Z" fill="currentColor"/></svg>
-                    Telegram
-                  </span>
-                  <span className="flex items-center gap-1 bg-muted rounded px-2 py-1 text-[13px] text-text">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M8.3 6.1L12.7 1h-1L7.8 5.4 4.8 1H1l4.6 6.7L1 13h1l4-4.6 3.2 4.6H13L8.3 6.1zm-1.4 1.6l-.5-.7L2.8 1.9h1.6l3 4.3.5.7 3.8 5.4h-1.6L6.9 7.7z"/></svg>
-                    Twitter
-                  </span>
-                </div>
+                {(() => {
+                  const websiteUrl = tokenInfo?.websites?.[0] || null
+                  const twitterUrl = tokenInfo?.twitter_handle ? `https://x.com/${tokenInfo.twitter_handle}` : null
+                  const telegramUrl = tokenInfo?.telegram_handle ? `https://t.me/${tokenInfo.telegram_handle}` : null
+                  const links = [
+                    { url: websiteUrl, label: 'Website', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="7" cy="7" r="5"/><path d="M2 7h10M7 2c1.5 1.5 2 3.5 2 5s-.5 3.5-2 5M7 2c-1.5 1.5-2 3.5-2 5s.5 3.5 2 5"/></svg> },
+                    { url: twitterUrl, label: 'Twitter', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M8.3 6.1L12.7 1h-1L7.8 5.4 4.8 1H1l4.6 6.7L1 13h1l4-4.6 3.2 4.6H13L8.3 6.1zm-1.4 1.6l-.5-.7L2.8 1.9h1.6l3 4.3.5.7 3.8 5.4h-1.6L6.9 7.7z"/></svg> },
+                    { url: telegramUrl, label: 'Telegram', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M12.47 2.1c-.21-.22-.5-.35-.8-.35-.16 0-.31.03-.47.09L1.53 6.04a.58.58 0 00-.36.58v.38c0 .26.14.49.4.58l2.51.84.76 2.56a.87.87 0 00.76.73.87.87 0 00.7-.28l.93-.87 1.8 1.42a1.1 1.1 0 001.23-.11l.19-.1a1.1 1.1 0 00.64-1l1.53-7.93a1.1 1.1 0 00-.32-1.12z"/></svg> },
+                  ].filter(l => l.url)
+                  if (links.length === 0) return null
+                  return (
+                    <div className="flex items-center justify-center gap-2">
+                      {links.map(l => (
+                        <a key={l.label} href={l.url!} target="_blank" rel="noopener" className="flex items-center gap-1 bg-muted rounded px-2 py-1 text-[13px] text-text hover:text-blue transition-colors">
+                          {l.icon} {l.label}
+                        </a>
+                      ))}
+                    </div>
+                  )
+                })()}
               </div>
-              <p className="text-[14px] text-sub text-center">{base.symbol} on Base chain · {dexLabel}{feeLabel ? ` · ${feeLabel} fee` : ''}</p>
+              <p className="text-[14px] text-sub text-center">
+                {tokenInfo?.description || `${base.symbol} on Base chain · ${dexLabel}${feeLabel ? ` · ${feeLabel} fee` : ''}`}
+              </p>
             </div>
           </div>
 
