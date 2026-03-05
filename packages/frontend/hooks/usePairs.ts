@@ -33,12 +33,13 @@ function sortPools(pools: Pool[], sort: string, order: 'asc' | 'desc'): Pool[] {
 }
 
 // Client-side filtering
-function filterPools(pools: Pool[], filter?: string): Pool[] {
+function filterPools(pools: Pool[], filter?: string, sort?: string): Pool[] {
   if (!filter || filter === 'trending' || filter === 'top') return pools
   const dayAgo = Date.now() - 24 * 3600_000
   if (filter === 'new') return pools.filter(p => new Date(p.created_at).getTime() > dayAgo)
-  if (filter === 'gainers') return pools.filter(p => p.change_24h > 0)
-  if (filter === 'losers') return pools.filter(p => p.change_24h < 0)
+  const changeField = (sort?.startsWith('change_') ? sort : 'change_24h') as keyof Pool
+  if (filter === 'gainers') return pools.filter(p => ((p[changeField] as number) ?? 0) > 0)
+  if (filter === 'losers')  return pools.filter(p => ((p[changeField] as number) ?? 0) < 0)
   return pools
 }
 
@@ -66,7 +67,7 @@ export function usePairs(baseParams: Omit<PairsQuery, 'limit' | 'offset'>) {
   // Apply filtering and sorting client-side
   const processedPairs = useMemo(() => {
     if (!data?.pairs) return []
-    let pools = filterPools(data.pairs, baseParams.filter)
+    let pools = filterPools(data.pairs, baseParams.filter, baseParams.sort)
     pools = sortPools(pools, baseParams.sort ?? 'trending_score', baseParams.order ?? 'desc')
     return pools
   }, [data?.pairs, baseParams.filter, baseParams.sort, baseParams.order])

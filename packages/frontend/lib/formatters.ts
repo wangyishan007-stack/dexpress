@@ -10,6 +10,7 @@ export function fmtUsd(n: unknown, compact = true): string {
   const v = toNum(n)
   if (v === null || v === 0) return '$0'
   if (compact) {
+    if (v >= 1e15) return '>$999T'
     if (v >= 1_000_000_000_000) return `$${(v / 1_000_000_000_000).toFixed(2)}T`
     if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(2)}B`
     if (v >= 1_000_000)     return `$${(v / 1_000_000).toFixed(2)}M`
@@ -60,6 +61,15 @@ export function fmtAge(dateStr: string): string {
   if (hours   > 0) return `${hours}h`
   if (minutes > 0) return `${minutes}m`
   return `${seconds}s`
+}
+
+/** Format ETH / quote-token amounts with 4 significant digits */
+export function fmtEth(n: unknown): string {
+  const v = toNum(n)
+  if (v === null || v === 0) return '0'
+  const abs = Math.abs(v)
+  if (abs >= 1) return abs.toFixed(4)
+  return parseFloat(abs.toPrecision(4)).toString()
 }
 
 /** Shorten wallet address */

@@ -8,6 +8,9 @@ import { usePairWebSocket } from '../../../hooks/useWebSocket'
 import { fetchPoolTrades, type PoolExtended } from '../../../lib/dexscreener-client'
 import { useTokenSecurity } from '../../../hooks/useTokenSecurity'
 import { useTokenInfo } from '../../../hooks/useTokenInfo'
+import { useTopTraders } from '../../../hooks/useTopTraders'
+import { useTokenHolders } from '../../../hooks/useTokenHolders'
+import { useLiquidityProviders } from '../../../hooks/useLiquidityProviders'
 import { PairTabs } from '../../../components/PairTabs'
 import { TradingViewChart } from '../../../components/TradingViewChart'
 import clsx from 'clsx'
@@ -157,7 +160,8 @@ export function PairDetailClient({ address }: Props) {
     },
     {
       revalidateOnFocus: false,
-      refreshInterval: 60_000,
+      refreshInterval: 30_000,
+      dedupingInterval: 0,
       errorRetryCount: 8,
       errorRetryInterval: 5000,
     }
@@ -169,6 +173,9 @@ export function PairDetailClient({ address }: Props) {
     : undefined
   const { data: security } = useTokenSecurity(baseTokenAddr)
   const { data: tokenInfo } = useTokenInfo(baseTokenAddr)
+  const { data: topTraders } = useTopTraders(baseTokenAddr)
+  const { data: holdersData } = useTokenHolders(baseTokenAddr)
+  const { data: lpProvidersData } = useLiquidityProviders(address)
 
   const [livePrice, setLivePrice] = useState<number | null>(null)
   const [flash,     setFlash]     = useState<'up' | 'down' | null>(null)
@@ -176,7 +183,10 @@ export function PairDetailClient({ address }: Props) {
   const [statsPeriod, setStatsPeriod] = useState<'5m' | '1h' | '6h' | '24h'>('24h')
   const [expandedAudit, setExpandedAudit] = useState<string | null>(null)
   const [auditDisclaimer, setAuditDisclaimer] = useState(false)
-  const [swapUnit, setSwapUnit] = useState<'USD' | 'USDC'>('USD')
+  const [swapUnit, setSwapUnit] = useState<'USD' | 'WETH'>('USD')
+  const [swapAmount, setSwapAmount] = useState('1')
+  const [embedOpen, setEmbedOpen] = useState(false)
+  const [embedCopied, setEmbedCopied] = useState(false)
   const [alertsOpen, setAlertsOpen] = useState(false)
   const [alertsNotifEnabled, setAlertsNotifEnabled] = useState(false)
   const [alerts, setAlerts] = useState<{ id: string; condition: string; price: string; createdAt: number }[]>([])
@@ -212,17 +222,44 @@ export function PairDetailClient({ address }: Props) {
   const [swaps,       setSwaps]       = useState<RecentSwap[]>([])
   const [swapHasMore, setSwapHasMore] = useState(false)
   const [swapLoading, setSwapLoading] = useState(false)
-  const tradesLoadedRef = useRef('')
+  const [newSwapIds,  setNewSwapIds]  = useState<Set<string>>(new Set())
 
+  // Poll trades every 10s, merge new trades to top with animation
   useEffect(() => {
-    if (!address || address === tradesLoadedRef.current) return
-    tradesLoadedRef.current = address
-    setSwapLoading(true)
-    fetchPoolTrades(address).then(trades => {
-      setSwaps(trades)
-      setSwapHasMore(false) // GT returns up to 300 trades, no pagination
-      setSwapLoading(false)
-    }).catch(() => setSwapLoading(false))
+    if (!address) return
+    let cancelled = false
+    let firstLoad = true
+
+    const poll = async () => {
+      if (firstLoad) setSwapLoading(true)
+      try {
+        const trades = await fetchPoolTrades(address)
+        if (cancelled || trades.length === 0) {
+          if (firstLoad) setSwapLoading(false)
+          return
+        }
+        setSwaps(prev => {
+          const existingIds = new Set(prev.map(s => s.id))
+          const fresh = trades.filter(t => !existingIds.has(t.id))
+          if (!firstLoad && fresh.length > 0) {
+            setNewSwapIds(new Set(fresh.map(t => t.id)))
+            setTimeout(() => setNewSwapIds(new Set()), 700)
+          }
+          if (prev.length === 0) {
+            setSwapHasMore(trades.length >= 50)
+            return trades
+          }
+          if (fresh.length === 0) return prev
+          return [...fresh, ...prev]
+        })
+      } catch {}
+      if (firstLoad) setSwapLoading(false)
+      firstLoad = false
+    }
+
+    poll()
+    const timer = setInterval(poll, 10_000)
+    return () => { cancelled = true; clearInterval(timer) }
   }, [address])
 
   // Live price
@@ -242,7 +279,25 @@ export function PairDetailClient({ address }: Props) {
   )
   usePairWebSocket([address], handleUpdate)
 
-  const loadMoreSwaps = useCallback(() => {}, [])
+  const loadMoreSwaps = useCallback(async () => {
+    if (swapLoading || swaps.length === 0) return
+    setSwapLoading(true)
+    try {
+      const lastSwap = swaps[swaps.length - 1]
+      const trades = await fetchPoolTrades(address, lastSwap.timestamp)
+      if (trades.length === 0) {
+        setSwapHasMore(false)
+        return
+      }
+      setSwaps(prev => {
+        const existingIds = new Set(prev.map(s => s.id))
+        const fresh = trades.filter(t => !existingIds.has(t.id))
+        return [...prev, ...fresh]
+      })
+      setSwapHasMore(trades.length >= 50)
+    } catch {}
+    setSwapLoading(false)
+  }, [address, swaps, swapLoading])
 
   /* ── Loading / error ─────────────────────────────────────── */
   if (isLoading) {
@@ -266,6 +321,8 @@ export function PairDetailClient({ address }: Props) {
   const t0IsQuote = QUOTE_ADDRS.has(pair.token0.address.toLowerCase())
   const t1IsQuote = QUOTE_ADDRS.has(pair.token1.address.toLowerCase())
   const [base, quote] = t0IsQuote && !t1IsQuote ? [pair.token1, pair.token0] : [pair.token0, pair.token1]
+  // Use GT token-info image as fallback when pool response has no logo
+  const baseLogoUrl = base.logo_url || tokenInfo?.image_url || null
   const dexLabel  = pair.dex === 'uniswap_v3' ? 'Uniswap V3' : pair.dex === 'uniswap_v4' ? 'Uniswap V4' : 'Aerodrome'
   const feeLabel  = pair.fee_tier != null ? `${parseFloat((pair.fee_tier / 10000).toFixed(4))}%` : null
   const change24h = Number(pair.change_24h)
@@ -284,7 +341,7 @@ export function PairDetailClient({ address }: Props) {
 
           {/* Chart header: token identity */}
           <div className="flex items-start gap-4 px-5 py-4 border-b border-border flex-shrink-0">
-            <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={44} rounded="md" />
+            <TokenAvatar symbol={base.symbol} logoUrl={baseLogoUrl} address={base.address} size={44} rounded="md" />
             <div className="min-w-0">
               {/* Token pair + DEX badge + age */}
               <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -336,6 +393,13 @@ export function PairDetailClient({ address }: Props) {
           swapLoading={swapLoading}
           onLoadMore={loadMoreSwaps}
           tokenAddress={base.address}
+          security={security ?? undefined}
+          tokenPriceUsd={price}
+          traders={topTraders ?? undefined}
+          baseTokenSymbol={base.symbol}
+          newSwapIds={newSwapIds}
+          holdersData={holdersData}
+          lpProvidersData={lpProvidersData}
         />
 
         </div>{/* end LEFT COLUMN */}
@@ -347,7 +411,7 @@ export function PairDetailClient({ address }: Props) {
           <div className="flex flex-col gap-2 items-center">
             <div className="flex items-center justify-between w-full py-2">
               <div className="flex items-center gap-1.5">
-                <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={30} rounded="md" />
+                <TokenAvatar symbol={base.symbol} logoUrl={baseLogoUrl} address={base.address} size={30} rounded="md" />
                 <span className="text-[16px] text-text">{base.name || base.symbol}</span>
               </div>
             </div>
@@ -383,57 +447,26 @@ export function PairDetailClient({ address }: Props) {
                 )}
               </div>
             </div>
-            {/* Banner: token logo as blurred cover, fallback to gradient */}
-            <div className="w-full h-[113px] rounded-lg overflow-hidden relative bg-muted">
-              {base.logo_url ? (
-                <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={base.logo_url}
-                    alt=""
-                    className="absolute inset-0 w-full h-full object-cover blur-[20px] scale-125 opacity-60"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                  />
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={base.logo_url}
-                    alt={base.symbol}
-                    className="absolute inset-0 m-auto w-[56px] h-[56px] rounded-lg object-cover"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                  />
-                </>
-              ) : (
-                <div
-                  className="absolute inset-0"
-                  style={{ background: `linear-gradient(135deg, hsl(${addrToHue(base.address)},40%,18%) 0%, hsl(${addrToHue(base.address)},50%,12%) 100%)` }}
-                />
-              )}
-            </div>
           </div>
 
-          {/* ── 2. Social Links ──────────────────────────────────── */}
+          {/* ── 2. Social Links (only shown when at least one link exists) ── */}
           {(() => {
             const websiteUrl = tokenInfo?.websites?.[0] || null
             const twitterUrl = tokenInfo?.twitter_handle ? `https://x.com/${tokenInfo.twitter_handle}` : null
             const telegramUrl = tokenInfo?.telegram_handle ? `https://t.me/${tokenInfo.telegram_handle}` : null
-            const LinkOrButton = ({ href, children }: { href: string | null; children: React.ReactNode }) => {
-              if (href) return <a href={href} target="_blank" rel="noopener" className="flex-1 flex items-center justify-center gap-2 py-2 border-r border-border text-[13px] text-sub hover:text-text transition-colors">{children}</a>
-              return <span className="flex-1 flex items-center justify-center gap-2 py-2 border-r border-border text-[13px] text-sub/40 cursor-default">{children}</span>
-            }
+            const links = [
+              { href: websiteUrl, label: 'Website', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="7" cy="7" r="5"/><path d="M2 7h10M7 2c1.5 1.5 2 3.5 2 5s-.5 3.5-2 5M7 2c-1.5 1.5-2 3.5-2 5s.5 3.5 2 5"/></svg> },
+              { href: twitterUrl, label: 'Twitter', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M8.3 6.1L12.7 1h-1L7.8 5.4 4.8 1H1l4.6 6.7L1 13h1l4-4.6 3.2 4.6H13L8.3 6.1zm-1.4 1.6l-.5-.7L2.8 1.9h1.6l3 4.3.5.7 3.8 5.4h-1.6L6.9 7.7z"/></svg> },
+              { href: telegramUrl, label: 'Telegram', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M12.4707 2.10583C12.2591 1.88667 11.9702 1.75896 11.6657 1.75C11.5093 1.7503 11.3545 1.78204 11.2107 1.84333L1.52732 6.0375C1.41312 6.08402 1.3166 6.16554 1.25162 6.27035C1.18664 6.37515 1.15655 6.49786 1.16566 6.62083V7C1.1594 7.12794 1.19542 7.25437 1.26816 7.3598C1.34091 7.46523 1.44633 7.54378 1.56816 7.58333L4.08232 8.42334L4.84066 10.9842C4.89163 11.1637 4.99005 11.3261 5.12555 11.4545C5.26105 11.5828 5.42863 11.6722 5.61066 11.7133C5.68039 11.7219 5.75092 11.7219 5.82066 11.7133C6.07939 11.7124 6.32788 11.6122 6.51483 11.4333L7.44233 10.5583L9.23899 11.9758C9.41147 12.1105 9.61835 12.1939 9.83599 12.2166C10.0536 12.2393 10.2733 12.2004 10.4698 12.1042L10.6623 12.005C10.8269 11.9204 10.9699 11.799 11.0801 11.6503C11.1904 11.5016 11.265 11.3296 11.2982 11.1475L12.8323 3.21417C12.8683 3.01393 12.8542 2.80788 12.791 2.61446C12.7279 2.42105 12.6178 2.24629 12.4707 2.10583ZM10.4407 11.0075C10.4311 11.0579 10.4105 11.1055 10.3802 11.1469C10.3499 11.1883 10.3108 11.2224 10.2657 11.2467L10.0732 11.3458C10.0352 11.3651 9.99323 11.3751 9.95066 11.375C9.88854 11.3738 9.82875 11.3512 9.78149 11.3108L7.58816 9.56083C7.53588 9.5145 7.46844 9.48891 7.39858 9.48891C7.32872 9.48891 7.26127 9.5145 7.20899 9.56083L5.91399 10.78C5.89019 10.7975 5.86181 10.8076 5.83233 10.8092V8.75C5.8324 8.70957 5.84072 8.66958 5.85676 8.63247C5.87281 8.59536 5.89625 8.56191 5.92566 8.53417C7.78649 6.78417 8.90066 5.80417 9.56566 5.24417C9.58682 5.22481 9.60391 5.20142 9.61593 5.17538C9.62794 5.14934 9.63465 5.12116 9.63566 5.0925C9.638 5.06446 9.63396 5.03625 9.62386 5.00999C9.61376 4.98372 9.59785 4.96008 9.57733 4.94083C9.54889 4.90512 9.5093 4.87996 9.46489 4.86939C9.42048 4.85882 9.37381 4.86343 9.33233 4.8825L4.92232 7.665C4.88315 7.68366 4.8403 7.69334 4.79691 7.69334C4.75351 7.69334 4.71067 7.68366 4.67149 7.665L2.04066 6.76667L11.5315 2.64833C11.566 2.64015 11.602 2.64015 11.6365 2.64833C11.6787 2.64944 11.7202 2.65935 11.7584 2.67743C11.7966 2.69551 11.8306 2.72136 11.8582 2.75333C11.898 2.79563 11.9272 2.84676 11.9434 2.90253C11.9596 2.9583 11.9624 3.01712 11.9515 3.07417L10.4407 11.0075Z" fill="currentColor"/></svg> },
+            ].filter(l => l.href)
+            if (links.length === 0) return null
             return (
               <div className="flex items-center bg-surface border border-border rounded">
-                <LinkOrButton href={websiteUrl}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="7" cy="7" r="5"/><path d="M2 7h10M7 2c1.5 1.5 2 3.5 2 5s-.5 3.5-2 5M7 2c-1.5 1.5-2 3.5-2 5s.5 3.5 2 5"/></svg>
-                  Website
-                </LinkOrButton>
-                <LinkOrButton href={twitterUrl}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M8.3 6.1L12.7 1h-1L7.8 5.4 4.8 1H1l4.6 6.7L1 13h1l4-4.6 3.2 4.6H13L8.3 6.1zm-1.4 1.6l-.5-.7L2.8 1.9h1.6l3 4.3.5.7 3.8 5.4h-1.6L6.9 7.7z"/></svg>
-                  Twitter
-                </LinkOrButton>
-                <LinkOrButton href={telegramUrl}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M12.4707 2.10583C12.2591 1.88667 11.9702 1.75896 11.6657 1.75C11.5093 1.7503 11.3545 1.78204 11.2107 1.84333L1.52732 6.0375C1.41312 6.08402 1.3166 6.16554 1.25162 6.27035C1.18664 6.37515 1.15655 6.49786 1.16566 6.62083V7C1.1594 7.12794 1.19542 7.25437 1.26816 7.3598C1.34091 7.46523 1.44633 7.54378 1.56816 7.58333L4.08232 8.42334L4.84066 10.9842C4.89163 11.1637 4.99005 11.3261 5.12555 11.4545C5.26105 11.5828 5.42863 11.6722 5.61066 11.7133C5.68039 11.7219 5.75092 11.7219 5.82066 11.7133C6.07939 11.7124 6.32788 11.6122 6.51483 11.4333L7.44233 10.5583L9.23899 11.9758C9.41147 12.1105 9.61835 12.1939 9.83599 12.2166C10.0536 12.2393 10.2733 12.2004 10.4698 12.1042L10.6623 12.005C10.8269 11.9204 10.9699 11.799 11.0801 11.6503C11.1904 11.5016 11.265 11.3296 11.2982 11.1475L12.8323 3.21417C12.8683 3.01393 12.8542 2.80788 12.791 2.61446C12.7279 2.42105 12.6178 2.24629 12.4707 2.10583ZM10.4407 11.0075C10.4311 11.0579 10.4105 11.1055 10.3802 11.1469C10.3499 11.1883 10.3108 11.2224 10.2657 11.2467L10.0732 11.3458C10.0352 11.3651 9.99323 11.3751 9.95066 11.375C9.88854 11.3738 9.82875 11.3512 9.78149 11.3108L7.58816 9.56083C7.53588 9.5145 7.46844 9.48891 7.39858 9.48891C7.32872 9.48891 7.26127 9.5145 7.20899 9.56083L5.91399 10.78C5.89019 10.7975 5.86181 10.8076 5.83233 10.8092V8.75C5.8324 8.70957 5.84072 8.66958 5.85676 8.63247C5.87281 8.59536 5.89625 8.56191 5.92566 8.53417C7.78649 6.78417 8.90066 5.80417 9.56566 5.24417C9.58682 5.22481 9.60391 5.20142 9.61593 5.17538C9.62794 5.14934 9.63465 5.12116 9.63566 5.0925C9.638 5.06446 9.63396 5.03625 9.62386 5.00999C9.61376 4.98372 9.59785 4.96008 9.57733 4.94083C9.54889 4.90512 9.5093 4.87996 9.46489 4.86939C9.42048 4.85882 9.37381 4.86343 9.33233 4.8825L4.92232 7.665C4.88315 7.68366 4.8403 7.69334 4.79691 7.69334C4.75351 7.69334 4.71067 7.68366 4.67149 7.665L2.04066 6.76667L11.5315 2.64833C11.566 2.64015 11.602 2.64015 11.6365 2.64833C11.6787 2.64944 11.7202 2.65935 11.7584 2.67743C11.7966 2.69551 11.8306 2.72136 11.8582 2.75333C11.898 2.79563 11.9272 2.84676 11.9434 2.90253C11.9596 2.9583 11.9624 3.01712 11.9515 3.07417L10.4407 11.0075Z" fill="currentColor"/></svg>
-                  Telegram
-                </LinkOrButton>
+                {links.map((l, i) => (
+                  <a key={l.label} href={l.href!} target="_blank" rel="noopener" className={clsx('flex-1 flex items-center justify-center gap-2 py-2 text-[13px] text-sub hover:text-text transition-colors', i < links.length - 1 && 'border-r border-border')}>
+                    {l.icon} {l.label}
+                  </a>
+                ))}
                 <button
                   onClick={() => projectInfoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                   className="flex items-center justify-center w-[20px] flex-shrink-0 hover:text-text text-sub transition-colors"
@@ -453,13 +486,15 @@ export function PairDetailClient({ address }: Props) {
             <div className="flex-1 border border-border rounded-lg p-2 flex flex-col gap-1 items-center text-center">
               <span className="text-[12px] text-sub">Price ETH</span>
               <span className="text-[16px] font-bold tabular text-text">
-                {pair.base_token_price_native
-                  ? `${pair.base_token_price_native < 0.0001
-                      ? pair.base_token_price_native.toExponential(4)
-                      : pair.base_token_price_native < 1
-                      ? pair.base_token_price_native.toFixed(8)
-                      : pair.base_token_price_native.toFixed(4)} ETH`
-                  : '—'}
+                {(() => {
+                  const native = pair.base_token_price_native || (pair.quote_token_price_usd ? price / pair.quote_token_price_usd : 0)
+                  if (!native) return '—'
+                  return `${native < 0.0001
+                    ? native.toExponential(4)
+                    : native < 1
+                    ? native.toFixed(8)
+                    : native.toFixed(4)} ETH`
+                })()}
               </span>
             </div>
           </div>
@@ -488,23 +523,10 @@ export function PairDetailClient({ address }: Props) {
                     <span className="text-[16px] font-bold tabular text-text">{Number(pair.mcap_usd) > 0 ? fmtUsd(pair.mcap_usd) : '—'}</span>
                   </div>
                 </Tooltip>
-                <Tooltip content={
-                  <div className="flex flex-col gap-2">
-                    <div>
-                      <span className="text-[12px] text-sub block">Total supply:</span>
-                      <span className="text-[13px] font-bold text-text">{fmtSupply}</span>
-                    </div>
-                    <div>
-                      <span className="text-[12px] text-sub block">Self-reported circulating supply:</span>
-                      <span className="text-[13px] font-bold text-text">{fmtSupply}</span>
-                    </div>
-                  </div>
-                }>
-                  <div className="flex-1 border border-border rounded-lg p-2 flex flex-col gap-1 items-center text-center cursor-help">
-                    <span className="text-[12px] text-sub underline decoration-dotted">Market Cap</span>
-                    <span className="text-[16px] font-bold tabular text-text">{Number(pair.mcap_usd) > 0 ? fmtUsd(pair.mcap_usd) : '—'}</span>
-                  </div>
-                </Tooltip>
+                <div className="flex-1 border border-border rounded-lg p-2 flex flex-col gap-1 items-center text-center">
+                  <span className="text-[12px] text-sub">Market Cap</span>
+                  <span className="text-[16px] font-bold tabular text-text">{Number(pair.mcap_usd) > 0 ? fmtUsd(pair.mcap_usd) : '—'}</span>
+                </div>
               </div>
             )
           })()}
@@ -544,10 +566,9 @@ export function PairDetailClient({ address }: Props) {
               : null
 
             return (
-              <div className="border border-border rounded-lg px-2 py-3 flex flex-col gap-5">
-                {/* Row 1: Top 10 / DEV / Holders / Snipers */}
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-col gap-2 w-[67px]">
+              <div className="border border-border rounded-lg px-2 py-3 flex justify-center">
+                <div className="grid grid-cols-3 gap-x-8 gap-y-5">
+                  <div className="flex flex-col gap-2">
                     <span className="text-[12px] text-sub">Top 10</span>
                     {top10Pct !== null ? (
                       <div className="flex items-center gap-1">
@@ -556,7 +577,7 @@ export function PairDetailClient({ address }: Props) {
                       </div>
                     ) : <LoadingText />}
                   </div>
-                  <div className="flex flex-col gap-2 w-[67px]">
+                  <div className="flex flex-col gap-2">
                     <span className="text-[12px] text-sub">DEV</span>
                     {devPct !== null ? (
                       <div className="flex items-center gap-1">
@@ -565,51 +586,25 @@ export function PairDetailClient({ address }: Props) {
                       </div>
                     ) : <LoadingText />}
                   </div>
-                  <div className="flex flex-col gap-2 w-[67px]">
+                  <div className="flex flex-col gap-2">
                     <span className="text-[12px] text-sub">Holders</span>
                     <span className="text-[14px] text-text tabular">{holderCount !== null ? fmtNum(holderCount) : '—'}</span>
                   </div>
-                  <div className="flex flex-col gap-2 w-[67px]">
-                    <span className="text-[12px] text-sub">Snipers</span>
-                    <span className="text-[14px] text-sub tabular">—</span>
-                  </div>
-                </div>
-                {/* Row 2: Insiders / Phishing / Dex Paid / NoHoneypot */}
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col gap-2 w-[67px]">
-                    <span className="text-[12px] text-sub">Insiders</span>
-                    <span className="text-[14px] text-sub tabular">—</span>
-                  </div>
-                  <div className="flex flex-col gap-2 w-[67px]">
-                    <span className="text-[12px] text-sub">Phishing</span>
-                    <span className="text-[14px] text-sub tabular">—</span>
-                  </div>
-                  <div className="flex flex-col gap-2 w-[67px]">
-                    <span className="text-[12px] text-sub">Dex Paid</span>
-                    <span className="text-[14px] text-sub">—</span>
-                  </div>
+                  {/* Row 2 */}
                   <div className="flex flex-col gap-2">
                     <span className="text-[12px] text-sub">NoHoneypot</span>
                     {isHoneypot !== null ? (isHoneypot ? <WarnIcon /> : <CheckIcon />) : <LoadingText />}
                   </div>
-                </div>
-                {/* Row 3: Verified / Renounced / Locked */}
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col gap-2 w-[67px]">
+                  <div className="flex flex-col gap-2">
                     <span className="text-[12px] text-sub">Verified</span>
                     {isVerified !== null ? (isVerified ? <CheckIcon /> : <WarnIcon />) : <LoadingText />}
                   </div>
-                  <div className="flex flex-col gap-2 w-[67px]">
-                    <span className="text-[12px] text-sub">Renounced</span>
-                    {isRenounced !== null ? (isRenounced ? <CheckIcon /> : <WarnIcon />) : <LoadingText />}
-                  </div>
-                  <div className="flex flex-col gap-2 w-[67px]">
+                  <div className="flex flex-col gap-2">
                     <span className="text-[12px] text-sub">Locked</span>
                     {lockedPct !== null ? (
                       <span className={clsx('text-[14px] tabular', lockedPct > 50 ? 'text-green' : 'text-red')}>{lockedPct.toFixed(1)}%</span>
                     ) : <LoadingText />}
                   </div>
-                  <div className="w-[67px]" />
                 </div>
               </div>
             )
@@ -886,11 +881,33 @@ export function PairDetailClient({ address }: Props) {
               const goPlusSummary = s ? (goPlusIssues === 0 ? 'No issues' : `${goPlusIssues} issue${goPlusIssues > 1 ? 's' : ''}`) : 'Loading...'
               const goPlusOk = s ? goPlusIssues === 0 : true
 
+              // Contract Risk — derived from GoPlus data
+              const contractRisk = (() => {
+                if (!s) return { level: 'Loading...', ok: true, color: '' }
+                const isHp = s.is_honeypot === '1'
+                const hiddenOwner = s.hidden_owner === '1'
+                const sellTax = parseFloat(s.sell_tax || '0') * 100
+                const buyTax = parseFloat(s.buy_tax || '0') * 100
+                const mintable = s.is_mintable === '1'
+                const ownerNotRenounced = s.owner_address !== '0x0000000000000000000000000000000000000000' && s.owner_address !== ''
+                const taxModifiable = s.slippage_modifiable === '1'
+                const pausable = s.transfer_pausable === '1'
+                const canChangeBalance = s.owner_change_balance === '1'
+
+                if (isHp || hiddenOwner || sellTax > 10 || buyTax > 10 || canChangeBalance) {
+                  return { level: 'High', ok: false, color: 'text-red' }
+                }
+                if (mintable || ownerNotRenounced || taxModifiable || pausable) {
+                  return { level: 'Medium', ok: true, color: 'text-yellow-400' }
+                }
+                return { level: 'Low', ok: true, color: 'text-green' }
+              })()
+
+              const riskDot = contractRisk.level === 'High' ? '#ef5350' : contractRisk.level === 'Medium' ? '#facc15' : '#2fe06b'
+
               const audits = [
                 { name: 'Go+ Security', result: goPlusSummary, ok: goPlusOk, expandable: true, rows: goPlusRows },
-                { name: 'Quick Intel',  result: 'N/A', ok: true, expandable: false, rows: [] },
-                { name: 'Token Sniffer', result: 'N/A', ok: true, expandable: false, rows: [] },
-                { name: 'Honeypot.is',  result: 'N/A', ok: true, expandable: false, rows: [] },
+                { name: 'Contract Risk', result: contractRisk.level, ok: contractRisk.level !== 'High', expandable: false, rows: [], riskDot },
               ]
 
               return (
@@ -909,16 +926,16 @@ export function PairDetailClient({ address }: Props) {
                               <div className="flex items-center gap-2">
                                 <span className="text-[14px] text-text">{item.result}</span>
                                 {item.result !== 'N/A' && item.result !== 'Loading...' && (
-                                  item.ok
-                                    ? <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#2fe06b" strokeWidth="1.5"/><path d="M3.5 6l2 2 3-3" stroke="#2fe06b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                    : <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#ef5350" strokeWidth="1.5"/><path d="M4 4l4 4M8 4l-4 4" stroke="#ef5350" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                                  (item as any).riskDot
+                                    ? <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" fill={(item as any).riskDot}/></svg>
+                                    : item.ok
+                                      ? <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#2fe06b" strokeWidth="1.5"/><path d="M3.5 6l2 2 3-3" stroke="#2fe06b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                      : <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#ef5350" strokeWidth="1.5"/><path d="M4 4l4 4M8 4l-4 4" stroke="#ef5350" strokeWidth="1.5" strokeLinecap="round"/></svg>
                                 )}
                               </div>
                             </div>
-                            {item.expandable ? (
+                            {item.expandable && (
                               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={clsx('text-sub flex-shrink-0 transition-transform duration-200', isOpen && 'rotate-180')}><path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.2"/></svg>
-                            ) : (
-                              <span className="text-[11px] text-sub flex-shrink-0">—</span>
                             )}
                           </div>
                           {item.expandable && isOpen && item.rows.length > 0 && (
@@ -970,7 +987,7 @@ export function PairDetailClient({ address }: Props) {
             {/* ── 11. Token About Card ──────────────────────────────── */}
             <div ref={projectInfoRef} className="flex flex-col gap-4 items-center">
               <div className="flex flex-col gap-[13px] items-center">
-                <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={74} rounded="md" />
+                <TokenAvatar symbol={base.symbol} logoUrl={baseLogoUrl} address={base.address} size={74} rounded="md" />
                 <span className="text-[16px] text-text text-center">{base.name || base.symbol}</span>
                 {(() => {
                   const websiteUrl = tokenInfo?.websites?.[0] || null
@@ -1004,7 +1021,8 @@ export function PairDetailClient({ address }: Props) {
             <div className="border border-border rounded-lg flex items-center gap-2.5 p-4 w-full">
               <input
                 type="text"
-                defaultValue="1"
+                value={swapAmount}
+                onChange={(e) => { const v = e.target.value; if (/^\d*\.?\d*$/.test(v)) setSwapAmount(v) }}
                 className="flex-1 text-[14px] text-text bg-transparent outline-none min-w-0"
                 placeholder="0"
               />
@@ -1014,7 +1032,14 @@ export function PairDetailClient({ address }: Props) {
             <div className="border border-border rounded-lg flex items-center gap-2.5 p-4 w-full">
               <input
                 type="text"
-                defaultValue="0.09281"
+                value={(() => {
+                  const amt = parseFloat(swapAmount)
+                  if (!amt || price <= 0) return '—'
+                  if (swapUnit === 'USD') return fmtPrice(amt * price)
+                  const ethPrice = pair.base_token_price_native || (pair.quote_token_price_usd ? price / pair.quote_token_price_usd : 0)
+                  return ethPrice > 0 ? (amt * ethPrice).toFixed(8) : '—'
+                })()}
+                readOnly
                 className="flex-1 text-[14px] text-text bg-transparent outline-none min-w-0"
                 placeholder="0"
               />
@@ -1027,18 +1052,48 @@ export function PairDetailClient({ address }: Props) {
                   USD
                 </button>
                 <button
-                  onClick={() => setSwapUnit('USDC')}
-                  className={clsx('px-2 py-[7px] text-[14px] flex items-center gap-1.5 transition-colors', swapUnit === 'USDC' ? 'bg-border text-text' : 'bg-border/50 text-sub')}
+                  onClick={() => setSwapUnit('WETH')}
+                  className={clsx('px-2 py-[7px] text-[14px] flex items-center gap-1.5 transition-colors', swapUnit === 'WETH' ? 'bg-border text-text' : 'bg-border/50 text-sub')}
                 >
-                  {swapUnit === 'USDC' && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                  USDC
+                  {swapUnit === 'WETH' && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                  WETH
                 </button>
               </div>
             </div>
-            <button className="border border-border rounded-lg flex items-center justify-center gap-3 p-2 w-full text-[14px] text-text hover:bg-muted transition-colors">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M2 4h10M2 7h7M2 10h4"/></svg>
-              Embed this chart
-            </button>
+            <div className="relative w-full">
+              <button
+                onClick={() => { setEmbedOpen(!embedOpen); setEmbedCopied(false) }}
+                className="border border-border rounded-lg flex items-center justify-center gap-3 p-2 w-full text-[14px] text-text hover:bg-muted transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M2 4h10M2 7h7M2 10h4"/></svg>
+                Embed this chart
+              </button>
+              {embedOpen && (
+                <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-border bg-[#111] shadow-2xl p-4 flex flex-col gap-3 z-20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-bold text-text">Embed Code</span>
+                    <button onClick={() => setEmbedOpen(false)} className="text-sub hover:text-text">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                    </button>
+                  </div>
+                  <textarea
+                    readOnly
+                    value={`<iframe src="https://www.geckoterminal.com/base/pools/${address}?embed=1&info=0&swaps=0" width="100%" height="400" frameborder="0"></iframe>`}
+                    className="w-full h-[72px] rounded-lg border border-border bg-transparent text-[12px] text-sub font-mono p-2 resize-none outline-none focus:border-blue"
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`<iframe src="https://www.geckoterminal.com/base/pools/${address}?embed=1&info=0&swaps=0" width="100%" height="400" frameborder="0"></iframe>`)
+                      setEmbedCopied(true)
+                      setTimeout(() => setEmbedCopied(false), 2000)
+                    }}
+                    className="bg-blue text-white hover:bg-blue/90 rounded-lg text-[13px] font-medium py-2 transition-colors"
+                  >
+                    {embedCopied ? 'Copied!' : 'Copy Code'}
+                  </button>
+                </div>
+              )}
+            </div>
             <span className="text-[12px] text-sub">Crypto charts by TradingView</span>
           </div>
 

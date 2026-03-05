@@ -3,9 +3,9 @@
 import { useState, useMemo } from 'react'
 import clsx from 'clsx'
 import { fmtUsd, shortAddr } from '../../lib/formatters'
-import { MOCK_TOP_TRADERS } from '../../lib/mockPairDetailData'
+import type { MoralisTrader } from '../../lib/moralis'
 
-type SortKey = 'bought' | 'sold' | 'pnl' | 'unrealized'
+type SortKey = 'bought' | 'sold' | 'pnl' | 'trades'
 type SortDir = 'asc' | 'desc'
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
@@ -37,7 +37,11 @@ function SortableHeader({ label, sortKey, currentSort, currentDir, onSort, class
   )
 }
 
-export function TopTradersTable() {
+interface Props {
+  traders?: MoralisTrader[]
+}
+
+export function TopTradersTable({ traders }: Props) {
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
@@ -50,61 +54,78 @@ export function TopTradersTable() {
     }
   }
 
-  const sorted = useMemo(() => {
-    if (!sortKey) return MOCK_TOP_TRADERS
-    return [...MOCK_TOP_TRADERS].sort((a, b) => {
+  const rows = useMemo(() => {
+    if (!traders || traders.length === 0) return []
+    const mapped = traders.map(t => ({
+      address: t.address,
+      bought: parseFloat(t.total_usd_invested) || 0,
+      sold: parseFloat(t.total_sold_usd) || 0,
+      pnl: parseFloat(t.realized_profit_usd) || 0,
+      trades: t.count_of_trades,
+      pnlPct: t.realized_profit_percentage,
+    }))
+    if (!sortKey) return mapped
+    return [...mapped].sort((a, b) => {
       const aVal = a[sortKey]
       const bVal = b[sortKey]
       return sortDir === 'desc' ? bVal - aVal : aVal - bVal
     })
-  }, [sortKey, sortDir])
+  }, [traders, sortKey, sortDir])
+
+  if (!traders) {
+    return (
+      <div className="flex items-center justify-center py-12 text-sub text-[14px]">
+        Loading top traders...
+      </div>
+    )
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-12 text-sub text-[14px]">
+        No top trader data for this token yet
+      </div>
+    )
+  }
 
   return (
     <div className="overflow-y-auto" style={{ maxHeight: 400 }}>
       {/* Column header */}
-      <div className="grid grid-cols-[32px_1fr_1fr_1fr] md:grid-cols-[32px_120px_1fr_1fr_1fr_1fr_1fr_48px_32px] gap-x-2 md:gap-x-3 px-3 md:px-5 py-2 text-[14px] text-header border-b border-border sticky top-0 bg-surface z-10">
+      <div className="grid grid-cols-[32px_1fr_1fr_1fr] md:grid-cols-[40px_1fr_100px_100px_100px_60px_40px] gap-x-2 md:gap-x-3 px-3 md:px-5 py-2 text-[14px] text-header border-b border-border sticky top-0 bg-surface z-10">
         <span>#</span>
         <span>Maker</span>
         <SortableHeader label="Bought" sortKey="bought" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="justify-end" />
         <SortableHeader label="Sold" sortKey="sold" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="justify-end" />
         <SortableHeader label="PnL" sortKey="pnl" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="hidden md:flex justify-end" />
-        <SortableHeader label="Unrealized" sortKey="unrealized" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="hidden md:flex justify-end" />
-        <span className="hidden md:block text-right">Balance</span>
-        <span className="hidden md:block text-right">Txns</span>
+        <SortableHeader label="Txns" sortKey="trades" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="hidden md:flex justify-end" />
         <span className="hidden md:block text-center">Exp</span>
       </div>
 
-      {sorted.map((t, i) => (
+      {rows.map((t, i) => (
         <div
-          key={t.rank}
-          className="grid grid-cols-[32px_1fr_1fr_1fr] md:grid-cols-[32px_120px_1fr_1fr_1fr_1fr_1fr_48px_32px] gap-x-2 md:gap-x-3 px-3 md:px-5 py-2 text-[14px] border-b border-muted hover:bg-border/20 transition-colors"
+          key={t.address}
+          className="grid grid-cols-[32px_1fr_1fr_1fr] md:grid-cols-[40px_1fr_100px_100px_100px_60px_40px] gap-x-2 md:gap-x-3 px-3 md:px-5 py-2 text-[14px] border-b border-muted hover:bg-border/20 transition-colors"
         >
-          <span className="text-sub tabular">{sortKey ? i + 1 : t.rank}</span>
+          <span className="text-sub tabular">{i + 1}</span>
           <a
-            href={`https://basescan.org/address/${t.maker}`}
+            href={`https://basescan.org/address/${t.address}`}
             target="_blank"
             rel="noopener"
             className="font-mono text-sub hover:text-blue truncate"
           >
-            {shortAddr(t.maker)}
+            {shortAddr(t.address)}
           </a>
-          <span className="tabular text-right text-green font-mono">{fmtUsd(t.bought)}</span>
-          <span className="tabular text-right text-red font-mono">{fmtUsd(t.sold)}</span>
+          <span className="tabular text-right text-green font-mono truncate">{fmtUsd(t.bought)}</span>
+          <span className="tabular text-right text-red font-mono truncate">{fmtUsd(t.sold)}</span>
           <span className={clsx(
-            'hidden md:block tabular text-right font-mono',
+            'hidden md:block tabular text-right font-mono truncate',
             t.pnl >= 0 ? 'text-green' : 'text-red'
           )}>
             {t.pnl >= 0 ? '+' : ''}{fmtUsd(t.pnl)}
           </span>
-          <span className="hidden md:block tabular text-right text-sub font-mono">
-            {t.unrealized > 0 ? fmtUsd(t.unrealized) : '-'}
-          </span>
-          <span className="hidden md:block tabular text-right text-text font-mono">
-            {t.balance > 0 ? fmtUsd(t.balance) : '-'}
-          </span>
-          <span className="hidden md:block tabular text-right text-sub">{t.txns}</span>
+          <span className="hidden md:block tabular text-right text-sub">{t.trades}</span>
           <a
-            href={`https://basescan.org/address/${t.maker}`}
+            href={`https://basescan.org/address/${t.address}`}
             target="_blank"
             rel="noopener"
             className="hidden md:flex items-center justify-center text-sub hover:text-blue"

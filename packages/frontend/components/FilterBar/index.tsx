@@ -254,6 +254,7 @@ export function FilterBar({
           onSort={onSort ?? (() => {})}
           onOrder={onOrder ?? (() => {})}
           rankLabel={rankLabel}
+          dataWindow={dataWindow}
         />
 
         {/* Filters */}

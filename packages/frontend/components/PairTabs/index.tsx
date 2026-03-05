@@ -7,6 +7,9 @@ import { TopTradersTable } from './TopTradersTable'
 import { HoldersTable } from './HoldersTable'
 import { LiquidityTable } from './LiquidityTable'
 import { BubblemapsEmbed } from './BubblePlaceholder'
+import type { GoPlusResult } from '../../lib/goplus'
+import type { MoralisTrader, MoralisHoldersResult } from '../../lib/moralis'
+import type { LPProvidersResult } from '../../lib/uniswap-subgraph'
 
 type TabKey = 'transactions' | 'top-traders' | 'holders' | 'liquidity' | 'bubblemaps'
 
@@ -86,9 +89,16 @@ interface Props {
   swapLoading: boolean
   onLoadMore: () => void
   tokenAddress: string
+  security?: GoPlusResult
+  tokenPriceUsd: number
+  traders?: MoralisTrader[]
+  baseTokenSymbol?: string
+  newSwapIds?: Set<string>
+  holdersData?: MoralisHoldersResult
+  lpProvidersData?: LPProvidersResult
 }
 
-export function PairTabs({ swaps, swapHasMore, swapLoading, onLoadMore, tokenAddress }: Props) {
+export function PairTabs({ swaps, swapHasMore, swapLoading, onLoadMore, tokenAddress, security, tokenPriceUsd, traders, baseTokenSymbol, newSwapIds, holdersData, lpProvidersData }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('transactions')
 
   return (
@@ -130,11 +140,13 @@ export function PairTabs({ swaps, swapHasMore, swapLoading, onLoadMore, tokenAdd
               swapHasMore={swapHasMore}
               swapLoading={swapLoading}
               onLoadMore={onLoadMore}
+              baseTokenSymbol={baseTokenSymbol}
+              newSwapIds={newSwapIds}
             />
           )}
-          {activeTab === 'top-traders' && <TopTradersTable />}
-          {activeTab === 'holders' && <HoldersTable />}
-          {activeTab === 'liquidity' && <LiquidityTable />}
+          {activeTab === 'top-traders' && <TopTradersTable traders={traders} />}
+          {activeTab === 'holders' && <HoldersTable holdersData={holdersData} />}
+          {activeTab === 'liquidity' && <LiquidityTable lpHolders={security?.lp_holders} subgraphData={lpProvidersData} />}
           {activeTab === 'bubblemaps' && <BubblemapsEmbed tokenAddress={tokenAddress} />}
         </div>
       </div>

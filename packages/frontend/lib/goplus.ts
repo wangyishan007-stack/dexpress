@@ -19,10 +19,12 @@ export interface GoPlusHolder {
 export interface GoPlusLpHolder {
   address: string
   tag: string
+  value: string
   is_contract: number
   balance: string
   percent: string
   is_locked: number
+  NFT_list?: { NFT_id: string; amount: string; in_effect: string; NFT_percentage: string; value: string }[]
   locked_detail?: { amount: string; end_time: string; opt_time: string }[]
 }
 

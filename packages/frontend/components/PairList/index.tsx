@@ -48,10 +48,13 @@ export function PairList({ pairs, hasMore, onLoadMore, isValidating, livePrices,
   })
 
   const items = virtualizer.getVirtualItems()
-  const lastIdx = items.at(-1)?.index ?? 0
-  if (hasMore && lastIdx >= pairs.length - 8 && !isValidating) {
-    onLoadMore()
-  }
+
+  useEffect(() => {
+    const lastIdx = items.at(-1)?.index ?? 0
+    if (hasMore && lastIdx >= pairs.length - 8 && !isValidating) {
+      onLoadMore()
+    }
+  }, [items, hasMore, pairs.length, isValidating, onLoadMore])
 
   const frozenWidth = showStar ? FROZEN_WIDTH_STAR : FROZEN_WIDTH_NO_STAR
 

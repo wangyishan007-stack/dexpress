@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { MOCK_POOLS } from '../lib/mockData'
+import useSWR from 'swr'
+import { fetchPoolsByToken } from '../lib/dexscreener-client'
 import { fmtUsd, fmtAge, shortAddr } from '../lib/formatters'
 import { useWatchlist } from '../hooks/useWatchlist'
+import type { Pool } from '@dex/shared'
 
 interface Props {
   open: boolean
@@ -15,8 +17,14 @@ interface Props {
 
 export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }: Props) {
   const [query, setQuery] = useState('')
-  const { lists, activeListId, setActiveList, toggle } = useWatchlist()
+  const { lists, toggle } = useWatchlist()
   const isInAnyList = (addr: string) => lists.some(l => l.pairIds.includes(addr))
+
+  const { data: pools, isLoading } = useSWR<Pool[]>(
+    open && tokenAddress ? `other-pairs-${tokenAddress}` : null,
+    () => fetchPoolsByToken(tokenAddress),
+    { dedupingInterval: 120_000, revalidateOnFocus: false }
+  )
 
   useEffect(() => {
     if (!open) return
@@ -25,23 +33,16 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
-  // Filter pairs that contain the same token
+  // Exclude current pair
   const otherPairs = useMemo(() => {
-    return MOCK_POOLS.filter(
-      (p) =>
-        p.address !== currentAddress &&
-        (p.token0.address.toLowerCase() === tokenAddress.toLowerCase() ||
-          p.token1.address.toLowerCase() === tokenAddress.toLowerCase())
-    )
-  }, [currentAddress, tokenAddress])
-
-  // If no other pairs with same token, show all pairs as fallback
-  const displayPairs = otherPairs.length > 0 ? otherPairs : MOCK_POOLS.filter(p => p.address !== currentAddress)
+    if (!pools) return []
+    return pools.filter(p => p.address.toLowerCase() !== currentAddress.toLowerCase())
+  }, [pools, currentAddress])
 
   const filtered = useMemo(() => {
-    if (!query.trim()) return displayPairs
+    if (!query.trim()) return otherPairs
     const q = query.toLowerCase()
-    return displayPairs.filter(
+    return otherPairs.filter(
       (p) =>
         p.token0.symbol.toLowerCase().includes(q) ||
         p.token1.symbol.toLowerCase().includes(q) ||
@@ -49,7 +50,7 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
         p.token1.name?.toLowerCase().includes(q) ||
         p.address.toLowerCase().includes(q)
     )
-  }, [displayPairs, query])
+  }, [otherPairs, query])
 
   if (!open) return null
 
@@ -88,13 +89,19 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
 
         {/* Pair list */}
         <div className="flex flex-col gap-3 overflow-y-auto flex-1 min-h-0">
-          {filtered.length === 0 && (
+          {isLoading && (
+            <div className="flex items-center justify-center py-8 text-sub text-[13px]">
+              Loading pairs...
+            </div>
+          )}
+
+          {!isLoading && filtered.length === 0 && (
             <div className="flex items-center justify-center py-8 text-sub text-[13px]">
               No other pairs found.
             </div>
           )}
 
-          {filtered.map((p, i) => {
+          {filtered.map((p) => {
             const base = p.token0
             const quote = p.token1
             const change24h = Number(p.change_24h)
@@ -112,11 +119,17 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
                 {/* Left: Chain + DEX icons + Token avatar */}
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <div className="flex flex-col gap-1.5 items-center w-4">
-                    <div className="w-4 h-4 rounded-sm bg-[#0021f5]" />
-                    <div className="w-4 h-4 rounded-sm bg-muted" />
+                    <img src="/branding/base-icon.svg" alt="Base" className="w-4 h-4" />
+                    <img src="/branding/uniswap-icon.svg" alt={dexLabel} className="w-4 h-4" />
                   </div>
                   <div className="w-[54px] h-[54px] rounded bg-muted flex-shrink-0 overflow-hidden">
-                    <div className="w-full h-full bg-muted" />
+                    {base.logo_url ? (
+                      <img src={base.logo_url} alt={base.symbol} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-muted flex items-center justify-center text-sub text-[18px] font-bold">
+                        {base.symbol?.charAt(0) || '?'}
+                      </div>
+                    )}
                   </div>
                 </div>
 

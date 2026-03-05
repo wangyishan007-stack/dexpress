@@ -10,28 +10,36 @@ function IconRank() {
   )
 }
 
-const RANK_OPTIONS: { value: string; label: string }[] = [
+const TRENDING_OPTIONS: { value: string; label: string }[] = [
   { value: 'trending_5m',   label: 'Trending 5M'  },
   { value: 'trending_1h',   label: 'Trending 1H'  },
   { value: 'trending_6h',   label: 'Trending 6H'  },
   { value: 'trending_24h',  label: 'Trending 24H' },
-  { value: 'txns_24h',      label: 'Txns'          },
-  { value: 'buys_24h',      label: 'Buys'          },
-  { value: 'sells_24h',     label: 'Sells'         },
-  { value: 'volume_24h',    label: 'Volume'         },
-  { value: 'liquidity_usd', label: 'Liquidity'      },
-  { value: 'mcap_usd',      label: 'Market Cap'     },
+]
+
+const STATIC_OPTIONS: { value: string; label: string }[] = [
+  { value: 'liquidity_usd', label: 'Liquidity'  },
+  { value: 'mcap_usd',      label: 'Market Cap' },
 ]
 
 interface Props {
-  sort:      string
-  order:     'asc' | 'desc'
-  onSort:    (s: string) => void
-  onOrder:   (o: 'asc' | 'desc') => void
-  rankLabel: string
+  sort:       string
+  order:      'asc' | 'desc'
+  onSort:     (s: string) => void
+  onOrder:    (o: 'asc' | 'desc') => void
+  rankLabel:  string
+  dataWindow: string
 }
 
-export function RankByDropdown({ sort, order, onSort, onOrder, rankLabel }: Props) {
+export function RankByDropdown({ sort, order, onSort, onOrder, rankLabel, dataWindow }: Props) {
+  const dynamicOptions = [
+    { value: `txns_${dataWindow}`,   label: 'Txns'   },
+    { value: `buys_${dataWindow}`,   label: 'Buys'   },
+    { value: `sells_${dataWindow}`,  label: 'Sells'  },
+    { value: `volume_${dataWindow}`, label: 'Volume' },
+  ]
+  const rankOptions = [...TRENDING_OPTIONS, ...dynamicOptions, ...STATIC_OPTIONS]
+
   return (
     <Dropdown
       align="right"
@@ -53,7 +61,7 @@ export function RankByDropdown({ sort, order, onSort, onOrder, rankLabel }: Prop
       <DropdownDivider />
 
       <DropdownSectionTitle>Rank by</DropdownSectionTitle>
-      {RANK_OPTIONS.map((opt) => (
+      {rankOptions.map((opt) => (
         <DropdownItem
           key={opt.value}
           active={sort === opt.value}

@@ -421,6 +421,7 @@ export interface PoolExtended {
 // ─── Token info (social links, description) ──────────────
 
 export interface TokenInfo {
+  image_url: string | null
   websites: string[]
   twitter_handle: string | null
   telegram_handle: string | null
@@ -444,6 +445,7 @@ export async function fetchTokenInfo(tokenAddress: string): Promise<TokenInfo | 
     if (!a) return null
 
     const info: TokenInfo = {
+      image_url:        a.image_url || null,
       websites:         Array.isArray(a.websites) ? a.websites : [],
       twitter_handle:   a.twitter_handle || null,
       telegram_handle:  a.telegram_handle || null,
@@ -472,9 +474,12 @@ export interface GTTrade {
   sender: string | null
 }
 
-export async function fetchPoolTrades(address: string): Promise<GTTrade[]> {
+export async function fetchPoolTrades(address: string, beforeTimestamp?: string): Promise<GTTrade[]> {
   try {
-    const url = `${GT_BASE}/networks/base/pools/${address}/trades?trade_volume_in_usd_greater_than=0`
+    let url = `${GT_BASE}/networks/base/pools/${address}/trades?trade_volume_in_usd_greater_than=0`
+    if (beforeTimestamp) {
+      url += `&before_timestamp=${encodeURIComponent(beforeTimestamp)}`
+    }
     const res = await fetchWithTimeout(url)
     if (!res.ok) return []
     const data = await res.json()
@@ -518,6 +523,23 @@ export async function searchPools(query: string): Promise<Pool[]> {
   }
 }
 
+// ─── Pools by token address ──────────────────────────────────
+
+export async function fetchPoolsByToken(tokenAddress: string): Promise<Pool[]> {
+  if (!tokenAddress) return []
+  try {
+    const url = `${GT_BASE}/networks/base/tokens/${tokenAddress}/pools?include=base_token,quote_token&page=1`
+    const res = await fetchWithTimeout(url)
+    if (!res.ok) return []
+    const data = await res.json()
+    const { pools: rawPools, logos } = parseGTResponse(data)
+    return rawPools.map(p => mapPool(p, logos)).filter((p): p is Pool => p !== null)
+  } catch (e) {
+    console.error('[fetchPoolsByToken] error:', e)
+    return []
+  }
+}
+
 // ─── Get cached pools (for search modal "recently updated") ──
 
 export function getCachedPools(): Pool[] {
@@ -554,26 +576,22 @@ export async function fetchPairByAddress(
     return cached.data
   }
 
-  // 2. Check list page cache — if we already have this pool from trending/volume lists,
-  //    use it as instant fallback (missing extended fields get defaults)
-  const fromList = _poolFromList(addrLower)
-  if (fromList) {
-    // Return list data immediately. Background fetch updates with full data.
-    _fetchAndCacheDetail(address, addrLower).catch(() => {})
-    return fromList
-  }
-
-  // 3. If list cache empty, trigger list load in background so future calls benefit
+  // 2. If list cache empty, trigger list load in background so future calls benefit
   if (_cachedPools.length === 0) {
     fetchDexScreenerClient().catch(() => {})
   }
 
-  // 4. Fetch from GT API
+  // 3. Fetch from GT API (always await — ensures extended fields like ETH price are real)
   const result = await _fetchAndCacheDetail(address, addrLower)
   if (result) return result
 
-  // 5. API failed — check list cache one more time (may have been populated by step 3)
-  return _poolFromList(addrLower)
+  // 4. API failed — use list cache as fallback (extended fields will be 0)
+  // Kick off background fetch so the detail cache is populated for next SWR refresh
+  const fallback = _poolFromList(addrLower)
+  if (fallback) {
+    _fetchAndCacheDetail(address, addrLower).catch(() => {})
+  }
+  return fallback
 }
 
 async function _fetchAndCacheDetail(

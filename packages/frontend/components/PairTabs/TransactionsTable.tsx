@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react'
 import clsx from 'clsx'
-import { fmtUsd, fmtPrice, shortAddr } from '../../lib/formatters'
+import { fmtUsd, fmtPrice, fmtEth, fmtNum, shortAddr } from '../../lib/formatters'
 
 interface RecentSwap {
   id: string
@@ -21,6 +21,8 @@ interface Props {
   swapHasMore: boolean
   swapLoading: boolean
   onLoadMore: () => void
+  baseTokenSymbol?: string
+  newSwapIds?: Set<string>
 }
 
 type TypeFilterValue = 'all' | 'buy_sell' | 'buy' | 'sell' | 'add_remove' | 'add' | 'remove'
@@ -355,7 +357,7 @@ function MakerFilter({ value, onChange }: { value: string; onChange: (v: string)
 
 /* ── Main component ─────────────────────────────────────── */
 
-export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore }: Props) {
+export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore, baseTokenSymbol, newSwapIds }: Props) {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS)
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null)
@@ -420,7 +422,7 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore 
       if (filters.type === 'remove') return false
       if (filters.usdMin && s.amount_usd < Number(filters.usdMin)) return false
       if (filters.usdMax && s.amount_usd > Number(filters.usdMax)) return false
-      const ethAmt = Math.abs(Number(s.is_buy ? s.amount0 : s.amount1))
+      const ethAmt = Math.abs(Number(s.amount0))
       if (filters.ethMin && ethAmt < Number(filters.ethMin)) return false
       if (filters.ethMax && ethAmt > Number(filters.ethMax)) return false
       if (filters.maker && s.sender && !s.sender.toLowerCase().includes(filters.maker.toLowerCase())) return false
@@ -444,7 +446,7 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore 
           )}
         </div>
         <HeaderCell label="USD"   filterKey="usd"   activeFilters={activeFilters} onOpen={handleOpen} className="justify-end" />
-        <HeaderCell label="ETH"   filterKey="eth"   activeFilters={activeFilters} onOpen={handleOpen} className="hidden md:flex justify-end" />
+        <HeaderCell label={baseTokenSymbol || 'Amount'}   filterKey="eth"   activeFilters={activeFilters} onOpen={handleOpen} className="hidden md:flex justify-end" />
         <button
           onClick={() => setPriceInUsd(v => !v)}
           className="hidden md:flex items-center gap-1 justify-end hover:text-text transition-colors"
@@ -467,7 +469,8 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore 
           key={s.id}
           className={clsx(
             'grid grid-cols-[80px_48px_1fr_80px] md:grid-cols-[96px_56px_1fr_1fr_1fr_96px_40px] gap-x-2 md:gap-x-3 px-3 md:px-5 py-2 text-[14px] border-b border-muted',
-            s.is_buy ? 'hover:bg-green/5' : 'hover:bg-red/5'
+            s.is_buy ? 'hover:bg-green/5' : 'hover:bg-red/5',
+            newSwapIds?.has(s.id) && (s.is_buy ? 'animate-flash-green' : 'animate-flash-red')
           )}
         >
           <span className="text-sub tabular">
@@ -480,10 +483,10 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore 
             {fmtUsd(s.amount_usd)}
           </span>
           <span className="hidden md:block tabular text-right text-text">
-            {Math.abs(Number(s.is_buy ? s.amount0 : s.amount1)).toFixed(4)}
+            {fmtNum(s.amount0)}
           </span>
           <span className="hidden md:block tabular text-right text-sub font-mono">
-            {priceInUsd ? fmtPrice(s.price_usd) : Math.abs(Number(s.is_buy ? s.amount0 : s.amount1)).toFixed(6)}
+            {priceInUsd ? fmtPrice(s.price_usd) : (s.amount0 !== 0 ? fmtEth(s.amount1 / s.amount0) : '—')}
           </span>
           <span className="font-mono text-right text-sub truncate">
             {shortAddr(s.sender ?? '')}
@@ -551,7 +554,7 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore 
 
       {/* ETH */}
       <FilterModal
-        title="Filter by ETH"
+        title={`Filter by ${baseTokenSymbol || 'Amount'}`}
         open={openFilter === 'eth'}
         onClose={() => setOpenFilter(null)}
         onApply={handleApply}

@@ -5,7 +5,9 @@ import {
   createChart,
   ColorType,
   CrosshairMode,
+  LineStyle,
 } from 'lightweight-charts'
+import clsx from 'clsx'
 
 interface Props {
   pairAddress: string
@@ -13,6 +15,7 @@ interface Props {
 }
 
 type Resolution = '1' | '5' | '15' | '60' | '240' | '1D'
+type ChartType = 'candles' | 'line' | 'area'
 
 const RESOLUTIONS: { label: string; value: Resolution }[] = [
   { label: '1m', value: '1' },
@@ -149,36 +152,253 @@ async function fetchCandles(address: string, resolution: Resolution) {
   return generateMockCandles(address, resolution)
 }
 
+/* ── Calculate Moving Average ──────────────────────────────── */
+function calcMA(bars: { time: number; close: number }[], period: number) {
+  const result: { time: number; value: number }[] = []
+  for (let i = period - 1; i < bars.length; i++) {
+    let sum = 0
+    for (let j = i - period + 1; j <= i; j++) sum += bars[j].close
+    result.push({ time: bars[i].time, value: sum / period })
+  }
+  return result
+}
+
+/* ── Icons ─────────────────────────────────────────────────── */
+function IconCandle() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <rect x="2" y="3" width="3" height="8" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+      <line x1="3.5" y1="1" x2="3.5" y2="3" stroke="currentColor" strokeWidth="1.2" />
+      <line x1="3.5" y1="11" x2="3.5" y2="13" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="9" y="5" width="3" height="6" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+      <line x1="10.5" y1="2" x2="10.5" y2="5" stroke="currentColor" strokeWidth="1.2" />
+      <line x1="10.5" y1="11" x2="10.5" y2="13" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  )
+}
+
+function IconLine() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M1 10l3-4 3 2 3-5 3 1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function IconArea() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M1 10l3-4 3 2 3-5 3 1V13H1z" fill="currentColor" opacity="0.2" />
+      <path d="M1 10l3-4 3 2 3-5 3 1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function IconIndicator() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M1 12l2-3 2 1.5 2-4 2 2 2-5 2 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M1 10l2-1.5 2 1 2-2.5 2 1 2-3 2 2" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" opacity="0.4" strokeDasharray="2 2" />
+    </svg>
+  )
+}
+
+function IconFullscreen() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 5V1h4M9 1h4v4M13 9v4H9M5 13H1V9" />
+    </svg>
+  )
+}
+
+function IconExitFullscreen() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 1v4H1M9 5h4V1M9 13V9h4M1 9h4v4" />
+    </svg>
+  )
+}
+
+function IconScreenshot() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="3" width="12" height="9" rx="1.5" />
+      <circle cx="7" cy="7.5" r="2" />
+      <path d="M4 3V2a1 1 0 011-1h4a1 1 0 011 1v1" />
+    </svg>
+  )
+}
+
+/* ── Toolbar dropdown ──────────────────────────────────────── */
+function ToolbarDropdown({ label, icon, open, onToggle, children }: {
+  label: string; icon: React.ReactNode; open: boolean; onToggle: () => void; children: React.ReactNode
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onToggle()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open, onToggle])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={onToggle}
+        className={clsx(
+          'flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] font-medium transition-colors',
+          open ? 'bg-blue/15 text-blue' : 'text-sub hover:text-text hover:bg-border/50'
+        )}
+      >
+        {icon}
+        <span className="hidden md:inline">{label}</span>
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 bg-[#1a1a1a] border border-border rounded-lg py-1 z-50 min-w-[140px] shadow-xl">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DropdownItem({ active, onClick, children }: { active?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={clsx(
+        'w-full text-left px-3 py-1.5 text-[12px] transition-colors',
+        active ? 'text-blue bg-blue/10' : 'text-sub hover:text-text hover:bg-border/30'
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
 /* ── Chart component ───────────────────────────────────────── */
 export function TradingViewChart({ pairAddress, symbol }: Props) {
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<any>(null)
   const candleSeriesRef = useRef<any>(null)
+  const lineSeriesRef = useRef<any>(null)
   const volumeSeriesRef = useRef<any>(null)
+  const maSeriesRefs = useRef<any[]>([])
+  const barsRef = useRef<any[]>([])
+
   const [activeRes, setActiveRes] = useState<Resolution>('5')
+  const [chartType, setChartType] = useState<ChartType>('candles')
+  const [showMA, setShowMA] = useState(false)
+  const [logScale, setLogScale] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const [chartTypeOpen, setChartTypeOpen] = useState(false)
+  const [indicatorOpen, setIndicatorOpen] = useState(false)
+
+  // Apply MA overlay
+  const applyMA = useCallback((bars: any[], show: boolean) => {
+    // Remove existing MA lines
+    for (const s of maSeriesRefs.current) {
+      try { chartRef.current?.removeSeries(s) } catch {}
+    }
+    maSeriesRefs.current = []
+
+    if (!show || !chartRef.current || bars.length < 7) return
+
+    const MA_CONFIGS = [
+      { period: 7, color: '#f5c542' },
+      { period: 25, color: '#42a5f5' },
+      { period: 99, color: '#ab47bc' },
+    ]
+
+    for (const cfg of MA_CONFIGS) {
+      if (bars.length < cfg.period) continue
+      const series = chartRef.current.addLineSeries({
+        color: cfg.color,
+        lineWidth: 1,
+        lineStyle: LineStyle.Solid,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      })
+      series.setData(calcMA(bars, cfg.period))
+      maSeriesRefs.current.push(series)
+    }
+  }, [])
 
   const loadData = useCallback(
-    async (res: Resolution) => {
+    async (res: Resolution, type: ChartType, showMaOverlay: boolean) => {
       const bars = await fetchCandles(pairAddress, res)
-      if (candleSeriesRef.current && bars.length > 0) {
-        candleSeriesRef.current.setData(
-          bars.map((b: any) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close }))
-        )
-        if (volumeSeriesRef.current) {
-          volumeSeriesRef.current.setData(
-            bars.map((b: any) => ({
-              time: b.time,
-              value: b.volume,
-              color: b.close >= b.open ? 'rgba(38,166,154,0.5)' : 'rgba(239,83,80,0.5)',
-            }))
-          )
-        }
-        chartRef.current?.timeScale().fitContent()
+      barsRef.current = bars
+      if (!chartRef.current || bars.length === 0) return
+
+      // Clear previous series
+      if (candleSeriesRef.current) {
+        try { chartRef.current.removeSeries(candleSeriesRef.current) } catch {}
+        candleSeriesRef.current = null
       }
+      if (lineSeriesRef.current) {
+        try { chartRef.current.removeSeries(lineSeriesRef.current) } catch {}
+        lineSeriesRef.current = null
+      }
+
+      if (type === 'candles') {
+        const series = chartRef.current.addCandlestickSeries({
+          upColor: '#26a69a',
+          downColor: '#ef5350',
+          borderUpColor: '#26a69a',
+          borderDownColor: '#ef5350',
+          wickUpColor: '#26a69a',
+          wickDownColor: '#ef5350',
+          priceFormat: { type: 'price', minMove: 0.00000001, precision: 8 },
+        })
+        series.setData(bars.map((b: any) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })))
+        candleSeriesRef.current = series
+      } else if (type === 'line') {
+        const series = chartRef.current.addLineSeries({
+          color: '#2962FF',
+          lineWidth: 2,
+          priceFormat: { type: 'price', minMove: 0.00000001, precision: 8 },
+        })
+        series.setData(bars.map((b: any) => ({ time: b.time, value: b.close })))
+        lineSeriesRef.current = series
+      } else {
+        // area
+        const series = chartRef.current.addAreaSeries({
+          topColor: 'rgba(41, 98, 255, 0.3)',
+          bottomColor: 'rgba(41, 98, 255, 0.02)',
+          lineColor: '#2962FF',
+          lineWidth: 2,
+          priceFormat: { type: 'price', minMove: 0.00000001, precision: 8 },
+        })
+        series.setData(bars.map((b: any) => ({ time: b.time, value: b.close })))
+        lineSeriesRef.current = series
+      }
+
+      // Volume
+      if (volumeSeriesRef.current) {
+        volumeSeriesRef.current.setData(
+          bars.map((b: any) => ({
+            time: b.time,
+            value: b.volume,
+            color: b.close >= b.open ? 'rgba(38,166,154,0.5)' : 'rgba(239,83,80,0.5)',
+          }))
+        )
+      }
+
+      // MA overlay
+      applyMA(bars, showMaOverlay)
+
+      chartRef.current?.timeScale().fitContent()
     },
-    [pairAddress]
+    [pairAddress, applyMA]
   )
 
+  // Create chart
   useEffect(() => {
     if (!containerRef.current) return
 
@@ -210,64 +430,183 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
       },
     })
 
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      borderUpColor: '#26a69a',
-      borderDownColor: '#ef5350',
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
-      priceFormat: { type: 'price', minMove: 0.00000001, precision: 8 },
-    })
-
     const volumeSeries = chart.addHistogramSeries({
       priceFormat: { type: 'volume' },
       priceScaleId: 'volume',
     })
-
     chart.priceScale('volume').applyOptions({
       scaleMargins: { top: 0.75, bottom: 0 },
     })
 
     chartRef.current = chart
-    candleSeriesRef.current = candleSeries
     volumeSeriesRef.current = volumeSeries
 
-    loadData(activeRes)
+    loadData(activeRes, chartType, showMA)
 
     return () => {
       chart.remove()
       chartRef.current = null
       candleSeriesRef.current = null
+      lineSeriesRef.current = null
       volumeSeriesRef.current = null
+      maSeriesRefs.current = []
     }
-  }, [pairAddress, loadData])
+  }, [pairAddress]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Handle resolution change
   const handleResolution = (res: Resolution) => {
     setActiveRes(res)
-    loadData(res)
+    loadData(res, chartType, showMA)
+  }
+
+  // Handle chart type change
+  const handleChartType = (type: ChartType) => {
+    setChartType(type)
+    setChartTypeOpen(false)
+    loadData(activeRes, type, showMA)
+  }
+
+  // Handle MA toggle
+  const handleToggleMA = () => {
+    const next = !showMA
+    setShowMA(next)
+    setIndicatorOpen(false)
+    applyMA(barsRef.current, next)
+  }
+
+  // Handle log scale toggle
+  const handleLogScale = () => {
+    const next = !logScale
+    setLogScale(next)
+    chartRef.current?.priceScale('right').applyOptions({ mode: next ? 1 : 0 })
+  }
+
+  // Fullscreen
+  const toggleFullscreen = () => {
+    if (!wrapperRef.current) return
+    if (!document.fullscreenElement) {
+      wrapperRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {})
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {})
+    }
+  }
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])
+
+  // Screenshot
+  const handleScreenshot = () => {
+    if (!containerRef.current) return
+    const canvas = containerRef.current.querySelector('canvas')
+    if (!canvas) return
+    const link = document.createElement('a')
+    link.download = `${symbol}_chart.png`
+    link.href = canvas.toDataURL('image/png')
+    link.click()
   }
 
   return (
-    <div className="flex flex-col w-full h-full">
-      {/* Resolution toolbar */}
-      <div className="flex items-center gap-0.5 px-4 py-2 border-b border-border flex-shrink-0 bg-black">
+    <div ref={wrapperRef} className={clsx('flex flex-col w-full', isFullscreen ? 'h-screen bg-black' : 'h-full')}>
+      {/* ── Top Toolbar ──────────────────────────────────────── */}
+      <div className="flex items-center gap-0.5 px-2 md:px-3 py-1.5 border-b border-border flex-shrink-0 bg-black overflow-x-auto scrollbar-hide">
+        {/* Resolution buttons */}
         {RESOLUTIONS.map((r) => (
           <button
             key={r.value}
             onClick={() => handleResolution(r.value)}
-            className={
+            className={clsx(
+              'px-2 py-1 rounded-md text-[12px] font-medium whitespace-nowrap transition-colors',
               r.value === activeRes
-                ? 'px-2.5 py-1 rounded-md text-[12px] font-medium bg-blue/15 text-blue transition-colors'
-                : 'px-2.5 py-1 rounded-md text-[12px] font-medium text-sub hover:text-text hover:bg-border/50 transition-colors'
-            }
+                ? 'bg-blue/15 text-blue'
+                : 'text-sub hover:text-text hover:bg-border/50'
+            )}
           >
             {r.label}
           </button>
         ))}
+
+        {/* Separator */}
+        <div className="w-px h-4 bg-border mx-1 flex-shrink-0" />
+
+        {/* Chart type dropdown */}
+        <ToolbarDropdown
+          label={chartType === 'candles' ? 'Candles' : chartType === 'line' ? 'Line' : 'Area'}
+          icon={chartType === 'candles' ? <IconCandle /> : chartType === 'line' ? <IconLine /> : <IconArea />}
+          open={chartTypeOpen}
+          onToggle={() => { setChartTypeOpen(v => !v); setIndicatorOpen(false) }}
+        >
+          <DropdownItem active={chartType === 'candles'} onClick={() => handleChartType('candles')}>
+            <span className="flex items-center gap-2"><IconCandle /> Candles</span>
+          </DropdownItem>
+          <DropdownItem active={chartType === 'line'} onClick={() => handleChartType('line')}>
+            <span className="flex items-center gap-2"><IconLine /> Line</span>
+          </DropdownItem>
+          <DropdownItem active={chartType === 'area'} onClick={() => handleChartType('area')}>
+            <span className="flex items-center gap-2"><IconArea /> Area</span>
+          </DropdownItem>
+        </ToolbarDropdown>
+
+        {/* Indicators dropdown */}
+        <ToolbarDropdown
+          label="Indicators"
+          icon={<IconIndicator />}
+          open={indicatorOpen}
+          onToggle={() => { setIndicatorOpen(v => !v); setChartTypeOpen(false) }}
+        >
+          <DropdownItem active={showMA} onClick={handleToggleMA}>
+            <span className="flex items-center gap-2">
+              {showMA ? <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#2962FF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg> : <span className="w-3" />}
+              MA (7, 25, 99)
+            </span>
+          </DropdownItem>
+        </ToolbarDropdown>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Right-side buttons */}
+        <button
+          onClick={handleLogScale}
+          className={clsx(
+            'px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors',
+            logScale ? 'bg-blue/15 text-blue' : 'text-sub hover:text-text hover:bg-border/50'
+          )}
+          title="Logarithmic scale"
+        >
+          log
+        </button>
+
+        <button
+          onClick={handleScreenshot}
+          className="p-1.5 rounded-md text-sub hover:text-text hover:bg-border/50 transition-colors"
+          title="Screenshot"
+        >
+          <IconScreenshot />
+        </button>
+
+        <button
+          onClick={toggleFullscreen}
+          className="p-1.5 rounded-md text-sub hover:text-text hover:bg-border/50 transition-colors"
+          title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        >
+          {isFullscreen ? <IconExitFullscreen /> : <IconFullscreen />}
+        </button>
       </div>
-      {/* Chart */}
+
+      {/* ── Chart ────────────────────────────────────────────── */}
       <div ref={containerRef} className="flex-1 min-h-0" />
+
+      {/* ── MA Legend (when active) ───────────────────────────── */}
+      {showMA && (
+        <div className="absolute top-[42px] left-3 flex items-center gap-3 text-[11px] z-10 pointer-events-none">
+          <span style={{ color: '#f5c542' }}>MA7</span>
+          <span style={{ color: '#42a5f5' }}>MA25</span>
+          <span style={{ color: '#ab47bc' }}>MA99</span>
+        </div>
+      )}
     </div>
   )
 }
