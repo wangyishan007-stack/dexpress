@@ -156,6 +156,7 @@ export function PairDetailClient({ address }: Props) {
     },
     {
       revalidateOnFocus: false,
+      refreshInterval: 30_000,
       errorRetryCount: 5,
       errorRetryInterval: 3000,
     }

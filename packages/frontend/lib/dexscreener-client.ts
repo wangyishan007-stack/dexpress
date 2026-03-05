@@ -482,12 +482,51 @@ export function getCachedPools(): Pool[] {
   return _cachedPools
 }
 
+// ─── Per-address detail cache ──────────────────────────────
+// Avoids redundant GT API calls when revisiting detail pages
+const _detailCache = new Map<string, { data: Pool & PoolExtended & { recent_swaps: never[] }; ts: number }>()
+const DETAIL_CACHE_TTL = 60_000 // 60s
+
 // ─── Single pair lookup ───────────────────────────────────────
 
 export async function fetchPairByAddress(
   address: string
 ): Promise<(Pool & PoolExtended & { recent_swaps: never[] }) | null> {
-  // GeckoTerminal single pool endpoint: /networks/base/pools/{address}
+  const addrLower = address.toLowerCase()
+
+  // 1. Check per-address detail cache (avoids redundant API calls)
+  const cached = _detailCache.get(addrLower)
+  if (cached && Date.now() - cached.ts < DETAIL_CACHE_TTL) {
+    return cached.data
+  }
+
+  // 2. Check list page cache — if we already have this pool from trending/volume lists,
+  //    use it as instant fallback (missing extended fields get defaults)
+  const fromList = _cachedPools.find(p => p.address.toLowerCase() === addrLower)
+  if (fromList && !cached) {
+    // Return list data immediately with default extended fields.
+    // A background API fetch will update with full data on next SWR revalidation.
+    const fallback = {
+      ...fromList,
+      base_token_price_native: 0,
+      quote_token_price_usd: 0,
+      locked_liquidity_pct: null as number | null,
+      recent_swaps: [] as never[],
+    }
+    // Don't cache this fallback — let the API fetch replace it
+    // But still try API in background for extended data
+    _fetchAndCacheDetail(address, addrLower).catch(() => {})
+    return fallback
+  }
+
+  // 3. Fetch from GT API
+  return _fetchAndCacheDetail(address, addrLower)
+}
+
+async function _fetchAndCacheDetail(
+  address: string,
+  addrLower: string,
+): Promise<(Pool & PoolExtended & { recent_swaps: never[] }) | null> {
   try {
     const res = await fetchWithTimeout(`${GT_BASE}/networks/base/pools/${address}?include=base_token,quote_token`)
     if (!res.ok) return null
@@ -506,13 +545,17 @@ export async function fetchPairByAddress(
     if (!pool) return null
 
     const a = raw.attributes
-    return {
+    const result = {
       ...pool,
       base_token_price_native: safeFloat(a.base_token_price_native_currency),
       quote_token_price_usd:   safeFloat(a.quote_token_price_usd),
       locked_liquidity_pct:    a.locked_liquidity_percentage != null ? safeFloat(a.locked_liquidity_percentage) : null,
-      recent_swaps: [],
+      recent_swaps: [] as never[],
     }
+
+    // Cache for subsequent visits
+    _detailCache.set(addrLower, { data: result, ts: Date.now() })
+    return result
   } catch (e) {
     console.error('[fetchPairByAddress] error:', e)
     return null
