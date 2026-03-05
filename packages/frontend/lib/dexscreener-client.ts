@@ -85,13 +85,22 @@ interface GTResponse {
 async function fetchWithTimeout(url: string, ms = FETCH_TIMEOUT): Promise<Response> {
   // Route through our API proxy to handle network/proxy issues
   const proxyUrl = `/api/gt?url=${encodeURIComponent(url)}`
-  const ctrl = new AbortController()
-  const tid  = setTimeout(() => ctrl.abort(), ms)
-  try {
-    return await fetch(proxyUrl, { signal: ctrl.signal })
-  } finally {
-    clearTimeout(tid)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ctrl = new AbortController()
+    const tid  = setTimeout(() => ctrl.abort(), ms)
+    try {
+      const res = await fetch(proxyUrl, { signal: ctrl.signal })
+      if (res.status === 429 && attempt === 0) {
+        await new Promise(r => setTimeout(r, 2000))
+        continue
+      }
+      return res
+    } finally {
+      clearTimeout(tid)
+    }
   }
+  // Unreachable, but TypeScript needs it
+  return fetch(proxyUrl, { signal: AbortSignal.timeout(ms) })
 }
 
 function safeFloat(v: string | null | undefined, fallback = 0): number {
