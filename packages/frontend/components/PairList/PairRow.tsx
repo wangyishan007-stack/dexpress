@@ -15,19 +15,28 @@ const QUOTE_TOKEN_ADDRS = new Set([
 ])
 
 /* ─── helpers ─────────────────────────────────────────────── */
+function fmtPctValue(v: number): string {
+  const abs = Math.abs(v)
+  if (abs >= 1e12) return `${v > 0 ? '+' : '-'}∞`
+  if (abs >= 1e9)  return `${v > 0 ? '+' : ''}${(v / 1e9).toFixed(1)}B%`
+  if (abs >= 1e6)  return `${v > 0 ? '+' : ''}${(v / 1e6).toFixed(1)}M%`
+  if (abs >= 1e4)  return `${v > 0 ? '+' : ''}${(v / 1e3).toFixed(1)}K%`
+  return `${v > 0 ? '+' : ''}${v.toFixed(2)}%`
+}
+
 function PctCell({ v, className }: { v: number; className?: string }) {
   if (!v && v !== 0) return <span className={clsx('text-sub text-right tabular', className)}>—</span>
   const pos = v > 0
   const neg = v < 0
   return (
     <span className={clsx(
-      'text-right tabular font-medium text-[11px] md:text-[12px]',
+      'text-right tabular font-medium text-[11px] md:text-[12px] truncate',
       pos && 'text-green',
       neg && 'text-red',
       !pos && !neg && 'text-sub',
       className
     )}>
-      {pos ? '+' : ''}{v.toFixed(2)}%
+      {fmtPctValue(v)}
     </span>
   )
 }
@@ -310,20 +319,20 @@ export function PairRowData({ pair, livePrice, flash, timeWindow, columnConfig }
       >
         {visCols
           ? visCols.map(col => (
-              <div key={col.key} className="text-right">{renderCell(col.key, pair, timeWindow, price, flash)}</div>
+              <div key={col.key} className="text-right overflow-hidden truncate">{renderCell(col.key, pair, timeWindow, price, flash)}</div>
             ))
           : <>
-              <div className="text-right">{renderCell('price', pair, timeWindow, price, flash)}</div>
-              <div className="text-right">{renderCell('age', pair, timeWindow, price)}</div>
-              <div className="text-right">{renderCell('transactions', pair, timeWindow, price)}</div>
-              <div className="text-right">{renderCell('volume', pair, timeWindow, price)}</div>
-              <div className="text-right">{renderCell('makers', pair, timeWindow, price)}</div>
-              <div className="text-right">{renderCell('5m', pair, timeWindow, price)}</div>
-              <div className="text-right">{renderCell('1h', pair, timeWindow, price)}</div>
-              <div className="text-right">{renderCell('6h', pair, timeWindow, price)}</div>
-              <div className="text-right">{renderCell('24h', pair, timeWindow, price)}</div>
-              <div className="text-right">{renderCell('liquidity', pair, timeWindow, price)}</div>
-              <div className="text-right">{renderCell('mcap', pair, timeWindow, price)}</div>
+              <div className="text-right overflow-hidden truncate">{renderCell('price', pair, timeWindow, price, flash)}</div>
+              <div className="text-right overflow-hidden truncate">{renderCell('age', pair, timeWindow, price)}</div>
+              <div className="text-right overflow-hidden truncate">{renderCell('transactions', pair, timeWindow, price)}</div>
+              <div className="text-right overflow-hidden truncate">{renderCell('volume', pair, timeWindow, price)}</div>
+              <div className="text-right overflow-hidden truncate">{renderCell('makers', pair, timeWindow, price)}</div>
+              <div className="text-right overflow-hidden truncate">{renderCell('5m', pair, timeWindow, price)}</div>
+              <div className="text-right overflow-hidden truncate">{renderCell('1h', pair, timeWindow, price)}</div>
+              <div className="text-right overflow-hidden truncate">{renderCell('6h', pair, timeWindow, price)}</div>
+              <div className="text-right overflow-hidden truncate">{renderCell('24h', pair, timeWindow, price)}</div>
+              <div className="text-right overflow-hidden truncate">{renderCell('liquidity', pair, timeWindow, price)}</div>
+              <div className="text-right overflow-hidden truncate">{renderCell('mcap', pair, timeWindow, price)}</div>
             </>
         }
       </div>

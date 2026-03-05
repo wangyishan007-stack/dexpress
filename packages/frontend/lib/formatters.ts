@@ -10,6 +10,7 @@ export function fmtUsd(n: unknown, compact = true): string {
   const v = toNum(n)
   if (v === null || v === 0) return '$0'
   if (compact) {
+    if (v >= 1_000_000_000_000) return `$${(v / 1_000_000_000_000).toFixed(2)}T`
     if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(2)}B`
     if (v >= 1_000_000)     return `$${(v / 1_000_000).toFixed(2)}M`
     if (v >= 1_000)         return `$${(v / 1_000).toFixed(1)}K`
