@@ -231,7 +231,7 @@ export function PairRowFrozen({ pair, rank, flash, showStar = false, compact = f
     <Link
       href={`/pair/${pair.address}`}
       className={clsx(
-        'flex items-center border-b border-border transition-colors hover:bg-surface/50 cursor-pointer',
+        'flex items-center border-b border-border transition-colors group-hover:bg-surface/50 cursor-pointer',
         compact ? 'gap-1.5 h-[56px] px-2 text-[11px]' : 'gap-2 h-[70px] px-4 text-[12px]',
         flash === 'up'   && 'animate-flash-green',
         flash === 'down' && 'animate-flash-red'
@@ -277,7 +277,7 @@ export function PairRowData({ pair, livePrice, flash, timeWindow, columnConfig, 
     <Link
       href={`/pair/${pair.address}`}
       className={clsx(
-        'block transition-colors hover:bg-surface/50 cursor-pointer',
+        'block transition-colors group-hover:bg-surface/50 cursor-pointer',
         flash === 'up'   && 'animate-flash-green',
         flash === 'down' && 'animate-flash-red'
       )}

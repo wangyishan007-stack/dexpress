@@ -141,7 +141,7 @@ export function PairList({ pairs, hasMore, onLoadMore, isValidating, livePrices,
                   transform: `translateY(${vRow.start}px)`,
                 }}
               >
-                <div className="flex">
+                <div className="flex group">
                   {/* Frozen token column: sticky left */}
                   <div
                     className="flex-shrink-0 sticky left-0 z-[1] bg-bg border-r border-border"

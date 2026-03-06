@@ -67,7 +67,10 @@ function MobileTabNav() {
   return (
     <nav className="flex md:hidden overflow-x-auto scrollbar-hide border-b border-border bg-bg flex-shrink-0">
       {NAV_ITEMS.map(({ href, label, Icon }) => {
-        const active = pathname === href
+        // Fix 5: treat /pair/... as being under All Coins (href='/')
+        const active = href === '/'
+          ? pathname === '/' || pathname.startsWith('/pair')
+          : pathname === href
         return (
           <Link
             key={href}
@@ -259,7 +262,10 @@ export function Sidebar() {
             {/* Nav items */}
             <nav className={clsx('flex flex-col', collapsed ? 'gap-[8px] items-center' : 'gap-[16px]')}>
               {NAV_ITEMS.map(({ href, label, Icon }) => {
-                const active = pathname === href
+                // Fix 5: /pair/... pages highlight All Coins in sidebar
+                const active = href === '/'
+                  ? pathname === '/' || pathname.startsWith('/pair')
+                  : pathname === href
                 return (
                   <Link
                     key={href}
