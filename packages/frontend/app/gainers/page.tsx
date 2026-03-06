@@ -6,6 +6,7 @@ import type { TimeWindow, SortField } from '@dex/shared'
 import { useMockPairs, useLivePrices } from '../../hooks/useMockPairs'
 import { usePairWebSocket }        from '../../hooks/useWebSocket'
 import { PairList }                from '../../components/PairList'
+import { StatsBar }                from '../../components/StatsBar'
 import { TimeRangeDropdown }       from '../../components/FilterBar/TimeRangeDropdown'
 import { ScreenerSettingsModal }   from '../../components/ScreenerSettingsModal'
 import { FiltersModal, buildInitialFilters }            from '../../components/FiltersModal'
@@ -123,6 +124,9 @@ export default function GainersPage() {
           </div>
         </div>
       </div>
+
+      {/* Stats bar — no Latest Block */}
+      <StatsBar showBlock={false} />
 
       {/* Filter bar — single row, horizontally scrollable on mobile */}
       <div className="flex items-center gap-2 py-2 md:gap-4 md:py-3 overflow-x-auto scrollbar-hide">
