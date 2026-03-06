@@ -35,7 +35,7 @@ export function AddPairModal({ open, onClose }: Props) {
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
 
-  const allPools = useMemo(() => getCachedPools(), [])
+  const allPools = useMemo(() => getCachedPools(), [open])
   const results = useMemo(() => {
     if (!query.trim()) return allPools.slice(0, 20)
     const q = query.toLowerCase()

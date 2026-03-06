@@ -50,8 +50,20 @@ function getHistory(): HistoryItem[] {
   } catch { return [] }
 }
 
+const QUOTE_ADDRS = new Set([
+  '0x4200000000000000000000000000000000000006', // WETH
+  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC
+])
+
+function resolveBase(pool: Pool) {
+  return QUOTE_ADDRS.has(pool.token0.address.toLowerCase()) ? pool.token1 : pool.token0
+}
+function resolveQuote(pool: Pool) {
+  return QUOTE_ADDRS.has(pool.token0.address.toLowerCase()) ? pool.token0 : pool.token1
+}
+
 function addHistory(pool: Pool) {
-  const base = pool.token0
+  const base = resolveBase(pool)
   const item: HistoryItem = {
     address: pool.address,
     symbol: base.symbol,
@@ -179,7 +191,7 @@ export function SearchModal({ open, onClose }: Props) {
       >
         {/* Search input bar */}
         <div
-          className="flex items-center h-[50px] rounded-[100px] px-4 flex-shrink-0 border border-border bg-transparent"
+          className="flex items-center h-[50px] rounded-full px-4 flex-shrink-0 border border-border bg-transparent"
         >
           <span className="text-sub flex-shrink-0 mr-2"><IconSearch /></span>
           <input
@@ -260,8 +272,8 @@ export function SearchModal({ open, onClose }: Props) {
 }
 
 function TokenCard({ pool, onClick }: { pool: Pool; onClick: () => void }) {
-  const base = pool.token0
-  const quote = pool.token1
+  const base = resolveBase(pool)
+  const quote = resolveQuote(pool)
   return (
     <button
       onClick={onClick}

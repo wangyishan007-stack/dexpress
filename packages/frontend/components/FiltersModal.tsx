@@ -40,6 +40,7 @@ const NUMBER_FILTERS = [
   { key: 'buys_6h',   label: '6H Buys' },
   { key: 'sells_6h',  label: '6H Sells' },
   { key: 'txns_1h',   label: '1H Txns' },
+  { key: 'buys_1h',   label: '1H Buys' },
   { key: 'sells_1h',  label: '1H Sells' },
   { key: 'txns_5m',   label: '5M Txns' },
   { key: 'buys_5m',   label: '5M Buys' },

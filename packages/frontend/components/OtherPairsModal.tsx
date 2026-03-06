@@ -8,6 +8,11 @@ import { fmtUsd, fmtAge, shortAddr } from '../lib/formatters'
 import { useWatchlist } from '../hooks/useWatchlist'
 import type { Pool } from '@dex/shared'
 
+const QUOTE_ADDRS = new Set([
+  '0x4200000000000000000000000000000000000006', // WETH
+  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC
+])
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -115,8 +120,8 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
           )}
 
           {filtered.map((p) => {
-            const base = p.token0
-            const quote = p.token1
+            const base = QUOTE_ADDRS.has(p.token0.address.toLowerCase()) ? p.token1 : p.token0
+            const quote = QUOTE_ADDRS.has(p.token0.address.toLowerCase()) ? p.token0 : p.token1
             const change24h = Number(p.change_24h)
             const isPos = Number.isFinite(change24h) && change24h > 0
             const isNeg = Number.isFinite(change24h) && change24h < 0

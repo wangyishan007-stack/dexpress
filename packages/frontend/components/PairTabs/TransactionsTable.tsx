@@ -51,8 +51,9 @@ type FilterKey = 'date' | 'type' | 'usd' | 'eth' | 'maker'
 /* ── Icons ──────────────────────────────────────────────── */
 
 function Spinner({ size = 3 }: { size?: number }) {
+  const px = size * 4
   return (
-    <svg className={`animate-spin h-${size} w-${size}`} viewBox="0 0 24 24" fill="none">
+    <svg className="animate-spin" style={{ width: px, height: px }} viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25"/>
       <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
     </svg>

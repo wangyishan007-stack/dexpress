@@ -437,8 +437,8 @@ export async function fetchDexScreenerClient(): Promise<Pool[]> {
 
 export async function pairsFetcher(_key: string): Promise<PairsResponse> {
   const pools = await fetchDexScreenerClient()
-  pools.sort((a, b) => b.trending_score - a.trending_score)
-  return { pairs: pools, total: pools.length, limit: pools.length, offset: 0 }
+  const sorted = [...pools].sort((a, b) => b.trending_score - a.trending_score)
+  return { pairs: sorted, total: sorted.length, limit: sorted.length, offset: 0 }
 }
 
 // ─── Extended pool data for detail page ──────────────────
