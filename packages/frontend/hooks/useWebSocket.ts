@@ -18,17 +18,23 @@ export function usePairWebSocket(
   const ws         = useRef<WebSocket | null>(null)
   const handlers   = useRef<Handler>(onPriceUpdate)
   const reconnectT = useRef<ReturnType<typeof setTimeout>>()
+  const destroyed  = useRef(false)  // BUG A fix: track unmount state
 
   // Always use the latest handler without re-subscribing
   handlers.current = onPriceUpdate
 
   const connect = useCallback(() => {
+    if (destroyed.current) return  // BUG A fix: don't reconnect after unmount
+
     const url = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:3001'
     const socket = new WebSocket(`${url}/ws/pairs`)
 
     socket.onopen = () => {
       if (poolAddresses.length > 0) {
-        socket.send(JSON.stringify({ type: 'subscribe', pools: poolAddresses }))
+        // BUG C fix: only send when OPEN
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: 'subscribe', pools: poolAddresses }))
+        }
       }
     }
 
@@ -42,7 +48,9 @@ export function usePairWebSocket(
     }
 
     socket.onclose = () => {
-      reconnectT.current = setTimeout(connect, 3_000)
+      if (!destroyed.current) {  // BUG A fix: only reconnect if still mounted
+        reconnectT.current = setTimeout(connect, 3_000)
+      }
     }
 
     socket.onerror = () => {
@@ -53,8 +61,10 @@ export function usePairWebSocket(
   }, [poolAddresses.join(',')])  // eslint-disable-line
 
   useEffect(() => {
+    destroyed.current = false  // BUG A fix: reset on mount
     connect()
     return () => {
+      destroyed.current = true  // BUG A fix: mark as destroyed before closing
       clearTimeout(reconnectT.current)
       ws.current?.close()
     }
@@ -62,11 +72,17 @@ export function usePairWebSocket(
 
   // Allow caller to add/remove subscriptions dynamically
   const subscribe = useCallback((pools: string[]) => {
-    ws.current?.send(JSON.stringify({ type: 'subscribe', pools }))
+    // BUG C fix: check readyState before sending
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type: 'subscribe', pools }))
+    }
   }, [])
 
   const unsubscribe = useCallback((pools: string[]) => {
-    ws.current?.send(JSON.stringify({ type: 'unsubscribe', pools }))
+    // BUG C fix: check readyState before sending
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type: 'unsubscribe', pools }))
+    }
   }, [])
 
   return { subscribe, unsubscribe }

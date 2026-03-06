@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import type { SortField, TimeWindow } from '@dex/shared'
 import { useMockPairs, useLivePrices } from '../../hooks/useMockPairs'
 import { usePairWebSocket }        from '../../hooks/useWebSocket'
@@ -14,6 +15,7 @@ import { loadConfig, saveConfig, DEFAULT_CONFIG }  from '../../lib/columnConfig'
 import type { ScreenerConfig }     from '../../lib/columnConfig'
 
 export default function NewPairsPage() {
+  const router = useRouter()
   const filter: FilterMode = 'new'
   const [dataWindow, setDataWindow]       = useState<TimeWindow>('24h')
   const [trendingWindow, setTrendingWindow] = useState<TimeWindow>('6h')
@@ -83,7 +85,11 @@ export default function NewPairsPage() {
         filter={filter}
         dataWindow={dataWindow}
         trendingWindow={trendingWindow}
-        onFilter={() => {}}
+        onFilter={(f) => {
+          if (f === 'new') return
+          if (f === 'gainers') router.push('/gainers')
+          else router.push('/')
+        }}
         onDataWindow={setDataWindow}
         onTrendingWindow={setTrendingWindow}
         sort={sort}

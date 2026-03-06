@@ -265,7 +265,7 @@ export async function fetchDexScreenerPairs(chain = 'base'): Promise<Pool[]> {
         token1: makeToken(p.baseToken,  logoUrl, createdAt),
 
         mcap_usd:       p.marketCap ?? p.fdv ?? 0,
-        sparkline_data: buildSparkline(price, p.priceChange?.m5 ?? 0, p.priceChange?.h1 ?? 0, p.priceChange?.h6 ?? 0, change24h),
+        sparkline_data: buildSparkline(parseFloat(p.priceUsd ?? '0'), p.priceChange?.m5 ?? 0, p.priceChange?.h1 ?? 0, p.priceChange?.h6 ?? 0, change24h),
       }
     })
 }

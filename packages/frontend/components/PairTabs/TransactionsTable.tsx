@@ -456,6 +456,17 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
         <div className="flex items-center justify-center py-8 text-sub text-[13px]">
           {swapLoading ? (
             <span className="flex items-center gap-2"><Spinner /> Loading transactions...</span>
+          ) : swaps.length > 0 ? (
+            // BUG D fix: there ARE swaps but all filtered out — give accurate message
+            <span className="flex items-center gap-2">
+              No results match your filters.
+              <button
+                onClick={() => setFilters(EMPTY_FILTERS)}
+                className="text-blue hover:underline"
+              >
+                Clear filters
+              </button>
+            </span>
           ) : (
             'No transactions yet.'
           )}

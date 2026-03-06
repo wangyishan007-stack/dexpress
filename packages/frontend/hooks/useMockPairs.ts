@@ -89,12 +89,17 @@ export function useMockPairs({ customFilters, textFilters, ...baseParams }: Mock
     [result.pairs, customFilters, textFilters]
   )
 
-  // [P0 fix] hasMore: when custom filters active, compare filtered length; otherwise use original hasMore
   const hasCustomFilters = (customFilters && Object.values(customFilters).some(
     ({ min, max }) => min !== '' || max !== ''
   )) || !!(textFilters?.labels || textFilters?.addressSuffixes)
+
   const total = hasCustomFilters ? pairs.length : result.total
-  const hasMore = hasCustomFilters ? pairs.length < result.pairs.length : result.hasMore
+
+  // BUG B fix: when custom filters active, also check result.hasMore so we keep
+  // loading more pages from the server even if all current-page items pass the filter
+  const hasMore = hasCustomFilters
+    ? pairs.length < result.pairs.length || result.hasMore
+    : result.hasMore
 
   return { ...result, pairs, total, hasMore }
 }

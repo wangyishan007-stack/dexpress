@@ -52,6 +52,10 @@ export function fmtNum(n: unknown): string {
 /** Format age from timestamp */
 export function fmtAge(dateStr: string): string {
   const ms      = Date.now() - new Date(dateStr).getTime()
+
+  // BUG E fix: handle future timestamps or invalid dates gracefully
+  if (!ms || ms < 0) return 'just now'
+
   const seconds = Math.floor(ms / 1000)
   const minutes = Math.floor(seconds / 60)
   const hours   = Math.floor(minutes / 60)

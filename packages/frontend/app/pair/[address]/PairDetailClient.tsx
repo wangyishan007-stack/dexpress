@@ -195,11 +195,11 @@ export function PairDetailClient({ address }: Props) {
   const [swapAmount, setSwapAmount] = useState('1')
   const [embedOpen, setEmbedOpen] = useState(false)
   const [embedCopied, setEmbedCopied] = useState(false)
-  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
 
   // Cleanup all timers on unmount
   useEffect(() => {
-    return () => { timersRef.current.forEach(clearTimeout) }
+    return () => { timersRef.current.forEach(clearTimeout); timersRef.current.clear() }
   }, [])
 
   // Swaps
@@ -257,7 +257,8 @@ export function PairDetailClient({ address }: Props) {
           const fresh = trades.filter(t => !existingIds.has(t.id))
           if (fresh.length > 0) {
             setNewSwapIds(new Set(fresh.map(t => t.id)))
-            timersRef.current.push(setTimeout(() => setNewSwapIds(new Set()), 700))
+            const swapT = setTimeout(() => { setNewSwapIds(new Set()); timersRef.current.delete(swapT) }, 700)
+            timersRef.current.add(swapT)
           }
           if (prev.length === 0) {
             setSwapHasMore(trades.length >= 50)
@@ -284,7 +285,8 @@ export function PairDetailClient({ address }: Props) {
       setLivePrice(evt.price_usd)
       if (prev > 0 && evt.price_usd !== prev) {
         setFlash(evt.price_usd > prev ? 'up' : 'down')
-        timersRef.current.push(setTimeout(() => setFlash(null), 700))
+        const flashT = setTimeout(() => { setFlash(null); timersRef.current.delete(flashT) }, 700)
+        timersRef.current.add(flashT)
       }
     },
     [address]
@@ -1054,7 +1056,8 @@ export function PairDetailClient({ address }: Props) {
                     onClick={() => {
                       navigator.clipboard.writeText(`<iframe src="${typeof window !== 'undefined' ? window.location.origin : ''}/pair/${address}?embed=1" width="100%" height="400" frameborder="0"></iframe>`)
                       setEmbedCopied(true)
-                      timersRef.current.push(setTimeout(() => setEmbedCopied(false), 2000))
+                      const embedT = setTimeout(() => { setEmbedCopied(false); timersRef.current.delete(embedT) }, 2000)
+                      timersRef.current.add(embedT)
                     }}
                     className="bg-blue text-white hover:bg-blue/90 rounded-lg text-[13px] font-medium py-2 transition-colors"
                   >
