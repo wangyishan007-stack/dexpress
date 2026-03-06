@@ -97,30 +97,24 @@ export default function HomePage() {
 
       <StatsBar />
 
-      {/* Filter bar + Refresh button */}
-      <div className="flex items-center gap-2">
-        <div className="flex-1">
-          <FilterBar
-            filter={filter}
-            dataWindow={dataWindow}
-            trendingWindow={trendingWindow}
-            onFilter={setFilter}
-            onDataWindow={setDataWindow}
-            onTrendingWindow={setTrendingWindow}
-            sort={sort}
-            order={order}
-            onSort={(s) => setSort(s as SortField)}
-            onOrder={setOrder}
-            customFilters={customFilters}
-            textFilters={textFilters}
-            onCustomFiltersChange={handleFiltersChange}
-            onCustomFiltersReset={handleFiltersReset}
-            screenerConfig={screenerConfig}
-            onScreenerConfigChange={handleScreenerConfigChange}
-          />
-        </div>
-        {/* Hidden for now - RefreshButton onClick={handleRefresh} isLoading={isValidating} */}
-      </div>
+      <FilterBar
+        filter={filter}
+        dataWindow={dataWindow}
+        trendingWindow={trendingWindow}
+        onFilter={setFilter}
+        onDataWindow={setDataWindow}
+        onTrendingWindow={setTrendingWindow}
+        sort={sort}
+        order={order}
+        onSort={(s) => setSort(s as SortField)}
+        onOrder={setOrder}
+        customFilters={customFilters}
+        textFilters={textFilters}
+        onCustomFiltersChange={handleFiltersChange}
+        onCustomFiltersReset={handleFiltersReset}
+        screenerConfig={screenerConfig}
+        onScreenerConfigChange={handleScreenerConfigChange}
+      />
 
       {/* Pair list — uses dataWindow for column display */}
       <PairList
