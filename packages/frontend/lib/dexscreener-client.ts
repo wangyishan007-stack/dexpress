@@ -153,6 +153,38 @@ function makeToken(
   }
 }
 
+/** Build a 12-point sparkline from 4 change percentages by interpolating between
+ *  price-at-24h-ago, 6h-ago, 1h-ago, 5m-ago, and now. */
+function buildSparklineFromChanges(
+  price: number, c5m: number, c1h: number, c6h: number, c24h: number
+): number[] {
+  if (!price) return []
+  // Derive historical prices: price_ago = price / (1 + change/100)
+  const p24 = price / (1 + c24h / 100) || price
+  const p6  = price / (1 + c6h / 100)  || price
+  const p1  = price / (1 + c1h / 100)  || price
+  const p5m = price / (1 + c5m / 100)  || price
+  // 5 anchor points at relative time positions within 24h
+  const anchors = [
+    { t: 0,    p: p24 },  // 24h ago
+    { t: 0.75, p: p6 },   // 6h ago  (18/24)
+    { t: 0.96, p: p1 },   // 1h ago  (23/24)
+    { t: 0.997, p: p5m }, // 5m ago
+    { t: 1,    p: price }, // now
+  ]
+  // Interpolate to 12 evenly spaced points
+  const out: number[] = []
+  for (let i = 0; i < 12; i++) {
+    const t = i / 11
+    let j = 0
+    while (j < anchors.length - 2 && anchors[j + 1].t < t) j++
+    const a = anchors[j], b = anchors[j + 1]
+    const frac = b.t === a.t ? 0 : (t - a.t) / (b.t - a.t)
+    out.push(a.p + (b.p - a.p) * frac)
+  }
+  return out
+}
+
 /**
  * Trending score: makers (highest weight) × positive change × txns
  * Matches DexScreener Trending 6H logic.
@@ -239,7 +271,7 @@ function mapPool(p: GTPool, logos?: LogoMap): Pool | null {
       token1: makeToken(quoteSymbol, quoteAddr, logos?.get(p.relationships.quote_token.data.id) ?? null, createdAt),
 
       mcap_usd:       safeFloat(a.market_cap_usd) || safeFloat(a.fdv_usd),
-      sparkline_data: [],
+      sparkline_data: buildSparklineFromChanges(price, change5m, change1h, change6h, change24h),
     }
   } catch (err) {
     console.error('[GeckoTerminal] mapPool error:', p.id, err)

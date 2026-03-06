@@ -59,6 +59,27 @@ interface DSResponse {
 
 // ─── Helpers ─────────────────────────────────────────────────
 
+function buildSparkline(price: number, c5m: number, c1h: number, c6h: number, c24h: number): number[] {
+  if (!price) return []
+  const p24 = price / (1 + c24h / 100) || price
+  const p6  = price / (1 + c6h / 100)  || price
+  const p1  = price / (1 + c1h / 100)  || price
+  const p5m = price / (1 + c5m / 100)  || price
+  const anchors = [
+    { t: 0, p: p24 }, { t: 0.75, p: p6 }, { t: 0.96, p: p1 }, { t: 0.997, p: p5m }, { t: 1, p: price },
+  ]
+  const out: number[] = []
+  for (let i = 0; i < 12; i++) {
+    const t = i / 11
+    let j = 0
+    while (j < anchors.length - 2 && anchors[j + 1].t < t) j++
+    const a = anchors[j], b = anchors[j + 1]
+    const frac = b.t === a.t ? 0 : (t - a.t) / (b.t - a.t)
+    out.push(a.p + (b.p - a.p) * frac)
+  }
+  return out
+}
+
 function mapDex(dexId: string): Dex {
   const id = dexId.toLowerCase()
   if (id.includes('aerodrome') || id.includes('velodrome')) return 'aerodrome'
@@ -244,7 +265,7 @@ export async function fetchDexScreenerPairs(chain = 'base'): Promise<Pool[]> {
         token1: makeToken(p.baseToken,  logoUrl, createdAt),
 
         mcap_usd:       p.marketCap ?? p.fdv ?? 0,
-        sparkline_data: [],
+        sparkline_data: buildSparkline(price, p.priceChange?.m5 ?? 0, p.priceChange?.h1 ?? 0, p.priceChange?.h6 ?? 0, change24h),
       }
     })
 }
