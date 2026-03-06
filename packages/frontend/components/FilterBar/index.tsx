@@ -116,7 +116,7 @@ export function FilterBar({
   return (
     <div className="flex items-center gap-2 py-2 md:gap-4 md:py-3 overflow-x-auto scrollbar-hide">
       {/* Left group */}
-      <div className="flex items-center gap-2 md:gap-4 flex-nowrap">
+      <div className="flex items-center gap-2 md:gap-4 flex-nowrap flex-shrink-0">
 
         {/* Last X hours dropdown — controls data columns */}
         <TimeRangeDropdown window={dataWindow} onWindow={onDataWindow} />
