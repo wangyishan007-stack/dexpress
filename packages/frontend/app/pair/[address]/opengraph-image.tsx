@@ -62,11 +62,33 @@ export default async function OGImage({ params }: { params: { address: string } 
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          background: 'linear-gradient(135deg, #000000 0%, #0a0a1a 50%, #000000 100%)',
+          background: '#050510',
           fontFamily: 'sans-serif',
           padding: '60px 80px',
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
+        {/* Blue glow — top right */}
+        <div style={{
+          position: 'absolute',
+          top: -120,
+          right: -80,
+          width: 500,
+          height: 500,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(39,68,255,0.25) 0%, rgba(39,68,255,0.08) 40%, transparent 70%)',
+        }} />
+        {/* Blue glow — bottom left */}
+        <div style={{
+          position: 'absolute',
+          bottom: -160,
+          left: -60,
+          width: 600,
+          height: 600,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(39,68,255,0.15) 0%, rgba(39,68,255,0.05) 40%, transparent 70%)',
+        }} />
         {/* Top bar: full logo */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <svg width="260" height="69" viewBox="0 0 174 46" fill="none">
