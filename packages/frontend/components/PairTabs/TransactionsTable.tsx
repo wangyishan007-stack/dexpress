@@ -425,9 +425,9 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
   }, [swaps, filters])
 
   return (
-    <div className="overflow-y-auto" style={{ maxHeight: 400 }}>
+    <div className="overflow-auto" style={{ maxHeight: 400 }}>
       {/* Column header */}
-      <div className="grid grid-cols-[80px_48px_1fr_80px] md:grid-cols-[96px_56px_1fr_1fr_1fr_96px_40px] gap-x-2 md:gap-x-3 px-3 md:px-5 py-2 text-[14px] text-header border-b border-border sticky top-0 bg-surface z-10">
+      <div className="grid grid-cols-[96px_56px_1fr_1fr_1fr_96px_40px] gap-x-3 px-3 md:px-5 py-2 text-[14px] text-header border-b border-border sticky top-0 bg-surface z-10" style={{ minWidth: 640 }}>
         <HeaderCell label="Date"  filterKey="date"  activeFilters={activeFilters} onOpen={handleOpen} />
         <div className="relative">
           <HeaderCell label="Type"  filterKey="type"  activeFilters={activeFilters} onOpen={handleOpen} />
@@ -440,16 +440,16 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
           )}
         </div>
         <HeaderCell label="USD"   filterKey="usd"   activeFilters={activeFilters} onOpen={handleOpen} className="justify-end" />
-        <HeaderCell label={baseTokenSymbol || 'Amount'}   filterKey="eth"   activeFilters={activeFilters} onOpen={handleOpen} className="hidden md:flex justify-end" />
+        <HeaderCell label={baseTokenSymbol || 'Amount'}   filterKey="eth"   activeFilters={activeFilters} onOpen={handleOpen} className="justify-end" />
         <button
           onClick={() => setPriceInUsd(v => !v)}
-          className="hidden md:flex items-center gap-1 justify-end hover:text-text transition-colors"
+          className="flex items-center gap-1 justify-end hover:text-text transition-colors"
         >
           <span>Price</span>
           <IconToggle />
         </button>
         <HeaderCell label="Maker" filterKey="maker"  activeFilters={activeFilters} onOpen={handleOpen} className="justify-end" />
-        <span className="hidden md:block text-center">TXN</span>
+        <span className="text-center">TXN</span>
       </div>
 
       {filtered.length === 0 && (
@@ -466,10 +466,11 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
         <div
           key={s.id}
           className={clsx(
-            'grid grid-cols-[80px_48px_1fr_80px] md:grid-cols-[96px_56px_1fr_1fr_1fr_96px_40px] gap-x-2 md:gap-x-3 px-3 md:px-5 py-2 text-[14px] border-b border-muted',
+            'grid grid-cols-[96px_56px_1fr_1fr_1fr_96px_40px] gap-x-3 px-3 md:px-5 py-2 text-[14px] border-b border-muted',
             s.is_buy ? 'hover:bg-green/5' : 'hover:bg-red/5',
             newSwapIds?.has(s.id) && (s.is_buy ? 'animate-flash-green' : 'animate-flash-red')
           )}
+          style={{ minWidth: 640 }}
         >
           <span className="text-sub tabular">
             {new Date(s.timestamp).toLocaleTimeString()}
@@ -480,10 +481,10 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
           <span className={clsx('tabular text-right font-mono', s.is_buy ? 'text-green' : 'text-red')}>
             {fmtUsd(s.amount_usd)}
           </span>
-          <span className="hidden md:block tabular text-right text-text">
+          <span className="tabular text-right text-text">
             {fmtNum(s.amount0)}
           </span>
-          <span className="hidden md:block tabular text-right text-sub font-mono">
+          <span className="tabular text-right text-sub font-mono">
             {priceInUsd ? fmtPrice(s.price_usd) : (s.amount0 !== 0 ? fmtEth(s.amount1 / s.amount0) : '—')}
           </span>
           <span className="font-mono text-right text-sub truncate">
@@ -493,7 +494,7 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
             href={`https://basescan.org/tx/${s.tx_hash}`}
             target="_blank"
             rel="noopener"
-            className="hidden md:flex items-center justify-center text-sub hover:text-text transition-colors"
+            className="flex items-center justify-center text-sub hover:text-text transition-colors"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M5.5 2.5H3.5C2.94772 2.5 2.5 2.94772 2.5 3.5V10.5C2.5 11.0523 2.94772 11.5 3.5 11.5H10.5C11.0523 11.5 11.5 11.0523 11.5 10.5V8.5M8.5 2.5H11.5V5.5M11.5 2.5L6.5 7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>

@@ -92,22 +92,23 @@ export function TopTradersTable({ traders }: Props) {
   }
 
   return (
-    <div className="overflow-y-auto" style={{ maxHeight: 400 }}>
+    <div className="overflow-auto" style={{ maxHeight: 400 }}>
       {/* Column header */}
-      <div className="grid grid-cols-[32px_1fr_1fr_1fr] md:grid-cols-[40px_1fr_100px_100px_100px_60px_40px] gap-x-2 md:gap-x-3 px-3 md:px-5 py-2 text-[14px] text-header border-b border-border sticky top-0 bg-surface z-10">
+      <div className="grid grid-cols-[40px_1fr_100px_100px_100px_60px_40px] gap-x-3 px-3 md:px-5 py-2 text-[14px] text-header border-b border-border sticky top-0 bg-surface z-10" style={{ minWidth: 580 }}>
         <span>#</span>
         <span>Maker</span>
         <SortableHeader label="Bought" sortKey="bought" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="justify-end" />
         <SortableHeader label="Sold" sortKey="sold" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="justify-end" />
-        <SortableHeader label="PnL" sortKey="pnl" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="hidden md:flex justify-end" />
-        <SortableHeader label="Txns" sortKey="trades" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="hidden md:flex justify-end" />
-        <span className="hidden md:block text-center">Exp</span>
+        <SortableHeader label="PnL" sortKey="pnl" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="justify-end" />
+        <SortableHeader label="Txns" sortKey="trades" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="justify-end" />
+        <span className="text-center">Exp</span>
       </div>
 
       {rows.map((t, i) => (
         <div
           key={t.address}
-          className="grid grid-cols-[32px_1fr_1fr_1fr] md:grid-cols-[40px_1fr_100px_100px_100px_60px_40px] gap-x-2 md:gap-x-3 px-3 md:px-5 py-2 text-[14px] border-b border-muted hover:bg-border/20 transition-colors"
+          className="grid grid-cols-[40px_1fr_100px_100px_100px_60px_40px] gap-x-3 px-3 md:px-5 py-2 text-[14px] border-b border-muted hover:bg-border/20 transition-colors"
+          style={{ minWidth: 580 }}
         >
           <span className="text-sub tabular">{i + 1}</span>
           <a
@@ -121,17 +122,17 @@ export function TopTradersTable({ traders }: Props) {
           <span className="tabular text-right text-green font-mono truncate">{fmtUsd(t.bought)}</span>
           <span className="tabular text-right text-red font-mono truncate">{fmtUsd(t.sold)}</span>
           <span className={clsx(
-            'hidden md:block tabular text-right font-mono truncate',
+            'tabular text-right font-mono truncate',
             t.pnl >= 0 ? 'text-green' : 'text-red'
           )}>
             {t.pnl >= 0 ? '+' : ''}{fmtUsd(t.pnl)}
           </span>
-          <span className="hidden md:block tabular text-right text-sub">{t.trades}</span>
+          <span className="tabular text-right text-sub">{t.trades}</span>
           <a
             href={`https://basescan.org/address/${t.address}`}
             target="_blank"
             rel="noopener"
-            className="hidden md:flex items-center justify-center text-sub hover:text-blue transition-colors"
+            className="flex items-center justify-center text-sub hover:text-blue transition-colors"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M4 1h7v7M11 1L5 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
