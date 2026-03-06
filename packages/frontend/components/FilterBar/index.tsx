@@ -246,7 +246,7 @@ export function FilterBar({
       </div>
 
       {/* Right group — single bordered container */}
-      <div className="flex items-center border border-border rounded-lg h-[30px] md:h-[36px] flex-shrink-0 ml-auto">
+      <div className="flex items-center border border-border rounded-lg h-[30px] md:h-[36px] flex-shrink-0 md:ml-auto">
         {/* Rank by */}
         <RankByDropdown
           sort={sort ?? 'trending_score'}
