@@ -55,6 +55,16 @@ export default function NewPairsPage() {
     try { localStorage.removeItem('text_filters_new-pairs') } catch {}
   }, [])
 
+  // Keep dynamic sort fields in sync when dataWindow changes
+  const handleDataWindow = useCallback((w: TimeWindow) => {
+    setDataWindow(w)
+    setSort(prev => {
+      const DYNAMIC_PREFIXES = ['volume_', 'txns_', 'buys_', 'sells_']
+      const prefix = DYNAMIC_PREFIXES.find(p => prev.startsWith(p))
+      return prefix ? `${prefix}${w}` as SortField : prev
+    })
+  }, [])
+
   // On the New Pairs page, data is ALWAYS filtered to new pairs only.
   // The filter buttons only control sort order, not the data set.
   const sortField: SortField =
@@ -89,7 +99,7 @@ export default function NewPairsPage() {
         dataWindow={dataWindow}
         trendingWindow={trendingWindow}
         onFilter={setFilter}
-        onDataWindow={setDataWindow}
+        onDataWindow={handleDataWindow}
         onTrendingWindow={setTrendingWindow}
         sort={sort}
         order={order}

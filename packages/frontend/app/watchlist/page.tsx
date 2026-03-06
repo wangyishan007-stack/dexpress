@@ -202,6 +202,16 @@ export default function WatchlistPage() {
     saveConfig(config, 'watchlist')
   }, [])
 
+  // Keep dynamic sort fields in sync when dataWindow changes
+  const handleDataWindow = useCallback((w: TimeWindow) => {
+    setDataWindow(w)
+    setSort(prev => {
+      const DYNAMIC_PREFIXES = ['volume_', 'txns_', 'buys_', 'sells_']
+      const prefix = DYNAMIC_PREFIXES.find(p => prev.startsWith(p))
+      return prefix ? `${prefix}${w}` : prev
+    })
+  }, [])
+
   // Ensure pool cache is populated
   const { data: _pools } = useSWR('watchlist-pools', fetchDexScreenerClient, {
     revalidateOnFocus: false,
@@ -278,7 +288,7 @@ export default function WatchlistPage() {
         dataWindow={dataWindow}
         trendingWindow={trendingWindow}
         onFilter={setFilter}
-        onDataWindow={setDataWindow}
+        onDataWindow={handleDataWindow}
         onTrendingWindow={setTrendingWindow}
         sort={sort}
         order={order}
