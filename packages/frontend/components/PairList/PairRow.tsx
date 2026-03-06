@@ -250,8 +250,8 @@ export function PairRowFrozen({ pair, rank, flash, showStar = false, compact = f
           <span className="font-semibold text-text truncate" title={base.symbol}>${base.symbol}</span>
           <span className={clsx('text-sub', compact ? 'text-[9px]' : 'text-[11px]')}>/ {quote.symbol}</span>
         </div>
-        <div className={clsx('text-sub/70 truncate', compact ? 'text-[9px]' : 'text-[10px]')} title={base.name !== base.symbol ? base.name : pair.address}>
-          {base.name !== base.symbol ? base.name : pair.address.slice(0, 8) + '…'}
+        <div className={clsx('text-sub/70 truncate', compact ? 'text-[9px]' : 'text-[10px]')} title={base.name || base.symbol}>
+          {base.name || base.symbol}
         </div>
       </div>
     </Link>
