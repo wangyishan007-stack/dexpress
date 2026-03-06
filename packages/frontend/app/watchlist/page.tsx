@@ -271,7 +271,7 @@ export default function WatchlistPage() {
     <div className="flex flex-col flex-1 min-h-0 px-3 pt-3 md:px-5 md:pt-4 pb-0">
       <WatchlistHeader lists={lists} activeListId={activeListId} onSwitch={setActiveList} onManage={() => setManageOpen(true)} />
 
-      <StatsBar showBlock={false} />
+      <StatsBar pairs={sortedPairs} showBlock={false} />
 
       <FilterBar
         filter={filter}

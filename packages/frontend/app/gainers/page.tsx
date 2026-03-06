@@ -125,8 +125,7 @@ export default function GainersPage() {
         </div>
       </div>
 
-      {/* Stats bar — no Latest Block */}
-      <StatsBar showBlock={false} />
+      <StatsBar pairs={pairs} showBlock={false} />
 
       {/* Filter bar — single row, horizontally scrollable on mobile */}
       <div className="flex items-center gap-2 py-2 md:gap-4 md:py-3 overflow-x-auto scrollbar-hide">

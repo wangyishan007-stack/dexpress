@@ -79,7 +79,7 @@ export default function NewPairsPage() {
         </div>
       </div>
 
-      <StatsBar showBlock={false} />
+      <StatsBar pairs={pairs} showBlock={false} />
 
       <FilterBar
         filter={filter}

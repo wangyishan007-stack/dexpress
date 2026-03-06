@@ -95,7 +95,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      <StatsBar />
+      <StatsBar pairs={pairs} />
 
       <FilterBar
         filter={filter}

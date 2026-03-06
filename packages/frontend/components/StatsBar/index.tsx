@@ -1,11 +1,29 @@
 'use client'
 
-import { useStats } from '../../hooks/useStats'
+import type { Pool } from '@dex/shared'
 import { fmtUsd } from '../../lib/formatters'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import useSWR from 'swr'
 
-function fmtCompact(n: number): string {
-  if (!n) return '0'
+const BASE_RPC = 'https://mainnet.base.org'
+
+async function fetchLatestBlock(): Promise<{ block: number; ts: string }> {
+  try {
+    const res = await fetch(BASE_RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 }),
+    })
+    const data = await res.json()
+    return { block: parseInt(data.result, 16), ts: new Date().toISOString() }
+  } catch {
+    return { block: 0, ts: null as unknown as string }
+  }
+}
+
+function fmtVolume(n: number): string {
+  if (!n) return '$0'
+  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000)     return `$${(n / 1_000).toFixed(1)}K`
   return fmtUsd(n)
@@ -24,31 +42,45 @@ function timeAgo(ts: string | null): string {
   return `${Math.floor(diff / 3600)}h ago`
 }
 
-export function StatsBar({ showBlock = true }: { showBlock?: boolean }) {
-  const stats = useStats()
+interface Props {
+  /** Pass the current page's pairs to compute page-specific stats */
+  pairs?: Pool[]
+  showBlock?: boolean
+}
+
+export function StatsBar({ pairs, showBlock = true }: Props) {
   const [agoStr, setAgoStr] = useState('')
 
-  // Compute timeAgo only on the client to avoid hydration mismatch
+  const { data: blockData } = useSWR(
+    showBlock ? 'base-latest-block' : null,
+    fetchLatestBlock,
+    { refreshInterval: 12_000, revalidateOnFocus: false }
+  )
+
   useEffect(() => {
-    function update() { setAgoStr(timeAgo(stats.block_ts)) }
+    if (!showBlock) return
+    function update() { setAgoStr(timeAgo(blockData?.ts ?? null)) }
     update()
     const id = setInterval(update, 1000)
     return () => clearInterval(id)
-  }, [stats.block_ts])
+  }, [blockData?.ts, showBlock])
 
-  const vol = stats.volume_24h
-  const volStr = vol >= 1_000_000
-    ? `$${(vol / 1_000_000).toFixed(1)}M`
-    : vol >= 1_000 ? `$${(vol / 1_000).toFixed(1)}K` : fmtUsd(vol)
+  const { volume, txns } = useMemo(() => {
+    if (!pairs || pairs.length === 0) return { volume: 0, txns: 0 }
+    return {
+      volume: pairs.reduce((sum, p) => sum + (p.volume_24h || 0), 0),
+      txns:   pairs.reduce((sum, p) => sum + (p.txns_24h || 0), 0),
+    }
+  }, [pairs])
 
   return (
     <div className="flex gap-2 mb-3 md:gap-3 md:mb-4">
-      <StatCard label="24H Volume"    value={volStr} />
-      <StatCard label="24H Txns"      value={fmtTxns(stats.txns_24h)} />
+      <StatCard label="24H Volume"    value={fmtVolume(volume)} />
+      <StatCard label="24H Txns"      value={fmtTxns(txns)} />
       {showBlock && (
         <StatCard
           label="Latest Block"
-          value={stats.latest_block ? stats.latest_block.toLocaleString('en-US') : '—'}
+          value={blockData?.block ? blockData.block.toLocaleString('en-US') : '—'}
           sub={agoStr}
         />
       )}
