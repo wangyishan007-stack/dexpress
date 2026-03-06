@@ -85,7 +85,7 @@ export default function HomePage() {
   usePairWebSocket(pairs.map(p => p.address), handlePriceUpdate)
 
   return (
-    <div className="flex flex-col h-full overflow-hidden px-3 pt-3 md:px-5 md:pt-4 pb-0">
+    <div className="flex flex-col h-full px-3 pt-3 md:px-5 md:pt-4 pb-0">
       {/* Page heading — desktop only (mobile uses tab nav) */}
       <div className="hidden md:block mb-4">
         <div className="flex items-center gap-8 border-b border-border pb-0">
