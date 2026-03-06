@@ -27,8 +27,11 @@ const app = Fastify({
 
 async function build() {
   // ── Plugins ────────────────────────────────────────────────
+  const allowedOrigins = process.env.FRONTEND_URL
+    ? process.env.FRONTEND_URL.split(',').map(s => s.trim())
+    : ['*']
   await app.register(fastifyCors, {
-    origin: process.env.FRONTEND_URL ?? '*',
+    origin: allowedOrigins.length === 1 && allowedOrigins[0] === '*' ? '*' : allowedOrigins,
     methods: ['GET', 'POST', 'OPTIONS'],
   })
 
