@@ -55,12 +55,14 @@ export default function NewPairsPage() {
     try { localStorage.removeItem('text_filters_new-pairs') } catch {}
   }, [])
 
+  // On the New Pairs page, data is ALWAYS filtered to new pairs only.
+  // The filter buttons only control sort order, not the data set.
   const sortField: SortField =
     filter === 'new' ? 'created_at' : sort
 
   const { pairs, hasMore, isLoading, isValidating, loadMore } = useMockPairs({
     sort:   sortField,
-    filter,
+    filter: 'new',       // always filter to new pairs on this page
     window: dataWindow,
     order,
     customFilters,
