@@ -4,11 +4,15 @@ import { useRef, useState, useEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import clsx from 'clsx'
 import type { Pool, TimeWindow } from '@dex/shared'
-import { PairRow, PairRowFrozen, PairRowData, PairRowHeader, PairRowHeaderFrozen, PairRowHeaderData } from './PairRow'
+import { PairRowFrozen, PairRowData, PairRowHeader, PairRowHeaderFrozen, PairRowHeaderData } from './PairRow'
 import { SkeletonRow } from '../SkeletonRow'
 import { EmptyState } from '../EmptyState'
 import { FROZEN_WIDTH_STAR, FROZEN_WIDTH_NO_STAR, COLUMN_DEFS, getVisibleColumns } from '../../lib/columnConfig'
 import type { ScreenerConfig } from '../../lib/columnConfig'
+
+/* Mobile frozen widths (narrower to leave room for data columns) */
+const MOBILE_FROZEN_STAR    = 180
+const MOBILE_FROZEN_NO_STAR = 155
 
 interface Props {
   pairs:          Pool[]
@@ -25,8 +29,7 @@ interface Props {
 }
 
 export function PairList({ pairs, hasMore, onLoadMore, isValidating, livePrices, flashing, timeWindow, loading, showStar = false, autoHeight = false, columnConfig }: Props) {
-  const mobileScrollRef  = useRef<HTMLDivElement>(null)
-  const desktopScrollRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const [isMobile, setIsMobile] = useState(false)
 
@@ -38,11 +41,14 @@ export function PairList({ pairs, hasMore, onLoadMore, isValidating, livePrices,
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-  const rowHeight = isMobile ? 64 : 70
+  const rowHeight = isMobile ? 56 : 70
+  const frozenWidth = isMobile
+    ? (showStar ? MOBILE_FROZEN_STAR : MOBILE_FROZEN_NO_STAR)
+    : (showStar ? FROZEN_WIDTH_STAR : FROZEN_WIDTH_NO_STAR)
 
   const virtualizer = useVirtualizer({
     count:            hasMore ? pairs.length + 1 : pairs.length,
-    getScrollElement: () => isMobile ? mobileScrollRef.current : desktopScrollRef.current,
+    getScrollElement: () => scrollRef.current,
     estimateSize:     () => rowHeight,
     overscan:         12,
   })
@@ -55,8 +61,6 @@ export function PairList({ pairs, hasMore, onLoadMore, isValidating, livePrices,
       onLoadMore()
     }
   }, [items, hasMore, pairs.length, isValidating, onLoadMore])
-
-  const frozenWidth = showStar ? FROZEN_WIDTH_STAR : FROZEN_WIDTH_NO_STAR
 
   /* Compute data panel min-width for horizontal scroll */
   const visCols = columnConfig ? getVisibleColumns(columnConfig) : COLUMN_DEFS
@@ -96,132 +100,88 @@ export function PairList({ pairs, hasMore, onLoadMore, isValidating, livePrices,
   }
 
   const totalSize = virtualizer.getTotalSize()
+  const loaderH = isMobile ? 'h-[56px]' : 'h-[70px]'
 
   return (
     <div className={outerCls}>
-      {/* ── Mobile: single-column virtualizer ────────────────── */}
-      {isMobile && (
-        <div
-          ref={mobileScrollRef}
-          className={clsx('overflow-auto', !autoHeight && 'flex-1 min-h-0')}
-        >
-          <div style={{ height: totalSize, width: '100%', position: 'relative' }}>
-            {items.map((vRow) => {
-              const isLoader = vRow.index >= pairs.length
-              const pair = pairs[vRow.index]
-
-              return (
-                <div
-                  key={vRow.index}
-                  data-index={vRow.index}
-                  ref={virtualizer.measureElement}
-                  style={{
-                    position:  'absolute',
-                    top:        0,
-                    left:       0,
-                    width:     '100%',
-                    transform: `translateY(${vRow.start}px)`,
-                  }}
-                >
-                  {isLoader ? (
-                    <div className="flex justify-center py-3 text-[11px] text-sub">
-                      {isValidating ? 'Loading more…' : null}
-                    </div>
-                  ) : (
-                    <PairRow
-                      pair={pair}
-                      rank={vRow.index + 1}
-                      livePrice={livePrices[pair.address]}
-                      flash={flashing[pair.address]}
-                      timeWindow={timeWindow}
-                      showStar={showStar}
-                    />
-                  )}
-                </div>
-              )
-            })}
+      {/* Single scroll container: horizontal for data columns, vertical for rows */}
+      <div
+        ref={scrollRef}
+        className={clsx('overflow-auto', !autoHeight && 'flex-1 min-h-0')}
+      >
+        {/* Header: sticky top + frozen part sticky left */}
+        <div className="sticky top-0 z-20 flex" style={{ minWidth: totalMinWidth }}>
+          <div
+            className="flex-shrink-0 sticky left-0 z-10 bg-surface"
+            style={{ width: frozenWidth }}
+          >
+            <PairRowHeaderFrozen showStar={showStar} compact={isMobile} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <PairRowHeaderData columnConfig={columnConfig} compact={isMobile} />
           </div>
         </div>
-      )}
 
-      {/* ── Desktop: single scroll container + sticky frozen column ── */}
-      {!isMobile && (
-        <div
-          ref={desktopScrollRef}
-          className={clsx('overflow-auto', !autoHeight && 'flex-1 min-h-0')}
-        >
-          {/* Header: sticky top + frozen part sticky left */}
-          <div className="sticky top-0 z-20 flex" style={{ minWidth: totalMinWidth }}>
-            <div
-              className="flex-shrink-0 sticky left-0 z-10 bg-surface"
-              style={{ width: frozenWidth }}
-            >
-              <PairRowHeaderFrozen showStar={showStar} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <PairRowHeaderData columnConfig={columnConfig} />
-            </div>
-          </div>
+        {/* Virtual scroll body */}
+        <div style={{ height: totalSize, minWidth: totalMinWidth, position: 'relative' }}>
+          {items.map((vRow) => {
+            const isLoader = vRow.index >= pairs.length
+            const pair = pairs[vRow.index]
 
-          {/* Virtual scroll body */}
-          <div style={{ height: totalSize, minWidth: totalMinWidth, position: 'relative' }}>
-            {items.map((vRow) => {
-              const isLoader = vRow.index >= pairs.length
-              const pair = pairs[vRow.index]
-
-              return (
-                <div
-                  key={vRow.index}
-                  data-index={vRow.index}
-                  ref={virtualizer.measureElement}
-                  style={{
-                    position:  'absolute',
-                    top:        0,
-                    left:       0,
-                    width:     '100%',
-                    transform: `translateY(${vRow.start}px)`,
-                  }}
-                >
-                  <div className="flex">
-                    {/* Frozen token column: sticky left */}
-                    <div
-                      className="flex-shrink-0 sticky left-0 z-[1] bg-bg"
-                      style={{ width: frozenWidth }}
-                    >
-                      {isLoader ? (
-                        <div className="h-[70px]" />
-                      ) : (
-                        <PairRowFrozen
-                          pair={pair}
-                          rank={vRow.index + 1}
-                          flash={flashing[pair.address]}
-                          showStar={showStar}
-                        />
-                      )}
-                    </div>
-                    {/* Data columns */}
-                    <div className="flex-1 min-w-0">
-                      {isLoader ? (
-                        <div className="flex items-center justify-center h-[70px] text-[11px] text-sub">
-                          {isValidating ? 'Loading more…' : null}
-                        </div>
-                      ) : (
-                        <PairRowData
-                          pair={pair}
-                          livePrice={livePrices[pair.address]}
-                          flash={flashing[pair.address]}
-                          timeWindow={timeWindow}
-                          columnConfig={columnConfig}
-                        />
-                      )}
-                    </div>
+            return (
+              <div
+                key={vRow.index}
+                data-index={vRow.index}
+                ref={virtualizer.measureElement}
+                style={{
+                  position:  'absolute',
+                  top:        0,
+                  left:       0,
+                  width:     '100%',
+                  transform: `translateY(${vRow.start}px)`,
+                }}
+              >
+                <div className="flex">
+                  {/* Frozen token column: sticky left */}
+                  <div
+                    className="flex-shrink-0 sticky left-0 z-[1] bg-bg"
+                    style={{ width: frozenWidth }}
+                  >
+                    {isLoader ? (
+                      <div className={loaderH} />
+                    ) : (
+                      <PairRowFrozen
+                        pair={pair}
+                        rank={vRow.index + 1}
+                        flash={flashing[pair.address]}
+                        showStar={showStar}
+                        compact={isMobile}
+                      />
+                    )}
+                  </div>
+                  {/* Data columns */}
+                  <div className="flex-1 min-w-0">
+                    {isLoader ? (
+                      <div className={clsx('flex items-center justify-center text-[11px] text-sub', loaderH)}>
+                        {isValidating ? 'Loading more…' : null}
+                      </div>
+                    ) : (
+                      <PairRowData
+                        pair={pair}
+                        livePrice={livePrices[pair.address]}
+                        flash={flashing[pair.address]}
+                        timeWindow={timeWindow}
+                        columnConfig={columnConfig}
+                        compact={isMobile}
+                      />
+                    )}
                   </div>
                 </div>
-              )
-            })}
-          </div>
+              </div>
+            )
+          })}
         </div>
-      )}
+      </div>
     </div>
   )
 }

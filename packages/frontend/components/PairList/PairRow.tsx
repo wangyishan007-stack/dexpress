@@ -214,15 +214,16 @@ export function PairRow({ pair, livePrice, flash, rank, showStar = false }: Pair
   )
 }
 
-/* ─── Desktop Frozen Row (left panel — token info) ───────── */
+/* ─── Frozen Row (left panel — token info) ────────────────── */
 interface FrozenProps {
   pair:       Pool
   rank:       number
   flash?:     'up' | 'down'
   showStar?:  boolean
+  compact?:   boolean
 }
 
-export function PairRowFrozen({ pair, rank, flash, showStar = false }: FrozenProps) {
+export function PairRowFrozen({ pair, rank, flash, showStar = false, compact = false }: FrozenProps) {
   const [base, quote] = getBaseQuote(pair)
   const extraPools = pair.all_addresses ? pair.all_addresses.length - 1 : 0
 
@@ -230,25 +231,26 @@ export function PairRowFrozen({ pair, rank, flash, showStar = false }: FrozenPro
     <Link
       href={`/pair/${pair.address}`}
       className={clsx(
-        'flex items-center gap-2 h-[70px] px-4 border-b border-border transition-colors hover:bg-surface/50 cursor-pointer text-[12px]',
+        'flex items-center border-b border-border transition-colors hover:bg-surface/50 cursor-pointer',
+        compact ? 'gap-1.5 h-[56px] px-2 text-[11px]' : 'gap-2 h-[70px] px-4 text-[12px]',
         flash === 'up'   && 'animate-flash-green',
         flash === 'down' && 'animate-flash-red'
       )}
     >
       {showStar && <WatchToggle address={pair.address} size={14} />}
 
-      <span className="text-sub text-right text-[11px] w-[36px] flex-shrink-0">#{rank}</span>
+      <span className={clsx('text-sub text-right flex-shrink-0', compact ? 'text-[10px] w-[24px]' : 'text-[11px] w-[36px]')}>#{rank}</span>
 
-      <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={30} rounded="md" />
+      <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={compact ? 24 : 30} rounded="md" />
 
-      <DexBadge dex={pair.dex} extraPools={extraPools} />
+      {!compact && <DexBadge dex={pair.dex} extraPools={extraPools} />}
 
       <div className="min-w-0">
         <div className="flex items-center gap-1 min-w-0">
           <span className="font-semibold text-text truncate" title={base.symbol}>${base.symbol}</span>
-          <span className="text-sub text-[11px]">/ {quote.symbol}</span>
+          <span className={clsx('text-sub', compact ? 'text-[9px]' : 'text-[11px]')}>/ {quote.symbol}</span>
         </div>
-        <div className="text-[10px] text-sub/70 truncate" title={base.name !== base.symbol ? base.name : pair.address}>
+        <div className={clsx('text-sub/70 truncate', compact ? 'text-[9px]' : 'text-[10px]')} title={base.name !== base.symbol ? base.name : pair.address}>
           {base.name !== base.symbol ? base.name : pair.address.slice(0, 8) + '…'}
         </div>
       </div>
@@ -256,16 +258,17 @@ export function PairRowFrozen({ pair, rank, flash, showStar = false }: FrozenPro
   )
 }
 
-/* ─── Desktop Data Row (right panel — scrollable columns) ── */
+/* ─── Data Row (right panel — scrollable columns) ─────────── */
 interface DataProps {
   pair:          Pool
   livePrice?:    number
   flash?:        'up' | 'down'
   timeWindow:    TimeWindow
   columnConfig?: ScreenerConfig
+  compact?:      boolean
 }
 
-export function PairRowData({ pair, livePrice, flash, timeWindow, columnConfig }: DataProps) {
+export function PairRowData({ pair, livePrice, flash, timeWindow, columnConfig, compact = false }: DataProps) {
   const price = livePrice ?? pair.price_usd
   const visCols = columnConfig ? getVisibleColumns(columnConfig) : undefined
   const gridTemplate = visCols ? buildDataGridCols(visCols) : DEFAULT_DATA_GRID
@@ -280,7 +283,7 @@ export function PairRowData({ pair, livePrice, flash, timeWindow, columnConfig }
       )}
     >
       <div
-        className="grid items-center gap-x-2 h-[70px] px-4 border-b border-border text-[12px]"
+        className={clsx('grid items-center gap-x-2 border-b border-border text-[12px]', compact ? 'h-[56px] px-2' : 'h-[70px] px-4')}
         style={{ gridTemplateColumns: gridTemplate }}
       >
         {visCols
@@ -306,25 +309,25 @@ export function PairRowData({ pair, livePrice, flash, timeWindow, columnConfig }
   )
 }
 
-/* ─── Desktop Frozen Header (left panel) ─────────────────── */
-export function PairRowHeaderFrozen({ showStar = false }: { showStar?: boolean }) {
+/* ─── Frozen Header (left panel) ──────────────────────────── */
+export function PairRowHeaderFrozen({ showStar = false, compact = false }: { showStar?: boolean; compact?: boolean }) {
   return (
-    <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-surface">
+    <div className={clsx('flex items-center gap-2 py-3 border-b border-border bg-surface', compact ? 'px-2' : 'px-4')}>
       {showStar && <span className="w-[14px]" />}
-      <span className="text-[14px] font-medium text-header text-right w-[36px] flex-shrink-0">#</span>
-      <span className="text-[14px] font-medium text-header">Token</span>
+      <span className={clsx('font-medium text-header text-right flex-shrink-0', compact ? 'text-[12px] w-[24px]' : 'text-[14px] w-[36px]')}>#</span>
+      <span className={clsx('font-medium text-header', compact ? 'text-[12px]' : 'text-[14px]')}>Token</span>
     </div>
   )
 }
 
-/* ─── Desktop Data Header (right panel) ──────────────────── */
-export function PairRowHeaderData({ columnConfig }: { columnConfig?: ScreenerConfig }) {
+/* ─── Data Header (right panel) ──────────────────────────── */
+export function PairRowHeaderData({ columnConfig, compact = false }: { columnConfig?: ScreenerConfig; compact?: boolean }) {
   const visCols = columnConfig ? getVisibleColumns(columnConfig) : undefined
   const gridTemplate = visCols ? buildDataGridCols(visCols) : DEFAULT_DATA_GRID
 
   return (
     <div
-      className="grid items-center gap-x-2 px-4 py-3 border-b border-border bg-surface text-[14px]"
+      className={clsx('grid items-center gap-x-2 py-3 border-b border-border bg-surface', compact ? 'px-2 text-[12px]' : 'px-4 text-[14px]')}
       style={{ gridTemplateColumns: gridTemplate }}
     >
       {visCols

@@ -150,7 +150,7 @@ export function Sidebar() {
     <>
       {/* ── Mobile top bar ──────────────────────────────────── */}
       <div className="flex md:hidden items-center justify-between h-[48px] px-3 bg-bg flex-shrink-0">
-        <LogoMark className="h-[28px] w-auto" />
+        <a href="/"><LogoMark className="h-[28px] w-auto" /></a>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSearchOpen(true)}
