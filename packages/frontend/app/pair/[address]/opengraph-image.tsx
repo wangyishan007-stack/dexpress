@@ -62,7 +62,7 @@ export default async function OGImage({ params }: { params: { address: string } 
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          backgroundImage: 'radial-gradient(ellipse 60% 60% at 85% 15%, rgba(39,68,255,0.3) 0%, transparent 60%), radial-gradient(ellipse 70% 70% at 10% 90%, rgba(39,68,255,0.18) 0%, transparent 60%), linear-gradient(135deg, #050510 0%, #0a0a20 50%, #050510 100%)',
+          backgroundImage: 'radial-gradient(ellipse 80% 80% at 90% 10%, rgba(39,68,255,0.45) 0%, rgba(39,68,255,0.1) 50%, transparent 70%), radial-gradient(ellipse 80% 80% at 5% 95%, rgba(39,68,255,0.3) 0%, rgba(39,68,255,0.06) 50%, transparent 70%), linear-gradient(160deg, #06061a 0%, #0a0a28 40%, #050515 100%)',
           fontFamily: 'sans-serif',
           padding: '60px 80px',
         }}
