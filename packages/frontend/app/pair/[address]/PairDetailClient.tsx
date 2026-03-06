@@ -341,7 +341,7 @@ export function PairDetailClient({ address }: Props) {
   const change24h = Number(pair.change_24h)
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-bg overflow-y-auto md:overflow-hidden scrollbar-hide">
+    <div className="flex flex-col flex-1 min-h-0 bg-bg overflow-x-hidden overflow-y-auto md:overflow-hidden scrollbar-hide">
 
       {/* ── Two-column layout ─────────────────────────────────── */}
       <div className="flex flex-col md:flex-row gap-3 md:gap-5 p-3 md:p-5">
@@ -391,7 +391,7 @@ export function PairDetailClient({ address }: Props) {
         </div>{/* end LEFT COLUMN */}
 
         {/* ── RIGHT COLUMN ────────────────────────────────────── */}
-        <div className="w-full md:w-[340px] flex-shrink-0 flex flex-col gap-4 md:h-[calc(100vh_-_40px)] md:overflow-y-auto scrollbar-hide bg-surface border border-border rounded-xl px-4 py-2">
+        <div className="w-full overflow-x-hidden md:w-[340px] flex-shrink-0 flex flex-col gap-4 md:h-[calc(100vh_-_40px)] md:overflow-y-auto scrollbar-hide bg-surface border border-border rounded-xl px-4 py-2">
 
           {/* ── 1. Token Header ──────────────────────────────────── */}
           <div className="flex items-center gap-4 py-2">
@@ -608,14 +608,14 @@ export function PairDetailClient({ address }: Props) {
                         key={p.key}
                         onClick={() => setStatsPeriod(p.key)}
                         className={clsx(
-                          'flex-1 flex flex-col gap-1 items-center px-1 py-2 text-center transition-colors',
+                          'flex-1 min-w-0 flex flex-col gap-1 items-center px-1 py-2 text-center transition-colors',
                           i < periods.length - 1 && 'border-r border-border',
                           selected && 'bg-muted',
                         )}
                       >
                         <span className="text-[12px] text-sub">{p.label}</span>
-                        <span className={clsx('text-[14px] font-bold tabular', pos ? 'text-green' : neg ? 'text-red' : 'text-sub')}>
-                          {valid ? `${pos ? '+' : ''}${n.toFixed(2)}%` : '—'}
+                        <span className={clsx('text-[14px] font-bold tabular truncate w-full', pos ? 'text-green' : neg ? 'text-red' : 'text-sub')}>
+                          {valid ? `${pos ? '+' : ''}${Math.abs(n) >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n.toFixed(2)}%` : '—'}
                         </span>
                       </button>
                     )
