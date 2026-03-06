@@ -14,13 +14,15 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'dex.express',
-    title: 'dex.express — Base Chain DEX Screener',
-    description: 'Real-time token & pair analytics on Base chain. Live prices, security audits, top traders, and watchlists.',
+    title: 'The Fastest Base Token Screener — dex.express',
+    description: 'Track Base tokens with live prices, smart money wallets, and contract security insights.',
+    images: [{ url: '/og-image.jpg', width: 1456, height: 816 }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'dex.express — Base Chain DEX Screener',
-    description: 'Real-time token & pair analytics on Base chain.',
+    title: 'The Fastest Base Token Screener — dex.express',
+    description: 'Track Base tokens with live prices, smart money wallets, and contract security insights.',
+    images: ['/og-image.jpg'],
   },
   robots: {
     index: true,
