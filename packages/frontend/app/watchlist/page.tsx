@@ -248,7 +248,7 @@ export default function WatchlistPage() {
   if (!authenticated) {
     const defaultLists = [{ id: 'main', name: 'Main Watchlist' }]
     return (
-      <div className="flex flex-col h-full px-3 pt-3 md:px-5 md:pt-4 pb-0">
+      <div className="flex flex-col flex-1 min-h-0 px-3 pt-3 md:px-5 md:pt-4 pb-0">
         <WatchlistHeader lists={defaultLists} activeListId="main" onSwitch={() => {}} />
         <SignInState onLogin={() => login()} />
       </div>
@@ -258,7 +258,7 @@ export default function WatchlistPage() {
   /* State 2: Logged in but empty */
   if (activeList.pairIds.length === 0) {
     return (
-      <div className="flex flex-col h-full px-3 pt-3 md:px-5 md:pt-4 pb-0">
+      <div className="flex flex-col flex-1 min-h-0 px-3 pt-3 md:px-5 md:pt-4 pb-0">
         <WatchlistHeader lists={lists} activeListId={activeListId} onSwitch={setActiveList} onManage={() => setManageOpen(true)} />
         <EmptyWatchlistState />
         {manageOpen && <ManageListsModal onClose={() => setManageOpen(false)} />}
@@ -268,7 +268,7 @@ export default function WatchlistPage() {
 
   /* State 3: Logged in with pairs */
   return (
-    <div className="flex flex-col h-full px-3 pt-3 md:px-5 md:pt-4 pb-0">
+    <div className="flex flex-col flex-1 min-h-0 px-3 pt-3 md:px-5 md:pt-4 pb-0">
       <WatchlistHeader lists={lists} activeListId={activeListId} onSwitch={setActiveList} onManage={() => setManageOpen(true)} />
 
       <StatsBar showBlock={false} />

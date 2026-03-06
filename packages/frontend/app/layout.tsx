@@ -45,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
             {/* Main content */}
             <div className="flex flex-1 flex-col overflow-hidden min-h-0">
-              <main className="flex-1 overflow-hidden">
+              <main className="flex-1 flex flex-col overflow-hidden min-h-0">
                 {children}
               </main>
             </div>

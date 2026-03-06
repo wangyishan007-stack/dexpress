@@ -341,7 +341,7 @@ export function PairDetailClient({ address }: Props) {
   const change24h = Number(pair.change_24h)
 
   return (
-    <div className="flex flex-col h-full bg-bg overflow-y-auto md:overflow-hidden scrollbar-hide">
+    <div className="flex flex-col flex-1 min-h-0 bg-bg overflow-y-auto md:overflow-hidden scrollbar-hide">
 
       {/* ── Two-column layout ─────────────────────────────────── */}
       <div className="flex flex-col md:flex-row gap-3 md:gap-5 p-3 md:p-5">
