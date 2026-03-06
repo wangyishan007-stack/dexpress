@@ -361,8 +361,7 @@ async function fetchPoolsFromGT(): Promise<Pool[]> {
     }
   }
 
-  const tc = trendingRanks.map(m => m.size)
-  console.log(`[GT] ${pools.length} pools (5m:${tc[0]} 1h:${tc[1]} 6h:${tc[2]} 24h:${tc[3]})`)
+  // const tc = trendingRanks.map(m => m.size)
   return pools
 }
 
@@ -658,11 +657,6 @@ async function _fetchAndCacheDetail(
     if (!pool) return null
 
     const a = raw.attributes
-    console.log('[detail] extended fields:', {
-      base_token_price_native_currency: a.base_token_price_native_currency,
-      quote_token_price_usd: a.quote_token_price_usd,
-      fdv_usd: a.fdv_usd,
-    })
     const result = {
       ...pool,
       base_token_price_native: safeFloat(a.base_token_price_native_currency),

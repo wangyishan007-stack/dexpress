@@ -188,7 +188,7 @@ export function PairDetailClient({ address }: Props) {
   const [livePrice, setLivePrice] = useState<number | null>(null)
   const [flash,     setFlash]     = useState<'up' | 'down' | null>(null)
   const [otherPairsOpen, setOtherPairsOpen] = useState(false)
-  const [statsPeriod, setStatsPeriod] = useState<'5m' | '1h' | '6h' | '24h'>('24h')
+  const [statsPeriod, setStatsPeriod] = useState<'5m' | '1h' | '6h' | '24h'>('6h')
   const [expandedAudit, setExpandedAudit] = useState<string | null>(null)
   const [auditDisclaimer, setAuditDisclaimer] = useState(false)
   const [swapUnit, setSwapUnit] = useState<'USD' | 'WETH'>('USD')
@@ -205,7 +205,7 @@ export function PairDetailClient({ address }: Props) {
   // Swaps
   const projectInfoRef = useRef<HTMLDivElement>(null)
 
-  const [chartHeight, setChartHeight]  = useState(440)
+  const [chartHeight, setChartHeight]  = useState(typeof window !== 'undefined' && window.innerWidth < 768 ? 300 : 440)
   const chartDragRef = useRef<{ startY: number; startH: number } | null>(null)
 
   const onDragStart = useCallback((e: React.PointerEvent) => {
@@ -896,7 +896,7 @@ export function PairDetailClient({ address }: Props) {
                                 <span className="text-[14px] text-text">{item.result}</span>
                                 {item.result !== 'N/A' && item.result !== 'Loading...' && (
                                   (item as any).riskDot
-                                    ? <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" fill={(item as any).riskDot}/></svg>
+                                    ? <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><circle cx="4" cy="4" r="3.5" fill={(item as any).riskDot}/></svg>
                                     : item.ok
                                       ? <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#2fe06b" strokeWidth="1.5"/><path d="M3.5 6l2 2 3-3" stroke="#2fe06b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                                       : <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#ef5350" strokeWidth="1.5"/><path d="M4 4l4 4M8 4l-4 4" stroke="#ef5350" strokeWidth="1.5" strokeLinecap="round"/></svg>
@@ -1005,9 +1005,8 @@ export function PairDetailClient({ address }: Props) {
                   const amt = parseFloat(swapAmount)
                   if (!amt || price <= 0) return '—'
                   if (swapUnit === 'USD') return fmtPrice(amt * price)
-                  const quoteUsd = pair.quote_token_price_usd ?? 0
-                  const priceInQuote = quoteUsd > 0 ? price / quoteUsd : 0
-                  return priceInQuote > 0 ? (amt * priceInQuote).toFixed(8) : '—'
+                  const ethPrice = pair.base_token_price_native ?? 0
+                  return ethPrice > 0 ? (amt * ethPrice).toFixed(8) : '—'
                 })()}
                 readOnly
                 className="flex-1 text-[14px] text-text bg-transparent outline-none min-w-0"
@@ -1016,14 +1015,14 @@ export function PairDetailClient({ address }: Props) {
               <div className="flex items-center rounded-lg overflow-hidden flex-shrink-0">
                 <button
                   onClick={() => setSwapUnit('USD')}
-                  className={clsx('px-2 py-[7px] text-[14px] flex items-center gap-1.5 transition-colors', swapUnit === 'USD' ? 'bg-muted text-text' : 'bg-muted/50 text-sub')}
+                  className={clsx('px-2 py-[7px] text-[14px] flex items-center gap-1.5 transition-colors', swapUnit === 'USD' ? 'bg-muted text-text' : 'bg-muted/40 text-sub')}
                 >
                   {swapUnit === 'USD' && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                   USD
                 </button>
                 <button
                   onClick={() => setSwapUnit('WETH')}
-                  className={clsx('px-2 py-[7px] text-[14px] flex items-center gap-1.5 transition-colors', swapUnit === 'WETH' ? 'bg-border text-text' : 'bg-border/50 text-sub')}
+                  className={clsx('px-2 py-[7px] text-[14px] flex items-center gap-1.5 transition-colors', swapUnit === 'WETH' ? 'bg-muted text-text' : 'bg-muted/40 text-sub')}
                 >
                   {swapUnit === 'WETH' && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                   WETH

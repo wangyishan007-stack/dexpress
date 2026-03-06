@@ -4,8 +4,28 @@ import { Sidebar } from '../components/Sidebar'
 import { Providers } from '../components/Providers'
 
 export const metadata: Metadata = {
-  title:       'dex.express',
-  description: 'Real-time token & pair analytics on Base chain',
+  metadataBase: new URL('https://base-dex-screener.vercel.app'),
+  title: {
+    default: 'dex.express — Base Chain DEX Screener',
+    template: '%s | dex.express',
+  },
+  description: 'Real-time token & pair analytics on Base chain. Live prices, security audits, top traders, and watchlists for Uniswap V3/V4 and Aerodrome.',
+  keywords: ['DEX', 'Base chain', 'token screener', 'Uniswap', 'Aerodrome', 'crypto', 'DeFi', 'trading'],
+  openGraph: {
+    type: 'website',
+    siteName: 'dex.express',
+    title: 'dex.express — Base Chain DEX Screener',
+    description: 'Real-time token & pair analytics on Base chain. Live prices, security audits, top traders, and watchlists.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'dex.express — Base Chain DEX Screener',
+    description: 'Real-time token & pair analytics on Base chain.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 }
 
 export const viewport: Viewport = {

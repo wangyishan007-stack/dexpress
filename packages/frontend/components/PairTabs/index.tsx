@@ -122,9 +122,10 @@ export function PairTabs({ swaps, swapHasMore, swapLoading, onLoadMore, tokenAdd
               >
                 <Icon />
                 {tab.label}
-                {isActive && (
-                  <span className="absolute -bottom-3 left-0 right-0 h-[2px] bg-blue rounded-[30px]" />
-                )}
+                <span className={clsx(
+                  'absolute -bottom-3 left-0 right-0 h-[2px] rounded-full transition-all duration-200',
+                  isActive ? 'bg-blue opacity-100' : 'bg-transparent opacity-0'
+                )} />
               </button>
             )
           })}

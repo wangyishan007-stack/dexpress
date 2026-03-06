@@ -206,11 +206,13 @@ export function Sidebar() {
           {/* Logo + toggle */}
           {collapsed ? (
             <div className="flex flex-col items-center pt-[20px] pb-[10px] gap-2">
-              <img
-                src="/branding/dex-logo.svg"
-                alt="dex.express"
-                className="w-[48px] h-[42px]"
-              />
+              <a href="/">
+                <img
+                  src="/branding/dex-logo.svg"
+                  alt="dex.express"
+                  className="w-[48px] h-[42px] cursor-pointer"
+                />
+              </a>
               <button
                 onClick={toggleCollapsed}
                 className="flex items-center justify-center w-[24px] h-[24px] rounded-md border border-border text-sub hover:text-text hover:bg-border/40 transition-colors"
@@ -221,7 +223,7 @@ export function Sidebar() {
             </div>
           ) : (
             <div className="relative flex items-center pt-[20px] pb-[10px]">
-              <LogoMark />
+              <a href="/"><LogoMark /></a>
               <button
                 onClick={toggleCollapsed}
                 className="absolute -right-[24px] flex items-center justify-center w-[24px] h-[24px] rounded-l-md rounded-r-none border border-border bg-bg text-sub hover:text-text hover:bg-border/40 transition-colors z-10"
@@ -268,7 +270,7 @@ export function Sidebar() {
                       collapsed
                         ? 'h-[44px] w-[44px] justify-center rounded-lg'
                         : 'h-[44px] gap-[16px] rounded-[12px] px-[8px] py-[12px] text-[16px] whitespace-nowrap',
-                      active ? 'text-blue font-bold' : 'text-sub font-normal hover:text-text'
+                      active ? 'text-blue font-bold' : 'text-sub font-normal hover:text-text hover:bg-border/20'
                     )}
                   >
                     <Icon active={active} />

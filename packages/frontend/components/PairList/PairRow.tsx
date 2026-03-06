@@ -187,10 +187,10 @@ export function PairRow({ pair, livePrice, flash, rank, showStar = false }: Pair
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
-            <span className="font-semibold text-text text-[13px] truncate">${base.symbol}</span>
+            <span className="font-semibold text-text text-[13px] truncate" title={base.symbol}>${base.symbol}</span>
             <span className="text-sub text-[10px]">/ {quote.symbol}</span>
           </div>
-          <div className="text-[10px] text-sub/70 truncate">
+          <div className="text-[10px] text-sub/70 truncate" title={base.name !== base.symbol ? base.name : pair.address}>
             {base.name !== base.symbol ? base.name : pair.address.slice(0, 8) + '…'}
           </div>
         </div>
@@ -245,10 +245,10 @@ export function PairRowFrozen({ pair, rank, flash, showStar = false }: FrozenPro
 
       <div className="min-w-0">
         <div className="flex items-center gap-1 min-w-0">
-          <span className="font-semibold text-text truncate">${base.symbol}</span>
+          <span className="font-semibold text-text truncate" title={base.symbol}>${base.symbol}</span>
           <span className="text-sub text-[11px]">/ {quote.symbol}</span>
         </div>
-        <div className="text-[10px] text-sub/70 truncate">
+        <div className="text-[10px] text-sub/70 truncate" title={base.name !== base.symbol ? base.name : pair.address}>
           {base.name !== base.symbol ? base.name : pair.address.slice(0, 8) + '…'}
         </div>
       </div>

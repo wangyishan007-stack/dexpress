@@ -118,17 +118,12 @@ export async function fetchDexScreenerPairs(chain = 'base'): Promise<Pool[]> {
   const tokenAddrs = BASE_TOP_TOKENS.join(',')
   const url = `https://api.dexscreener.com/latest/dex/tokens/${tokenAddrs}`
 
-  console.log('[DexScreener] Fetching:', url)
-
   let res: Response
   try {
     res = await fetch(url, {
-      cache: 'no-store',  // disable Next.js cache for debugging
-      headers: { 
-        'Accept': 'application/json',
-      },
+      cache: 'no-store',
+      headers: { 'Accept': 'application/json' },
     })
-    console.log('[DexScreener] Response status:', res.status)
   } catch (err) {
     console.error('[DexScreener] fetch failed:', err)
     return []
@@ -143,17 +138,13 @@ export async function fetchDexScreenerPairs(chain = 'base'): Promise<Pool[]> {
   let data: DSResponse
   try {
     const text = await res.text()
-    console.log('[DexScreener] Response length:', text.length)
     data = JSON.parse(text)
   } catch (err) {
     console.error('[DexScreener] JSON parse error:', err)
     return []
   }
 
-  // Defensive: ensure pairs is an array
   const rawPairs = data?.pairs
-  console.log('[DexScreener] pairs type:', typeof rawPairs, 'isArray:', Array.isArray(rawPairs), 'length:', rawPairs?.length)
-  
   if (!Array.isArray(rawPairs)) {
     console.warn('[DexScreener] pairs is not an array, data keys:', Object.keys(data || {}))
     return []
@@ -167,8 +158,6 @@ export async function fetchDexScreenerPairs(chain = 'base'): Promise<Pool[]> {
     seen.add(p.pairAddress)
     return true
   })
-  console.log('[DexScreener] Filtered pairs for chain', chain, ':', pairs.length)
-  
   const now = new Date().toISOString()
 
   return pairs

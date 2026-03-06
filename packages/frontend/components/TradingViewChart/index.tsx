@@ -260,7 +260,7 @@ function ToolbarDropdown({ label, icon, open, onToggle, children }: {
         <span className="hidden md:inline">{label}</span>
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-[#1a1a1a] border border-border rounded-lg py-1 z-50 min-w-[140px] shadow-xl">
+        <div className="absolute top-full left-0 mt-1 bg-surface border border-border rounded-lg py-1 z-50 min-w-[140px] shadow-xl">
           {children}
         </div>
       )}

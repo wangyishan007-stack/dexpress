@@ -55,7 +55,7 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
 
@@ -80,7 +80,7 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="bg-[#333] rounded-full px-3 h-[30px] text-[14px] text-blue hover:text-blue/80 transition-colors flex-shrink-0"
+              className="bg-border rounded-full px-3 h-[30px] text-[14px] text-blue hover:text-blue/80 transition-colors flex-shrink-0"
             >
               Clear
             </button>
@@ -161,19 +161,19 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
 
                   {/* Row 2: Tags */}
                   <div className="flex items-center gap-1.5 text-[12px]">
-                    <span className="border border-[#333] rounded px-2 py-1">
+                    <span className="border border-border rounded px-2 py-1">
                       <span className="text-sub">Market Cap: </span>
                       <span className="font-bold text-text">{Number(p.mcap_usd) > 0 ? fmtUsd(p.mcap_usd) : '—'}</span>
                     </span>
-                    <span className="border border-[#333] rounded px-2 py-1">
+                    <span className="border border-border rounded px-2 py-1">
                       <span className="text-sub">Liquidity: </span>
                       <span className="font-bold text-text">{fmtUsd(p.liquidity_usd)}</span>
                     </span>
-                    <span className="border border-[#333] rounded px-2 py-1">
+                    <span className="border border-border rounded px-2 py-1">
                       <span className="text-sub">24H Vol: </span>
                       <span className="font-bold text-text">{fmtUsd(p.volume_24h)}</span>
                     </span>
-                    <span className="border border-[#333] rounded px-2 py-1">
+                    <span className="border border-border rounded px-2 py-1">
                       <span className="text-sub">Age: </span>
                       <span className="font-bold text-text">{p.created_at ? fmtAge(p.created_at) : '—'}</span>
                     </span>
@@ -181,7 +181,7 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
                 </div>
 
                 {/* Right: Addresses */}
-                <div className="hidden md:flex flex-col gap-2.5 text-[14px] text-[#666] flex-shrink-0 w-[127px] text-right">
+                <div className="hidden md:flex flex-col gap-2.5 text-[14px] text-sub flex-shrink-0 w-[127px] text-right">
                   <span>Pair: {shortAddr(p.address)}</span>
                   <span>Token: {shortAddr(base.address)}</span>
                 </div>
@@ -193,7 +193,7 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
                     e.stopPropagation()
                     toggle(p.address)
                   }}
-                  className="bg-[#333] rounded-lg w-8 h-8 flex items-center justify-center flex-shrink-0 hover:bg-[#444] transition-colors"
+                  className="bg-border rounded-lg w-8 h-8 flex items-center justify-center flex-shrink-0 hover:bg-border/70 transition-colors"
                 >
                   {isInAnyList(p.address) ? (
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="#ffd166">

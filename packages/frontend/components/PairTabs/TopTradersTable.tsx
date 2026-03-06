@@ -75,7 +75,10 @@ export function TopTradersTable({ traders }: Props) {
   if (!traders) {
     return (
       <div className="flex items-center justify-center py-12 text-sub text-[14px]">
-        Loading top traders...
+        <span className="flex items-center gap-2">
+          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          Loading top traders...
+        </span>
       </div>
     )
   }
@@ -111,7 +114,7 @@ export function TopTradersTable({ traders }: Props) {
             href={`https://basescan.org/address/${t.address}`}
             target="_blank"
             rel="noopener"
-            className="font-mono text-sub hover:text-blue truncate"
+            className="font-mono text-sub hover:text-blue truncate transition-colors"
           >
             {shortAddr(t.address)}
           </a>
@@ -128,7 +131,7 @@ export function TopTradersTable({ traders }: Props) {
             href={`https://basescan.org/address/${t.address}`}
             target="_blank"
             rel="noopener"
-            className="hidden md:flex items-center justify-center text-sub hover:text-blue"
+            className="hidden md:flex items-center justify-center text-sub hover:text-blue transition-colors"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M4 1h7v7M11 1L5 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>

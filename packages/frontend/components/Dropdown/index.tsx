@@ -13,12 +13,15 @@ interface DropdownProps {
 
 export function Dropdown({ trigger, children, align = 'left', className }: DropdownProps) {
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
   const ref = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      if (ref.current && !ref.current.contains(e.target as Node) &&
+          menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setOpen(false)
       }
     }
@@ -26,15 +29,27 @@ export function Dropdown({ trigger, children, align = 'left', className }: Dropd
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
+  // Calculate fixed position from trigger bounding rect
+  useEffect(() => {
+    if (!open || !ref.current) return
+    const rect = ref.current.getBoundingClientRect()
+    setPos({
+      top: rect.bottom + 4,
+      left: align === 'right' ? rect.right : rect.left,
+    })
+  }, [open, align])
+
   return (
     <div ref={ref} className={clsx('relative', className)}>
       <div onClick={() => setOpen(o => !o)}>{trigger}</div>
       {open && (
         <div
-          className={clsx(
-            'absolute top-full mt-1 min-w-[180px] rounded-lg border border-border bg-[#1a1a1a] shadow-lg z-50 py-1',
-            align === 'right' ? 'right-0' : 'left-0'
-          )}
+          ref={menuRef}
+          className="fixed min-w-[180px] rounded-lg border border-border bg-[#1a1a1a] shadow-lg z-[100] py-1"
+          style={{
+            top: pos.top,
+            ...(align === 'right' ? { right: window.innerWidth - pos.left } : { left: pos.left }),
+          }}
           onClick={() => setOpen(false)}
         >
           {children}

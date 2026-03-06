@@ -82,8 +82,7 @@ export function PairWatchlistDropdown({ pairAddress }: Props) {
         {/* Dropdown */}
         {open && (
           <div
-            className="absolute top-full left-0 mt-1 min-w-[240px] rounded-[12px] py-1 z-50 shadow-lg"
-            style={{ backgroundColor: '#222', border: '1px solid #333' }}
+            className="absolute top-full left-0 mt-1 min-w-[240px] rounded-xl py-1 z-50 shadow-lg border border-border bg-surface"
           >
             {lists.map(list => {
               const pairInList = list.pairIds.includes(pairAddress)
@@ -98,7 +97,7 @@ export function PairWatchlistDropdown({ pairAddress }: Props) {
                     // Small delay to ensure activeList is set before toggle
                     setTimeout(() => toggle(pairAddress), 0)
                   }}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-border/30 transition-colors"
                 >
                   {/* Star icon */}
                   <span className="text-text flex-shrink-0">
@@ -127,12 +126,12 @@ export function PairWatchlistDropdown({ pairAddress }: Props) {
             })}
 
             {/* Divider */}
-            <div className="my-1" style={{ borderTop: '1px solid #333' }} />
+            <div className="my-1 border-t border-border" />
 
             {/* Manage my lists */}
             <button
               onClick={() => { setOpen(false); setManaging(true) }}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-border/30 transition-colors"
             >
               <span className="text-sub flex-shrink-0">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
