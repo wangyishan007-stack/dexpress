@@ -68,7 +68,7 @@ export function PairList({ pairs, hasMore, onLoadMore, isValidating, livePrices,
   const totalMinWidth = frozenWidth + dataMinWidth
 
   const outerCls = clsx(
-    'flex flex-col border border-border rounded-lg',
+    'flex flex-col border border-border rounded-lg min-w-0',
     !autoHeight && 'flex-1 min-h-0'
   )
 
@@ -112,7 +112,7 @@ export function PairList({ pairs, hasMore, onLoadMore, isValidating, livePrices,
         {/* Header: sticky top + frozen part sticky left */}
         <div className="sticky top-0 z-20 flex" style={{ minWidth: totalMinWidth }}>
           <div
-            className="flex-shrink-0 sticky left-0 z-10 bg-surface"
+            className="flex-shrink-0 sticky left-0 z-10 bg-surface border-r border-border"
             style={{ width: frozenWidth }}
           >
             <PairRowHeaderFrozen showStar={showStar} compact={isMobile} />
@@ -144,7 +144,7 @@ export function PairList({ pairs, hasMore, onLoadMore, isValidating, livePrices,
                 <div className="flex">
                   {/* Frozen token column: sticky left */}
                   <div
-                    className="flex-shrink-0 sticky left-0 z-[1] bg-bg"
+                    className="flex-shrink-0 sticky left-0 z-[1] bg-bg border-r border-border"
                     style={{ width: frozenWidth }}
                   >
                     {isLoader ? (
