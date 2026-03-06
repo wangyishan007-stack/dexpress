@@ -602,18 +602,17 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
       </div>
 
       {/* ── Chart ────────────────────────────────────────────── */}
+      {/* Fix 3: MA legend inside the relative chart div so it's always positioned correctly */}
       <div className="relative flex-1 min-h-0">
         <div ref={containerRef} className="absolute inset-0" />
+        {showMA && (
+          <div className="absolute top-2 left-3 flex items-center gap-3 text-[11px] z-10 pointer-events-none">
+            <span style={{ color: '#f5c542' }}>MA7</span>
+            <span style={{ color: '#42a5f5' }}>MA25</span>
+            <span style={{ color: '#ab47bc' }}>MA99</span>
+          </div>
+        )}
       </div>
-
-      {/* ── MA Legend (when active) ───────────────────────────── */}
-      {showMA && (
-        <div className="absolute top-[42px] left-3 flex items-center gap-3 text-[11px] z-10 pointer-events-none">
-          <span style={{ color: '#f5c542' }}>MA7</span>
-          <span style={{ color: '#42a5f5' }}>MA25</span>
-          <span style={{ color: '#ab47bc' }}>MA99</span>
-        </div>
-      )}
     </div>
   )
 }

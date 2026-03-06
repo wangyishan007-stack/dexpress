@@ -79,7 +79,7 @@ export function PairList({ pairs, hasMore, onLoadMore, isValidating, livePrices,
         <PairRowHeader showStar={showStar} columnConfig={columnConfig} />
         <div>
           {Array.from({ length: 12 }).map((_, i) => (
-            <SkeletonRow key={i} showStar={showStar} />
+            <SkeletonRow key={i} showStar={showStar} columnConfig={columnConfig} />
           ))}
         </div>
       </div>

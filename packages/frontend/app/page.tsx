@@ -57,6 +57,19 @@ export default function HomePage() {
     try { localStorage.removeItem('text_filters_allcoins') } catch {}
   }, [])
 
+  // Fix 1: when dataWindow changes, keep dynamic sort fields in sync
+  // e.g. if sort='volume_24h' and user switches to 1h, update to 'volume_1h'
+  const handleDataWindow = useCallback((w: TimeWindow) => {
+    setDataWindow(w)
+    setSort(prev => {
+      const DYNAMIC_PREFIXES = ['volume_', 'txns_', 'buys_', 'sells_']
+      const isDynamic = DYNAMIC_PREFIXES.some(p => prev.startsWith(p))
+      if (!isDynamic) return prev
+      const prefix = DYNAMIC_PREFIXES.find(p => prev.startsWith(p))!
+      return `${prefix}${w}` as SortField
+    })
+  }, [])
+
   const sortField: SortField =
     filter === 'new' ? 'created_at' : sort
 
@@ -102,7 +115,7 @@ export default function HomePage() {
         dataWindow={dataWindow}
         trendingWindow={trendingWindow}
         onFilter={setFilter}
-        onDataWindow={setDataWindow}
+        onDataWindow={handleDataWindow}
         onTrendingWindow={setTrendingWindow}
         sort={sort}
         order={order}

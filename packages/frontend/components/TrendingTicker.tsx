@@ -2,7 +2,8 @@
 
 import { useMemo } from 'react'
 import Link from 'next/link'
-import { getCachedPools } from '../lib/dexscreener-client'
+import useSWR from 'swr'
+import { getCachedPools, pairsFetcher } from '../lib/dexscreener-client'
 import { TokenAvatar } from './TokenAvatar'
 import type { Pool } from '@dex/shared'
 
@@ -18,16 +19,24 @@ function getBase(p: Pool) {
 }
 
 export function TrendingTicker() {
-  // Use only cached pools — never trigger a fetch from the detail page.
-  // The list page (All Coins) populates this cache; if the user navigated
-  // from the list, the cache is already warm. If they visited the detail
-  // page directly, the ticker simply won't show until the cache is populated
-  // by a background refresh.
+  // Fix 2: subscribe to the shared SWR cache so Ticker refreshes
+  // when the main pair list refreshes (every 45s). Using keepPreviousData
+  // so it never flashes empty while revalidating.
+  const { data } = useSWR('dexscreener-pairs', pairsFetcher, {
+    dedupingInterval: 10_000,
+    revalidateOnFocus: false,
+    keepPreviousData: true,
+    // Fallback to module-level cache if SWR hasn't loaded yet
+    fallbackData: { pairs: getCachedPools(), total: 0, limit: 0, offset: 0 },
+  })
+
   const pools = useMemo(() => {
-    const cached = getCachedPools()
-    if (cached.length === 0) return null
-    return [...cached].sort((a, b) => b.trending_score - a.trending_score).slice(0, 20)
-  }, [])
+    const allPairs = data?.pairs ?? []
+    if (allPairs.length === 0) return null
+    return [...allPairs]
+      .sort((a, b) => b.trending_score - a.trending_score)
+      .slice(0, 20)
+  }, [data?.pairs])
 
   if (!pools || pools.length === 0) return null
 
