@@ -68,7 +68,8 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'top-traders',  label: 'Top Traders' },
   { key: 'holders',      label: 'Holders' },
   { key: 'liquidity',    label: 'Liquidity Providers' },
-  { key: 'bubblemaps',   label: 'Bubblemaps' },
+  // Bubblemaps hidden until partner ID approved
+  // { key: 'bubblemaps',   label: 'Bubblemaps' },
 ]
 
 interface RecentSwap {
