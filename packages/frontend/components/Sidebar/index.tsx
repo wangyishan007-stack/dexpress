@@ -153,7 +153,7 @@ export function Sidebar() {
     <>
       {/* ── Mobile top bar ──────────────────────────────────── */}
       <div className="flex md:hidden items-center justify-between h-[48px] px-3 bg-bg flex-shrink-0">
-        <a href="/"><LogoMark className="h-[28px] w-auto" /></a>
+        <Link href="/"><LogoMark className="h-[28px] w-auto" /></Link>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSearchOpen(true)}
@@ -209,13 +209,13 @@ export function Sidebar() {
           {/* Logo + toggle */}
           {collapsed ? (
             <div className="flex flex-col items-center pt-[20px] pb-[10px] gap-2">
-              <a href="/">
+              <Link href="/">
                 <img
                   src="/branding/dex-logo.svg"
                   alt="dex.express"
                   className="w-[48px] h-[42px] cursor-pointer"
                 />
-              </a>
+              </Link>
               <button
                 onClick={toggleCollapsed}
                 className="flex items-center justify-center w-[24px] h-[24px] rounded-md border border-border text-sub hover:text-text hover:bg-border/40 transition-colors"
@@ -226,7 +226,7 @@ export function Sidebar() {
             </div>
           ) : (
             <div className="relative flex items-center pt-[20px] pb-[10px]">
-              <a href="/"><LogoMark /></a>
+              <Link href="/"><LogoMark /></Link>
               <button
                 onClick={toggleCollapsed}
                 className="absolute -right-[24px] flex items-center justify-center w-[24px] h-[24px] rounded-l-md rounded-r-none border border-border bg-bg text-sub hover:text-text hover:bg-border/40 transition-colors z-10"

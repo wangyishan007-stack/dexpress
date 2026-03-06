@@ -420,7 +420,7 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
       const ethAmt = Math.abs(Number(s.amount0))
       if (filters.ethMin && ethAmt < Number(filters.ethMin)) return false
       if (filters.ethMax && ethAmt > Number(filters.ethMax)) return false
-      if (filters.maker && s.sender && !s.sender.toLowerCase().includes(filters.maker.toLowerCase())) return false
+      if (filters.maker && (!s.sender || !s.sender.toLowerCase().includes(filters.maker.toLowerCase()))) return false
       return true
     })
   }, [swaps, filters])

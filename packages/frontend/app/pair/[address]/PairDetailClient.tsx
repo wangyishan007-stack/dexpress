@@ -206,7 +206,12 @@ export function PairDetailClient({ address }: Props) {
   // Swaps
   const projectInfoRef = useRef<HTMLDivElement>(null)
 
-  const [chartHeight, setChartHeight]  = useState(typeof window !== 'undefined' && window.innerWidth < 768 ? 300 : 440)
+  const [chartHeight, setChartHeight]  = useState(440)
+
+  // Adjust chart height for mobile after hydration to avoid SSR mismatch
+  useEffect(() => {
+    if (window.innerWidth < 768) setChartHeight(300)
+  }, [])
   const chartDragRef = useRef<{ startY: number; startH: number } | null>(null)
 
   const onDragStart = useCallback((e: React.PointerEvent) => {

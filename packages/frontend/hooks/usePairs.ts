@@ -82,8 +82,8 @@ export function usePairs(baseParams: Omit<PairsQuery, 'limit' | 'offset'>) {
     if (!isValidating) setSize((s) => s + 1)
   }, [isValidating])
 
-  // [#14] Return error state
-  return { pairs, total, hasMore, isLoading, isValidating, error, loadMore, mutate }
+  // [#14] Return error state + allPairs for stats computation
+  return { pairs, allPairs: processedPairs, total, hasMore, isLoading, isValidating, error, loadMore, mutate }
 }
 
 // [#4] Fixed: Overlay live prices on pairs from WebSocket with proper cleanup

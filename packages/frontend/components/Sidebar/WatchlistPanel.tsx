@@ -28,6 +28,7 @@ export function WatchlistPanel() {
   }
 
   const allPools = getCachedPools()
+  const cacheReady = allPools.length > 0
   const watchedPools = activeList.pairIds
     .map(addr => allPools.find(p => p.address.toLowerCase() === addr.toLowerCase()))
     .filter(Boolean) as typeof allPools
@@ -68,7 +69,9 @@ export function WatchlistPanel() {
         'px-[24px] pb-[16px]',
         expanded && 'overflow-y-auto max-h-[280px]'
       )}>
-        {watchedPools.length === 0 ? (
+        {!cacheReady && activeList.pairIds.length > 0 ? (
+          <p className="text-[12px] text-sub/60">Loading...</p>
+        ) : watchedPools.length === 0 ? (
           <p className="text-[12px] text-sub/60">Nothing in this list yet...</p>
         ) : (
           <div className="flex flex-col gap-1">

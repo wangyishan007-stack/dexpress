@@ -89,6 +89,11 @@ export function useMockPairs({ customFilters, textFilters, ...baseParams }: Mock
     [result.pairs, customFilters, textFilters]
   )
 
+  const allPairs = useMemo(
+    () => applyCustomFilters(result.allPairs, customFilters, textFilters),
+    [result.allPairs, customFilters, textFilters]
+  )
+
   const hasCustomFilters = (customFilters && Object.values(customFilters).some(
     ({ min, max }) => min !== '' || max !== ''
   )) || !!(textFilters?.labels || textFilters?.addressSuffixes)
@@ -101,5 +106,5 @@ export function useMockPairs({ customFilters, textFilters, ...baseParams }: Mock
     ? pairs.length < result.pairs.length || result.hasMore
     : result.hasMore
 
-  return { ...result, pairs, total, hasMore }
+  return { ...result, pairs, allPairs, total, hasMore }
 }

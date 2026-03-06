@@ -73,7 +73,7 @@ export default function HomePage() {
   const sortField: SortField =
     filter === 'new' ? 'created_at' : sort
 
-  const { pairs, hasMore, isLoading, isValidating, loadMore, mutate, error } = useMockPairs({
+  const { pairs, allPairs, hasMore, isLoading, isValidating, loadMore, mutate, error } = useMockPairs({
     sort:   sortField,
     filter,
     window: dataWindow,
@@ -108,7 +108,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      <StatsBar pairs={pairs} />
+      <StatsBar pairs={allPairs} />
 
       <FilterBar
         filter={filter}
