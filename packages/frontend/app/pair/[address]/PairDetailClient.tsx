@@ -302,7 +302,7 @@ export function PairDetailClient({ address }: Props) {
       const trades = await fetchPoolTrades(address, lastSwap.timestamp)
       if (trades.length === 0) {
         setSwapHasMore(false)
-        return
+        return  // finally block still runs
       }
       setSwaps(prev => {
         const existingIds = new Set(prev.map(s => s.id))
@@ -310,8 +310,12 @@ export function PairDetailClient({ address }: Props) {
         return [...prev, ...fresh]
       })
       setSwapHasMore(trades.length >= 50)
-    } catch {}
-    setLoadingMore(false)
+    } catch {
+      // keep going so finally can reset loading state
+    } finally {
+      // BUG fix: always reset loading state, even when early return or throw
+      setLoadingMore(false)
+    }
   }, [address, swaps, loadingMore])
 
   /* ── Loading / error ─────────────────────────────────────── */
