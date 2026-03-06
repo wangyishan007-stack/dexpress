@@ -8,7 +8,6 @@ import { useAuth } from '../../hooks/useAuth'
 import { FilterBar }            from '../../components/FilterBar'
 import type { FilterMode }      from '../../components/FilterBar'
 import { PairList }             from '../../components/PairList'
-import { StatsBar }             from '../../components/StatsBar'
 import { useWatchlist }         from '../../hooks/useWatchlist'
 import { useLivePrices }        from '../../hooks/useMockPairs'
 import { usePairWebSocket }     from '../../hooks/useWebSocket'
@@ -270,8 +269,6 @@ export default function WatchlistPage() {
   return (
     <div className="flex flex-col flex-1 min-h-0 px-3 pt-3 md:px-5 md:pt-4 pb-0">
       <WatchlistHeader lists={lists} activeListId={activeListId} onSwitch={setActiveList} onManage={() => setManageOpen(true)} />
-
-      <StatsBar showBlock={false} />
 
       <FilterBar
         filter={filter}

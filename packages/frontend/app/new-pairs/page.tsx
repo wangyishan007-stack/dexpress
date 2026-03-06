@@ -6,7 +6,6 @@ import type { SortField, TimeWindow } from '@dex/shared'
 import { useMockPairs, useLivePrices } from '../../hooks/useMockPairs'
 import { usePairWebSocket }        from '../../hooks/useWebSocket'
 import { PairList }                from '../../components/PairList'
-import { StatsBar }                from '../../components/StatsBar'
 import { FilterBar }               from '../../components/FilterBar'
 import type { FilterMode }          from '../../components/FilterBar'
 import { buildInitialFilters }     from '../../components/FiltersModal'
@@ -78,8 +77,6 @@ export default function NewPairsPage() {
           </div>
         </div>
       </div>
-
-      <StatsBar showBlock={false} />
 
       <FilterBar
         filter={filter}
