@@ -128,32 +128,28 @@ export default function GainersPage() {
       {/* Stats bar — no Latest Block */}
       <StatsBar showBlock={false} />
 
-      {/* Filter bar */}
-      <div className="flex flex-col gap-2 py-2 md:flex-row md:items-center md:justify-between md:py-3">
-        {/* Left group */}
-        <div className="flex items-center gap-2 md:gap-4 flex-nowrap overflow-x-auto scrollbar-hide md:overflow-visible">
-          <TimeRangeDropdown window={timeWindow} onWindow={setTimeWindow} />
+      {/* Filter bar — single row, horizontally scrollable on mobile */}
+      <div className="flex items-center gap-2 py-2 md:gap-4 md:py-3 overflow-x-auto scrollbar-hide">
+        <TimeRangeDropdown window={timeWindow} onWindow={setTimeWindow} />
 
-          <button
-            onClick={() => setTab('gainers')}
-            className={clsx(BTN, tab === 'gainers' ? 'bg-blue text-white' : 'bg-border text-text hover:text-white')}
-          >
-            <IconUp />
-            Gainers
-          </button>
+        <button
+          onClick={() => setTab('gainers')}
+          className={clsx(BTN, tab === 'gainers' ? 'bg-blue text-white' : 'bg-border text-text hover:text-white')}
+        >
+          <IconUp />
+          Gainers
+        </button>
 
-          <button
-            onClick={() => setTab('losers')}
-            className={clsx(BTN, tab === 'losers' ? 'bg-blue text-white' : 'bg-border text-text hover:text-white')}
-          >
-            <IconDown />
-            Losers
-          </button>
+        <button
+          onClick={() => setTab('losers')}
+          className={clsx(BTN, tab === 'losers' ? 'bg-blue text-white' : 'bg-border text-text hover:text-white')}
+        >
+          <IconDown />
+          Losers
+        </button>
 
-        </div>
-
-        {/* Right group */}
-        <div className="flex items-center border border-border rounded-lg h-[30px] md:h-[36px] flex-shrink-0">
+        {/* Filters + Settings */}
+        <div className="flex items-center border border-border rounded-lg h-[30px] md:h-[36px] flex-shrink-0 md:ml-auto">
           <button
             onClick={() => setFiltersOpen(true)}
             className="flex items-center gap-2 h-full px-3 md:px-4 border-r border-border text-sub hover:text-white transition-colors"
