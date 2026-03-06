@@ -540,9 +540,9 @@ export function PairDetailClient({ address }: Props) {
               : null
 
             return (
-              <div className="border border-border rounded-lg px-2 py-3 flex justify-center">
-                <div className="grid grid-cols-3 gap-x-8 gap-y-5">
-                  <div className="flex flex-col gap-2">
+              <div className="border border-border rounded-lg px-3 py-3">
+                <div className="grid grid-cols-3 gap-y-5 text-center">
+                  <div className="flex flex-col items-center gap-2">
                     <span className="text-[12px] text-sub">Top 10</span>
                     {top10Pct !== null ? (
                       <div className="flex items-center gap-1">
@@ -551,7 +551,7 @@ export function PairDetailClient({ address }: Props) {
                       </div>
                     ) : <LoadingText />}
                   </div>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col items-center gap-2">
                     <span className="text-[12px] text-sub">DEV</span>
                     {devPct !== null ? (
                       <div className="flex items-center gap-1">
@@ -560,20 +560,20 @@ export function PairDetailClient({ address }: Props) {
                       </div>
                     ) : <LoadingText />}
                   </div>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col items-center gap-2">
                     <span className="text-[12px] text-sub">Holders</span>
                     <span className="text-[14px] text-text tabular">{holderCount !== null ? fmtNum(holderCount) : '—'}</span>
                   </div>
                   {/* Row 2 */}
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col items-center gap-2">
                     <span className="text-[12px] text-sub">NoHoneypot</span>
                     {isHoneypot !== null ? (isHoneypot ? <WarnIcon /> : <CheckIcon />) : <LoadingText />}
                   </div>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col items-center gap-2">
                     <span className="text-[12px] text-sub">Verified</span>
                     {isVerified !== null ? (isVerified ? <CheckIcon /> : <WarnIcon />) : <LoadingText />}
                   </div>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col items-center gap-2">
                     <span className="text-[12px] text-sub">Locked</span>
                     {lockedPct !== null ? (
                       <span className={clsx('text-[14px] tabular', lockedPct > 50 ? 'text-green' : 'text-red')}>{lockedPct.toFixed(1)}%</span>
