@@ -274,8 +274,8 @@ export default function WatchlistPage() {
     )
   }
 
-  /* State 2: Logged in but empty */
-  if (activeList.pairIds.length === 0) {
+  /* State 2: Logged in but empty (no pairIds or none matched in cache) */
+  if (watchedPairs.length === 0) {
     return (
       <div className="flex flex-col flex-1 min-h-0 px-3 pt-3 md:px-5 md:pt-4 pb-0">
         <WatchlistHeader lists={lists} activeListId={activeListId} onSwitch={setActiveList} onManage={() => setManageOpen(true)} />

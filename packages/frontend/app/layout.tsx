@@ -18,13 +18,13 @@ export const metadata: Metadata = {
     siteName: 'dex.express',
     title: 'The Fastest Multi-Chain DEX Screener — dex.express',
     description: 'Track tokens across Base, BNB Chain, and Solana with live prices, smart money wallets, and contract security insights.',
-    images: [{ url: '/og-image.jpg', width: 1456, height: 816 }],
+    images: [{ url: '/og-base.jpg', width: 1456, height: 816 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'The Fastest Multi-Chain DEX Screener — dex.express',
     description: 'Track tokens across Base, BNB Chain, and Solana with live prices, smart money wallets, and contract security insights.',
-    images: ['/og-image.jpg'],
+    images: ['/og-base.jpg'],
   },
   robots: {
     index: true,
@@ -53,7 +53,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
               {/* Main content */}
               <div className="flex flex-1 flex-col overflow-hidden min-h-0">
-                <main className="flex-1 flex flex-col overflow-hidden min-h-0">
+                <main className="flex-1 flex flex-col overflow-hidden min-h-0 pb-[52px] md:pb-0">
                   {children}
                 </main>
               </div>

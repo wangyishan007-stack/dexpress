@@ -41,6 +41,8 @@ const _holdersCache = new Map<string, { data: MoralisHoldersResult; ts: number }
 
 export async function fetchTokenHolders(tokenAddress: string, chain: ChainSlug = DEFAULT_CHAIN, limit = 50): Promise<MoralisHoldersResult> {
   const empty: MoralisHoldersResult = { holders: [], totalSupply: '0' }
+  // Moralis EVM API does not support Solana
+  if (getChain(chain).chainType !== 'evm') return empty
   const moralisChain = getChain(chain).moralisChain
   const addrLower = tokenAddress.toLowerCase()
 
@@ -75,6 +77,8 @@ export async function fetchTokenHolders(tokenAddress: string, chain: ChainSlug =
 /* ── Top Traders ──────────────────────────────────────── */
 
 export async function fetchTopTraders(tokenAddress: string, chain: ChainSlug = DEFAULT_CHAIN): Promise<MoralisTrader[]> {
+  // Moralis EVM API does not support Solana
+  if (getChain(chain).chainType !== 'evm') return []
   const moralisChain = getChain(chain).moralisChain
   const addrLower = tokenAddress.toLowerCase()
 

@@ -162,11 +162,15 @@ async function fetchBatch(urls: string[]): Promise<NextResponse> {
       await Promise.all(promises)
     }
   } else {
-    // No proxy (Vercel): fetch all in parallel
-    const promises = uncachedIndexes.map(i =>
-      fetchOne(urls[i]).then(r => { results[i] = r })
-    )
-    await Promise.all(promises)
+    // No proxy: stagger requests to avoid GT rate limiting (30 req/min)
+    for (let start = 0; start < uncachedIndexes.length; start += 2) {
+      if (start > 0) await new Promise(r => setTimeout(r, 500))
+      const chunk = uncachedIndexes.slice(start, start + 2)
+      const promises = chunk.map(i =>
+        fetchOne(urls[i]).then(r => { results[i] = r })
+      )
+      await Promise.all(promises)
+    }
   }
 
   return NextResponse.json({ results })

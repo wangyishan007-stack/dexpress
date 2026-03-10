@@ -280,7 +280,7 @@ export function PairDetailClient({ address }: Props) {
     // Start polling after 10s — initial data comes from SWR pair fetch
     const timer = setInterval(poll, 10_000)
     return () => { cancelled = true; clearInterval(timer) }
-  }, [address])
+  }, [address, chain])
 
   // Live price
   const prevPrice = useRef(0)

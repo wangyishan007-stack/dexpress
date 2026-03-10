@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import useSWR from 'swr'
 import type { PairsResponse } from '@dex/shared'
 import { pairsFetcher } from '../lib/dexscreener-client'
-import { type ChainSlug, getChain } from '@/lib/chains'
+import { type ChainSlug } from '@/lib/chains'
 
 export interface Stats {
   volume_24h:   number
@@ -13,20 +13,12 @@ export interface Stats {
   block_ts:     string | null
 }
 
-const DEFAULT_STATS: Stats = { volume_24h: 0, txns_24h: 0, latest_block: 0, block_ts: null }
-
 async function fetchLatestBlock(key: string): Promise<{ block: number; ts: string }> {
-  // Key format: 'latest-block:{chain}'
-  const chain = (key.split(':')[1] as ChainSlug) || 'base'
-  const rpcUrl = getChain(chain).rpcUrl
+  const chain = key.split(':')[1] || 'base'
   try {
-    const res = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 }),
-    })
-    const data = await res.json()
-    return { block: parseInt(data.result, 16), ts: new Date().toISOString() }
+    const res = await fetch(`/api/rpc?chain=${chain}`, { signal: AbortSignal.timeout(6_000) })
+    if (!res.ok) return { block: 0, ts: null as unknown as string }
+    return await res.json()
   } catch {
     return { block: 0, ts: null as unknown as string }
   }

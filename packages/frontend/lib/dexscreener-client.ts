@@ -197,8 +197,7 @@ function buildSparklineFromChanges(
 }
 
 /**
- * Trending score: makers (highest weight) × positive change × txns
- * Matches DexScreener Trending 6H logic.
+ * Trending score fallback: used for pools NOT in GT's trending list.
  */
 function calcTrendingScore(makers: number, change: number, txns: number): number {
   const makersScore = Math.log10(Math.max(makers, 1) + 1) * 100
@@ -354,31 +353,53 @@ function _getCache(chain: ChainSlug): ChainCache {
 
 const TRENDING_WINDOWS = ['5m', '1h', '6h', '24h'] as const
 
+/**
+ * Build GT API URLs. Strategy:
+ * - Indexes 0-3: trending per time window (5m, 1h, 6h, 24h) — matches GT website sorting
+ * - Index 4: trending (no duration) — fallback for chains where duration params return 0
+ * - Index 5: new_pools
+ * - Indexes 6-7: pools by volume (broadest coverage)
+ */
 function buildGTUrls(chain: ChainSlug): string[] {
   const network = getChain(chain).geckoTerminalSlug
   return [
-    // First 4: trending per window (indexes 0-3 map to TRENDING_WINDOWS)
     `${GT_BASE}/networks/${network}/trending_pools?duration=5m`,
     `${GT_BASE}/networks/${network}/trending_pools?duration=1h`,
     `${GT_BASE}/networks/${network}/trending_pools?duration=6h`,
     `${GT_BASE}/networks/${network}/trending_pools?duration=24h`,
-    // Other endpoints
+    `${GT_BASE}/networks/${network}/trending_pools`,
     `${GT_BASE}/networks/${network}/new_pools`,
     `${GT_BASE}/networks/${network}/pools?sort=h24_volume_usd_desc&page=1`,
     `${GT_BASE}/networks/${network}/pools?sort=h24_volume_usd_desc&page=2`,
   ]
 }
 
-async function fetchPoolsFromGT(chain: ChainSlug = DEFAULT_CHAIN): Promise<Pool[]> {
+async function fetchPoolsFromGT(chain: ChainSlug = DEFAULT_CHAIN, retries = 1): Promise<Pool[]> {
   // Single batch request — server handles rate limiting
   const results = await fetchGTBatch(buildGTUrls(chain))
 
+  // Helper: build rank map from GT pool list
+  const buildRankMap = (pools: GTPool[]) => {
+    const m = new Map<string, number>()
+    pools.forEach((p, i) => m.set(p.attributes.address, pools.length - i))
+    return m
+  }
+
+  // Build fallback chain: no-duration (index 4) → 24h (index 3)
+  const noDurPools = results[4]?.pools ?? []
+  const h24Pools   = results[3]?.pools ?? []
+  const fallbackRank = noDurPools.length > 0
+    ? buildRankMap(noDurPools)
+    : h24Pools.length > 0
+      ? buildRankMap(h24Pools)
+      : new Map<string, number>()
+
   // Build trending rank per time window from GT's order (first 4 results)
+  // Fall back for chains where specific durations return 0 (BNB 6h, Solana 5m/1h/6h)
   const trendingRanks = TRENDING_WINDOWS.map((_, wi) => {
-    const rankMap = new Map<string, number>()
     const pools = results[wi]?.pools ?? []
-    pools.forEach((p, i) => rankMap.set(p.attributes.address, pools.length - i))
-    return rankMap
+    if (pools.length > 0) return buildRankMap(pools)
+    return fallbackRank
   })
 
   const allLogos: LogoMap = new Map()
@@ -398,22 +419,28 @@ async function fetchPoolsFromGT(chain: ChainSlug = DEFAULT_CHAIN): Promise<Pool[
     .map(p => mapPool(p, allLogos))
     .filter((p): p is Pool => p !== null)
 
-  // Override trending scores per window with GT's actual order
+  // Override trending scores with GT's actual trending order per window
   for (const pool of pools) {
     TRENDING_WINDOWS.forEach((w, wi) => {
       const rank = trendingRanks[wi].get(pool.address)
       if (rank !== undefined) {
-        ;(pool as any)[`trending_${w}`] = 10000 + rank * 100
+        const score = 10000 + rank * 100
+        ;(pool as any)[`trending_${w}`] = score
       }
     })
-    // trending_score defaults to 6h ranking
+    // Default trending_score uses 6h window
     const rank6h = trendingRanks[2].get(pool.address)
     if (rank6h !== undefined) {
       pool.trending_score = 10000 + rank6h * 100
     }
   }
 
-  // const tc = trendingRanks.map(m => m.size)
+  // Retry once if GT returned empty (transient 429 / rate limit)
+  if (pools.length === 0 && retries > 0) {
+    await new Promise(r => setTimeout(r, 2000))
+    return fetchPoolsFromGT(chain, retries - 1)
+  }
+
   return pools
 }
 
@@ -476,6 +503,10 @@ export async function pairsFetcher(key: string): Promise<PairsResponse> {
 
   const chain = chainStr as ChainSlug
   const pools = await fetchDexScreenerClient(chain)
+  // Throw on empty so SWR retries instead of caching empty result as valid data
+  if (pools.length === 0) {
+    throw new Error(`No pools returned for ${chain} — possible rate limiting`)
+  }
   const sorted = [...pools].sort((a, b) => b.trending_score - a.trending_score)
   return { pairs: sorted, total: sorted.length, limit: sorted.length, offset: 0 }
 }
@@ -504,7 +535,8 @@ const _tokenInfoCache = new Map<string, { data: TokenInfo; ts: number }>()
 const TOKEN_INFO_CACHE_TTL = 300_000 // 5min — social links rarely change
 
 export async function fetchTokenInfo(tokenAddress: string, chain: ChainSlug = DEFAULT_CHAIN): Promise<TokenInfo | null> {
-  const cacheKey = `${chain}:${tokenAddress.toLowerCase()}`
+  const isEvm = getChain(chain).chainType === 'evm'
+  const cacheKey = `${chain}:${isEvm ? tokenAddress.toLowerCase() : tokenAddress}`
   const cached = _tokenInfoCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < TOKEN_INFO_CACHE_TTL) return cached.data
 
@@ -648,10 +680,12 @@ export function getCachedPools(chain: string = DEFAULT_CHAIN): Pool[] {
 // ─── Instant detail lookup from list/detail cache (no network) ──
 
 export function getPoolFromCache(address: string, chain: ChainSlug = DEFAULT_CHAIN): (Pool & PoolExtended & { recent_swaps: GTTrade[] }) | null {
-  const cacheKey = `${chain}:${address.toLowerCase()}`
+  const isEvm = getChain(chain).chainType === 'evm'
+  const addrKey = isEvm ? address.toLowerCase() : address
+  const cacheKey = `${chain}:${addrKey}`
   const detail = _detailCache.get(cacheKey)
   if (detail) return detail.data
-  return _poolFromList(address.toLowerCase(), chain)
+  return _poolFromList(addrKey, chain)
 }
 
 // ─── Per-address detail cache ──────────────────────────────
@@ -661,8 +695,9 @@ const DETAIL_CACHE_TTL = 60_000 // 60s
 
 // ─── Single pair lookup ───────────────────────────────────────
 
-function _poolFromList(addrLower: string, chain: ChainSlug = DEFAULT_CHAIN): (Pool & PoolExtended & { recent_swaps: GTTrade[] }) | null {
-  const fromList = _getCache(chain).pools.find(p => p.address.toLowerCase() === addrLower)
+function _poolFromList(addr: string, chain: ChainSlug = DEFAULT_CHAIN): (Pool & PoolExtended & { recent_swaps: GTTrade[] }) | null {
+  const isEvm = getChain(chain).chainType === 'evm'
+  const fromList = _getCache(chain).pools.find(p => isEvm ? p.address.toLowerCase() === addr : p.address === addr)
   if (!fromList) return null
   return {
     ...fromList,
@@ -678,7 +713,9 @@ export async function fetchPairByAddress(
   address: string,
   chain: ChainSlug = DEFAULT_CHAIN
 ): Promise<(Pool & PoolExtended & { recent_swaps: GTTrade[] }) | null> {
-  const cacheKey = `${chain}:${address.toLowerCase()}`
+  const isEvm = getChain(chain).chainType === 'evm'
+  const addrKey = isEvm ? address.toLowerCase() : address
+  const cacheKey = `${chain}:${addrKey}`
 
   // 1. Check per-address detail cache (avoids redundant API calls)
   const cached = _detailCache.get(cacheKey)
@@ -692,7 +729,7 @@ export async function fetchPairByAddress(
 
   // 4. API failed — use list cache as fallback (extended fields will be 0)
   // Kick off background fetch so the detail cache is populated for next SWR refresh
-  const fallback = _poolFromList(address.toLowerCase(), chain)
+  const fallback = _poolFromList(addrKey, chain)
   if (fallback) {
     _fetchAndCacheDetail(address, cacheKey, chain).catch(() => {})
   }

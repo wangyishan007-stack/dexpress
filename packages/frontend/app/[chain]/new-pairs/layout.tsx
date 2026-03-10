@@ -6,6 +6,13 @@ export function generateMetadata({ params }: { params: { chain: string } }): Met
   return {
     title: `New Pairs — Recently Launched Tokens on ${c.name}`,
     description: `Discover newly created token pairs on ${c.name} DEX. Track new listings in real-time.`,
+    openGraph: {
+      images: [{ url: '/og-new-pairs.jpg', width: 1456, height: 816 }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      images: ['/og-new-pairs.jpg'],
+    },
   }
 }
 

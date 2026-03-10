@@ -75,21 +75,79 @@ export interface GoPlusResult {
 
 export async function fetchTokenSecurity(tokenAddress: string, chain: ChainSlug = DEFAULT_CHAIN): Promise<GoPlusResult | null> {
   try {
-    const chainId = getChain(chain).goplusChainId
-    const res = await fetch(
-      `${GOPLUS_BASE}/token_security/${chainId}?contract_addresses=${tokenAddress}`,
-      { signal: AbortSignal.timeout(10_000) }
-    )
+    const chainConfig = getChain(chain)
+    const isSolana = chainConfig.chainType === 'svm'
+
+    // Solana uses a different endpoint path: /api/v1/solana/token_security
+    const url = isSolana
+      ? `${GOPLUS_BASE}/solana/token_security?contract_addresses=${tokenAddress}`
+      : `${GOPLUS_BASE}/token_security/${chainConfig.goplusChainId}?contract_addresses=${tokenAddress}`
+
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
     if (!res.ok) return null
     const data = await res.json()
     const result = data?.result
     if (!result) return null
 
-    // GoPlus returns results keyed by lowercase address
+    // GoPlus returns results keyed by address
     const key = Object.keys(result)[0]
-    return key ? result[key] : null
+    if (!key) return null
+    const raw = result[key]
+
+    // Solana response has different field structure — normalize to GoPlusResult
+    if (isSolana) return normalizeSolanaResult(raw)
+    return raw
   } catch (e) {
     console.error('[GoPlus] fetch error:', e)
     return null
+  }
+}
+
+/** Map Solana GoPlus response to our GoPlusResult interface */
+function normalizeSolanaResult(s: any): GoPlusResult {
+  const meta = s.metadata || {}
+  return {
+    token_name:    meta.name || '',
+    token_symbol:  meta.symbol || '',
+    total_supply:  String(s.total_supply || '0'),
+    holder_count:  String(s.holder_count || '0'),
+
+    // Solana uses object { status: '0'|'1', authority: [] } instead of flat string
+    is_honeypot:          '0', // Solana doesn't have honeypot detection
+    is_open_source:       '1', // Solana programs are generally verifiable
+    is_mintable:          s.mintable?.status || '0',
+    is_proxy:             '0',
+    is_blacklisted:       '0',
+    is_whitelisted:       '0',
+    is_anti_whale:        '0',
+    is_in_dex:            '1',
+
+    buy_tax:              '0',
+    sell_tax:             '0',
+    slippage_modifiable:  '0',
+    transfer_pausable:    s.freezable?.status || '0',
+    trading_cooldown:     '0',
+    cannot_buy:           '0',
+    cannot_sell_all:      '0',
+    external_call:        '0',
+    selfdestruct:         s.closable?.status || '0',
+    hidden_owner:         '0',
+    owner_change_balance: s.balance_mutable_authority?.status || '0',
+    personal_slippage_modifiable: '0',
+    anti_whale_modifiable: '0',
+
+    owner_address:   '',
+    owner_balance:   '0',
+    owner_percent:   '0',
+    creator_address: '',
+    creator_balance: '0',
+    creator_percent: '0',
+
+    lp_holder_count: String(s.lp_holders?.length || '0'),
+    lp_total_supply: '0',
+    lp_holders:      Array.isArray(s.lp_holders) ? s.lp_holders : [],
+    holders:         Array.isArray(s.holders) ? s.holders : [],
+
+    honeypot_with_same_creator: 0,
   }
 }

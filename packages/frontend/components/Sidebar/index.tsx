@@ -13,11 +13,13 @@ import { LanguageSwitcher } from '../LanguageSwitcher'
 import { ChainSelector } from '../ChainSelector'
 import { useTranslations } from 'next-intl'
 import { SUPPORTED_CHAINS, DEFAULT_CHAIN, type ChainSlug } from '@/lib/chains'
+import { loadPageChain } from '../ChainTabs'
 
-/** Extract chain slug from pathname like /base/pair/0x... → 'base' */
-function getChainFromPath(pathname: string): ChainSlug {
+/** Extract chain segment from pathname like /base/pair/0x... → 'base', /all → 'all' */
+function getChainFromPath(pathname: string): string {
   const seg = pathname.split('/')[1] || ''
-  if (SUPPORTED_CHAINS.includes(seg as ChainSlug)) return seg as ChainSlug
+  if (seg === 'all') return 'all'
+  if (SUPPORTED_CHAINS.includes(seg as ChainSlug)) return seg
   return DEFAULT_CHAIN
 }
 
@@ -66,43 +68,46 @@ function LogoMark({ className }: { className?: string }) {
 
 /* ── Nav items config ────────────────────────────────────── */
 type NavKey = 'allCoins' | 'newPairs' | 'gainers' | 'watchlist'
-const NAV_KEYS: { path: string; key: NavKey; Icon: React.ComponentType<{ active?: boolean }> }[] = [
-  { path: '',          key: 'allCoins',  Icon: IconAllCoins  },
-  { path: '/new-pairs', key: 'newPairs',  Icon: IconNewPairs  },
-  { path: '/gainers',   key: 'gainers',   Icon: IconGainers   },
-  { path: '/watchlist', key: 'watchlist', Icon: IconWatchlist },
+const NAV_KEYS: { path: string; key: NavKey; pageKey: string; Icon: React.ComponentType<{ active?: boolean }> }[] = [
+  { path: '',          key: 'allCoins',  pageKey: 'allcoins',  Icon: IconAllCoins  },
+  { path: '/new-pairs', key: 'newPairs',  pageKey: 'new-pairs', Icon: IconNewPairs  },
+  { path: '/gainers',   key: 'gainers',   pageKey: 'gainers',   Icon: IconGainers   },
+  { path: '/watchlist', key: 'watchlist', pageKey: 'watchlist', Icon: IconWatchlist },
 ]
 
-function buildNavItems(chain: ChainSlug) {
-  return NAV_KEYS.map(item => ({
-    ...item,
-    href: `/${chain}${item.path}`,
-  }))
+/** Build nav items with per-page chain from localStorage */
+function buildNavItems(urlChain: string, perPage: boolean) {
+  return NAV_KEYS.map(item => {
+    const chain = perPage ? loadPageChain(item.pageKey) : urlChain
+    return {
+      ...item,
+      href: `/${chain}${item.path}`,
+    }
+  })
 }
 
-/* ── Mobile tab nav ──────────────────────────────────────── */
+/* ── Mobile bottom tab bar ───────────────────────────────── */
 function MobileTabNav() {
   const pathname = usePathname()
   const t = useTranslations('nav')
   const chain = getChainFromPath(pathname)
-  const navItems = buildNavItems(chain)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+  const navItems = buildNavItems(chain, mounted)
 
   return (
-    <nav className="flex md:hidden overflow-x-auto scrollbar-hide border-b border-border bg-bg flex-shrink-0">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-bg">
       {navItems.map(({ href, path, key, Icon }) => {
-        const chainBase = `/${chain}`
         const active = path === ''
-          ? pathname === chainBase || pathname.startsWith(`${chainBase}/pair`)
-          : pathname === href || pathname.startsWith(href + '/')
+          ? pathname === `/${chain}` || pathname.startsWith(`/${chain}/pair`)
+          : pathname === `/${chain}${path}` || pathname.startsWith(`/${chain}${path}/`)
         return (
           <Link
-            key={href}
+            key={key}
             href={href}
             className={clsx(
-              'flex items-center gap-2 px-4 py-3 whitespace-nowrap text-[13px] transition-colors flex-shrink-0',
-              active
-                ? 'text-text font-bold border-b-2 border-blue'
-                : 'text-sub'
+              'flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] transition-colors',
+              active ? 'text-blue font-bold' : 'text-sub'
             )}
           >
             <Icon active={active} />
@@ -147,12 +152,14 @@ const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed'
 export function Sidebar() {
   const pathname = usePathname()
   const chain = getChainFromPath(pathname)
-  const navItems = buildNavItems(chain)
   const [searchOpen, setSearchOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const { ready, authenticated, user, login, logout } = useAuth()
   const tNav = useTranslations('nav')
+
+  // Per-page chain nav: after hydration, each nav link uses its own stored chain
+  const navItems = buildNavItems(chain, hydrated)
 
   // Hydrate collapsed state from localStorage
   useEffect(() => {
@@ -181,7 +188,7 @@ export function Sidebar() {
       <div className="flex md:hidden items-center justify-between h-[48px] px-3 bg-bg flex-shrink-0">
         <div className="flex items-center gap-2">
           <Link href={`/${chain}`}><LogoMark className="h-[28px] w-auto" /></Link>
-          <ChainSelector collapsed />
+          {/* <ChainSelector collapsed /> */}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -221,9 +228,6 @@ export function Sidebar() {
           )}
         </div>
       </div>
-
-      {/* ── Mobile tab navigation ───────────────────────────── */}
-      <MobileTabNav />
 
       {/* ── Desktop sidebar ─────────────────────────────────── */}
       <aside
@@ -286,8 +290,8 @@ export function Sidebar() {
             </button>
           )}
 
-          {/* Chain selector */}
-          <ChainSelector collapsed={collapsed} />
+          {/* Chain selector — hidden, chain switching is done via ChainTabs */}
+          {/* <ChainSelector collapsed={collapsed} /> */}
 
           {/* Nav + Login */}
           <div className={clsx('flex flex-col', collapsed ? 'gap-[12px]' : 'gap-[20px]')}>
@@ -295,14 +299,14 @@ export function Sidebar() {
             {/* Nav items */}
             <nav className={clsx('flex flex-col', collapsed ? 'gap-[8px] items-center' : 'gap-[16px]')}>
               {navItems.map(({ href, path, key, Icon }) => {
-                const chainBase = `/${chain}`
+                // Active detection always uses URL chain, not per-page href
                 const active = path === ''
-                  ? pathname === chainBase || pathname.startsWith(`${chainBase}/pair`)
-                  : pathname === href || pathname.startsWith(href + '/')
+                  ? pathname === `/${chain}` || pathname.startsWith(`/${chain}/pair`)
+                  : pathname === `/${chain}${path}` || pathname.startsWith(`/${chain}${path}/`)
                 const label = tNav(key)
                 return (
                   <Link
-                    key={href}
+                    key={key}
                     href={href}
                     title={collapsed ? label : undefined}
                     className={clsx(
@@ -380,12 +384,12 @@ export function Sidebar() {
               )
             )}
 
-          </div>
-        </div>
+            {/* Language switcher — grouped with account */}
+            <div className={collapsed ? 'flex justify-center' : ''}>
+              <LanguageSwitcher iconOnly={collapsed} />
+            </div>
 
-        {/* ── Language switcher ───────────────────────────── */}
-        <div className={collapsed ? 'flex justify-center pb-[12px]' : 'px-[24px] pb-[12px]'}>
-          <LanguageSwitcher iconOnly={collapsed} />
+          </div>
         </div>
 
         {/* ── Watchlist panel (bottom) ─────────────────────── */}
@@ -394,6 +398,9 @@ export function Sidebar() {
       </aside>
 
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+
+      {/* ── Mobile bottom tab bar (fixed) ───────────────────── */}
+      <MobileTabNav />
     </>
   )
 }

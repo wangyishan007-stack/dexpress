@@ -167,12 +167,13 @@ export function SearchModal({ open, onClose }: Props) {
   const goToPair = useCallback((pool: Pool) => {
     addHistory(pool, chain)
     onClose()
-    router.push(`/${chain}/pair/${pool.address}`)
+    const pairChain = (pool as any)._chain || chain
+    router.push(`/${pairChain}/pair/${pool.address}`)
   }, [onClose, router, chain])
 
   const goToHistory = useCallback((item: HistoryItem) => {
     onClose()
-    router.push(`/${chain}/pair/${item.address}`)
+    router.push(`/${(item as any).chain || chain}/pair/${item.address}`)
   }, [onClose, router, chain])
 
   if (!open) return null

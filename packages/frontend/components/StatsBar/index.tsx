@@ -11,15 +11,23 @@ async function fetchLatestBlock(key: string): Promise<{ block: number; ts: strin
   // Key format: 'latest-block:{chain}' — extract chain to get rpcUrl
   const chain = key.split(':')[1] || 'base'
   const { getChain } = await import('@/lib/chains')
-  const rpcUrl = getChain(chain as import('@/lib/chains').ChainSlug).rpcUrl
+  const chainConfig = getChain(chain as import('@/lib/chains').ChainSlug)
+  const rpcUrl = chainConfig.rpcUrl
   try {
+    // Different RPC methods for EVM vs SVM chains
+    const body = chainConfig.chainType === 'svm'
+      ? JSON.stringify({ jsonrpc: '2.0', method: 'getSlot', params: [{ commitment: 'finalized' }], id: 1 })
+      : JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 })
     const res = await fetch(rpcUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 }),
+      body,
     })
     const data = await res.json()
-    return { block: parseInt(data.result, 16), ts: new Date().toISOString() }
+    const block = chainConfig.chainType === 'svm'
+      ? (typeof data.result === 'number' ? data.result : 0)
+      : parseInt(data.result, 16)
+    return { block, ts: new Date().toISOString() }
   } catch {
     return { block: 0, ts: null as unknown as string }
   }

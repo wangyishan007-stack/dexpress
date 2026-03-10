@@ -23,7 +23,7 @@ const VALID_SORT_FIELDS = new Set<string>([
 function sortPools(pools: Pool[], sort: string, order: 'asc' | 'desc'): Pool[] {
   // Validate sort field
   const sortField = VALID_SORT_FIELDS.has(sort) ? sort : 'trending_score'
-  
+
   return [...pools].sort((a, b) => {
     const aVal = (a as unknown as Record<string, unknown>)[sortField] ?? 0
     const bVal = (b as unknown as Record<string, unknown>)[sortField] ?? 0

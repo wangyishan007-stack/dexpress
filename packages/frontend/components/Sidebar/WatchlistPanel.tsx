@@ -16,7 +16,7 @@ const COLLAPSED_COUNT = 2
 export function WatchlistPanel() {
   const chain = useChainSlug()
   const { ready, authenticated } = useAuth()
-  const { activeList, count } = useWatchlist()
+  const { lists } = useWatchlist()
   const [expanded, setExpanded] = useState(false)
   const t = useTranslations('watchlistPanel')
 
@@ -26,8 +26,10 @@ export function WatchlistPanel() {
   }
 
   const allPools = getCachedPools(chain)
-  const cacheReady = allPools.length > 0
-  const watchedPools = activeList.pairIds
+
+  // Merge all pairIds from all watchlists, deduplicated
+  const allPairIds = [...new Set(lists.flatMap(l => l.pairIds))]
+  const watchedPools = allPairIds
     .map(addr => allPools.find(p => p.address.toLowerCase() === addr.toLowerCase()))
     .filter(Boolean) as typeof allPools
 
@@ -36,44 +38,34 @@ export function WatchlistPanel() {
 
   return (
     <div className="border-t border-border flex flex-col">
-      {/* Header row */}
+      {/* Header row — always show expand/collapse toggle */}
       <div className="flex items-center justify-between px-[24px] pt-[16px] pb-[8px]">
-        <Link href="/watchlist" className="flex items-center gap-1 group">
-          <span className="text-[14px] text-text font-medium">{activeList.name}</span>
-          {count > 0 && (
-            <span className="text-[11px] text-sub bg-border/60 rounded px-1.5 py-0.5">{count}</span>
-          )}
+        <Link href={`/${chain}/watchlist`} className="flex items-center gap-1 group">
+          <span className="text-[14px] text-text font-medium">Watchlist</span>
         </Link>
-        {canExpand && (
-          <button
-            onClick={() => setExpanded(e => !e)}
-            className="flex items-center justify-center w-[24px] h-[24px] text-sub hover:text-text transition-colors"
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="flex items-center justify-center w-[24px] h-[24px] text-sub hover:text-text transition-colors"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            className={clsx('transition-transform duration-200', expanded && 'rotate-180')}
           >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 12 12"
-              fill="none"
-              className={clsx('transition-transform duration-200', expanded && 'rotate-180')}
-            >
-              <path d="M2 8L6 4L10 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-        )}
+            <path d="M2 8L6 4L10 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
       </div>
 
       {/* Pool list */}
-      <div className={clsx(
-        'px-[24px] pb-[16px]',
-        expanded && 'overflow-y-auto max-h-[280px]'
-      )}>
-        {!cacheReady && activeList.pairIds.length > 0 ? (
-          <p className="text-[12px] text-sub/60">{t('loading')}</p>
-        ) : watchedPools.length === 0 ? (
+      <div className="px-[24px] pb-[16px]">
+        {watchedPools.length === 0 ? (
           <p className="text-[12px] text-sub/60">{t('emptyList')}</p>
         ) : (
-          <div className="flex flex-col gap-1">
-            {visiblePools.map(pool => {
+          <div className={clsx('flex flex-col gap-1', expanded ? 'overflow-y-auto max-h-[168px]' : '')}>
+            {(expanded ? watchedPools : watchedPools.slice(0, 2)).map(pool => {
               const t0IsQuote = isQuoteToken(chain, pool.token0.address)
               const base = t0IsQuote ? pool.token1 : pool.token0
               return (
