@@ -8,17 +8,13 @@ import { useWatchlist } from '../../hooks/useWatchlist'
 import { useAuth } from '../../hooks/useAuth'
 import { getCachedPools } from '../../lib/dexscreener-client'
 import { fmtPrice } from '../../lib/formatters'
-
-const QUOTE_TOKEN_ADDRS = new Set([
-  '0x4200000000000000000000000000000000000006',
-  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
-  '0xfde4c96c8593536e31f229ea8f37b2ada2699bb2',
-  '0x50c5725949a6f0c72e6c4a641f24049a917db0cb',
-])
+import { useChainSlug } from '@/hooks/useChainSlug'
+import { isQuoteToken } from '@/lib/chains'
 
 const COLLAPSED_COUNT = 2
 
 export function WatchlistPanel() {
+  const chain = useChainSlug()
   const { ready, authenticated } = useAuth()
   const { activeList, count } = useWatchlist()
   const [expanded, setExpanded] = useState(false)
@@ -29,7 +25,7 @@ export function WatchlistPanel() {
     return null
   }
 
-  const allPools = getCachedPools()
+  const allPools = getCachedPools(chain)
   const cacheReady = allPools.length > 0
   const watchedPools = activeList.pairIds
     .map(addr => allPools.find(p => p.address.toLowerCase() === addr.toLowerCase()))
@@ -78,12 +74,12 @@ export function WatchlistPanel() {
         ) : (
           <div className="flex flex-col gap-1">
             {visiblePools.map(pool => {
-              const t0IsQuote = QUOTE_TOKEN_ADDRS.has(pool.token0.address.toLowerCase())
+              const t0IsQuote = isQuoteToken(chain, pool.token0.address)
               const base = t0IsQuote ? pool.token1 : pool.token0
               return (
                 <Link
                   key={pool.address}
-                  href={`/pair/${pool.address}`}
+                  href={`/${chain}/pair/${pool.address}`}
                   className="flex items-center justify-between py-1 hover:bg-border/20 rounded px-1 -mx-1 transition-colors"
                 >
                   <span className="text-[12px] text-text font-medium">{base.symbol}</span>

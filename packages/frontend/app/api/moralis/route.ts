@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const type    = searchParams.get('type')
   const address = searchParams.get('address')
+  const chain   = searchParams.get('chain') || 'base'
 
   if (!address || !type) {
     return NextResponse.json({ error: 'Missing required params: type, address' }, { status: 400 })
@@ -18,10 +19,10 @@ export async function GET(req: NextRequest) {
 
   let upstreamUrl = ''
   if (type === 'traders') {
-    upstreamUrl = `${MORALIS_BASE}/erc20/${address}/top-gainers?chain=base`
+    upstreamUrl = `${MORALIS_BASE}/erc20/${address}/top-gainers?chain=${chain}`
   } else if (type === 'holders') {
     const limit = searchParams.get('limit') ?? '50'
-    upstreamUrl = `${MORALIS_BASE}/erc20/${address}/owners?chain=base&order=DESC&limit=${limit}`
+    upstreamUrl = `${MORALIS_BASE}/erc20/${address}/owners?chain=${chain}&order=DESC&limit=${limit}`
   } else {
     return NextResponse.json({ error: 'Invalid type, must be traders or holders' }, { status: 400 })
   }

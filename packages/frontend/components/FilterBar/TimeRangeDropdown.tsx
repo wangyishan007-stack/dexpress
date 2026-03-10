@@ -2,13 +2,14 @@
 
 import clsx from 'clsx'
 import type { TimeWindow } from '@dex/shared'
+import { useTranslations } from 'next-intl'
 import { Dropdown, DropdownItem } from '../Dropdown'
 
-const OPTIONS: { value: TimeWindow; label: string }[] = [
-  { value: '5m',  label: 'Last 5 minutes' },
-  { value: '1h',  label: 'Last 1 hour' },
-  { value: '6h',  label: 'Last 6 hours' },
-  { value: '24h', label: 'Last 24 hours' },
+const OPTION_KEYS: { value: TimeWindow; labelKey: string }[] = [
+  { value: '5m',  labelKey: 'last5m' },
+  { value: '1h',  labelKey: 'last1h' },
+  { value: '6h',  labelKey: 'last6h' },
+  { value: '24h', labelKey: 'last24h' },
 ]
 
 const BTN_BASE = 'flex items-center gap-2 rounded-lg font-medium transition-colors'
@@ -36,26 +37,27 @@ interface Props {
 }
 
 export function TimeRangeDropdown({ window, onWindow }: Props) {
-  const current = OPTIONS.find(o => o.value === window)
+  const t = useTranslations('filter')
+  const current = OPTION_KEYS.find(o => o.value === window)
 
   return (
     <Dropdown
       trigger={
         <button className={clsx(BTN_BASE, BTN_SIZE, 'bg-blue text-white flex-shrink-0 whitespace-nowrap')}>
           <span><IconClock /></span>
-          <span className="hidden md:inline">{current?.label ?? 'Last 24 hours'}</span>
+          <span className="hidden md:inline">{current ? t(current.labelKey) : t('last24h')}</span>
           <span className="md:hidden">{window.toUpperCase()}</span>
           <IconChevron />
         </button>
       }
     >
-      {OPTIONS.map(opt => (
+      {OPTION_KEYS.map(opt => (
         <DropdownItem
           key={opt.value}
           active={window === opt.value}
           onClick={() => onWindow(opt.value)}
         >
-          {opt.label}
+          {t(opt.labelKey)}
         </DropdownItem>
       ))}
     </Dropdown>

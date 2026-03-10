@@ -3,12 +3,15 @@
 import { useTranslations } from 'next-intl'
 import { fmtUsd, fmtNum, shortAddr } from '../../lib/formatters'
 import type { MoralisHoldersResult } from '../../lib/moralis'
+import { useChain } from '@/contexts/ChainContext'
+import { explorerLink } from '@/lib/chains'
 
 interface Props {
   holdersData?: MoralisHoldersResult
 }
 
 export function HoldersTable({ holdersData }: Props) {
+  const { chain } = useChain()
   const t = useTranslations('holdersTable')
 
   if (!holdersData) {
@@ -64,7 +67,7 @@ export function HoldersTable({ holdersData }: Props) {
               ) : (
                 <>
                   <a
-                    href={`https://basescan.org/address/${h.owner_address}`}
+                    href={explorerLink(chain, 'address', h.owner_address)}
                     target="_blank"
                     rel="noopener"
                     className="font-mono text-sub hover:text-blue truncate"
@@ -90,7 +93,7 @@ export function HoldersTable({ holdersData }: Props) {
             </div>
             <span className="tabular text-right text-text font-mono">{fmtUsd(value)}</span>
             <a
-              href={`https://basescan.org/address/${h.owner_address}`}
+              href={explorerLink(chain, 'address', h.owner_address)}
               target="_blank"
               rel="noopener"
               className="flex items-center justify-center text-sub hover:text-blue"

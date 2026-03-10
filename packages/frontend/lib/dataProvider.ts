@@ -3,6 +3,7 @@ import type { PairsQuery } from '@dex/shared'
 import { MOCK_POOLS, MOCK_STATS, buildSwapsForPool } from './mockData'
 import { fetchDexScreenerPairs } from './dexscreener'
 import { fetchPairByAddress, fetchDexScreenerClient } from './dexscreener-client'
+import type { ChainSlug } from './chains'
 import type { Stats } from '../hooks/useStats'
 import type { FilterValues, TextFilterValues } from '../components/FiltersModal'
 
@@ -75,13 +76,13 @@ function applyCustomFilters(pools: Pool[], customFilters?: FilterValues): Pool[]
   })
 }
 
-export async function getPairs(params: PairsQuery & { customFilters?: FilterValues }): Promise<PairsResponse> {
+export async function getPairs(params: PairsQuery & { customFilters?: FilterValues }, chain?: ChainSlug): Promise<PairsResponse> {
   let pools: Pool[]
 
   if (USE_MOCK) {
     pools = MOCK_POOLS
   } else {
-    pools = await fetchDexScreenerClient()
+    pools = await fetchDexScreenerClient(chain)
   }
 
   const filtered = filterPools(pools, params.filter, params.sort)
@@ -99,7 +100,7 @@ export async function getPairs(params: PairsQuery & { customFilters?: FilterValu
   }
 }
 
-export async function getPair(address: string): Promise<(Pool & { recent_swaps: any[] }) | null> {
+export async function getPair(address: string, chain?: ChainSlug): Promise<(Pool & { recent_swaps: any[] }) | null> {
   if (USE_MOCK) {
     const idx = MOCK_POOLS.findIndex(p => p.address === address)
     if (idx === -1) return null
@@ -108,23 +109,23 @@ export async function getPair(address: string): Promise<(Pool & { recent_swaps: 
   }
 
   // Try cached GT pools first, then single pool lookup
-  const pools = await fetchDexScreenerClient()
+  const pools = await fetchDexScreenerClient(chain)
   const cached = pools.find(p => p.address.toLowerCase() === address.toLowerCase())
   if (cached) return { ...cached, recent_swaps: [] }
 
   // Fallback: fetch single pool from GeckoTerminal
-  const pool = await fetchPairByAddress(address)
+  const pool = await fetchPairByAddress(address, chain)
   if (!pool) return null
   return { ...pool, recent_swaps: [] }
 }
 
-export async function getStats(): Promise<Stats> {
+export async function getStats(chain?: ChainSlug): Promise<Stats> {
   if (USE_MOCK) {
     return MOCK_STATS
   }
 
   // Derive stats from live GT data
-  const pools = await fetchDexScreenerClient()
+  const pools = await fetchDexScreenerClient(chain)
   const volume_24h = pools.reduce((sum, p) => sum + p.volume_24h, 0)
   const txns_24h   = pools.reduce((sum, p) => sum + p.txns_24h,  0)
 

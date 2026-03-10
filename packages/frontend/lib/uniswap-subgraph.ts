@@ -2,6 +2,8 @@
  * Uniswap V3 Subgraph — LP positions via /api/subgraph proxy
  */
 
+import { getChain, DEFAULT_CHAIN, type ChainSlug } from './chains'
+
 export interface LPProvider {
   owner_address: string
   liquidity_pct: number
@@ -17,11 +19,14 @@ export interface LPProvidersResult {
 const _lpCache = new Map<string, { data: LPProvidersResult; ts: number }>()
 const LP_CACHE_TTL = 300_000 // 5min
 
-export async function fetchLiquidityProviders(poolAddress: string): Promise<LPProvidersResult> {
+export async function fetchLiquidityProviders(poolAddress: string, chain: ChainSlug = DEFAULT_CHAIN): Promise<LPProvidersResult> {
   const empty: LPProvidersResult = { providers: [], totalValueLockedUSD: 0 }
+  const chainConfig = getChain(chain)
+  if (!chainConfig.subgraphId) return empty
 
   const poolId = poolAddress.toLowerCase()
-  const cached = _lpCache.get(poolId)
+  const cacheKey = `${chain}:${poolId}`
+  const cached = _lpCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < LP_CACHE_TTL) return cached.data
 
   try {
@@ -44,7 +49,7 @@ export async function fetchLiquidityProviders(poolAddress: string): Promise<LPPr
     const res = await fetch('/api/subgraph', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query, subgraphId: chainConfig.subgraphId }),
       signal: AbortSignal.timeout(15_000),
     })
 
@@ -83,7 +88,7 @@ export async function fetchLiquidityProviders(poolAddress: string): Promise<LPPr
     })
 
     const result: LPProvidersResult = { providers, totalValueLockedUSD: tvlUsd }
-    _lpCache.set(poolId, { data: result, ts: Date.now() })
+    _lpCache.set(cacheKey, { data: result, ts: Date.now() })
     return result
   } catch (e) {
     console.error('[Subgraph] fetchLiquidityProviders error:', e)

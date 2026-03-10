@@ -7,14 +7,8 @@ import { WatchToggle } from '../WatchToggle'
 import { TokenAvatar } from '../TokenAvatar'
 import { getVisibleColumns, buildGridCols, buildDataGridCols, DEFAULT_DATA_GRID } from '../../lib/columnConfig'
 import type { ScreenerConfig, ColumnDef } from '../../lib/columnConfig'
-
-// Quote token addresses (lowercase)
-const QUOTE_TOKEN_ADDRS = new Set([
-  '0x4200000000000000000000000000000000000006', // WETH
-  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC
-  '0xfde4c96c8593536e31f229ea8f37b2ada2699bb2', // USDT
-  '0x50c5725949a6f0c72e6c4a641f24049a917db0cb', // DAI
-])
+import { useChain } from '@/contexts/ChainContext'
+import { isQuoteToken, getDexInfo, CHAINS, type ChainSlug } from '@/lib/chains'
 
 /* ─── helpers ─────────────────────────────────────────────── */
 function fmtPctValue(v: number): string {
@@ -46,21 +40,18 @@ function PctCell({ v, className }: { v: number; className?: string }) {
 // TokenAvatar imported from ../TokenAvatar
 
 function DexBadge({ dex, extraPools = 0 }: { dex: string; extraPools?: number }) {
-  const label =
-    dex === 'uniswap_v3' ? 'V3' :
-    dex === 'uniswap_v4' ? 'V4' :
-    dex === 'aerodrome'  ? 'Aero' : 'DEX'
+  const info = getDexInfo(dex)
   const extraStr = extraPools > 0 ? ` +${extraPools}` : ''
   return (
     <span className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[9px] font-bold text-sub border border-border whitespace-nowrap">
-      {label}{extraStr}
+      {info.shortLabel}{extraStr}
     </span>
   )
 }
 
-function getBaseQuote(pair: Pool) {
-  const t0IsQuote = QUOTE_TOKEN_ADDRS.has(pair.token0.address.toLowerCase())
-  const t1IsQuote = QUOTE_TOKEN_ADDRS.has(pair.token1.address.toLowerCase())
+function getBaseQuote(pair: Pool, chain: import('@/lib/chains').ChainSlug) {
+  const t0IsQuote = isQuoteToken(chain, pair.token0.address)
+  const t1IsQuote = isQuoteToken(chain, pair.token1.address)
   return t0IsQuote && !t1IsQuote
     ? [pair.token1, pair.token0] as const
     : [pair.token0, pair.token1] as const
@@ -168,12 +159,14 @@ interface PairRowProps {
 }
 
 export function PairRow({ pair, livePrice, flash, rank, showStar = false }: PairRowProps) {
+  const { chain } = useChain()
+  const pairChain = (pair._chain as ChainSlug) || chain
   const price = livePrice ?? pair.price_usd
-  const [base, quote] = getBaseQuote(pair)
+  const [base, quote] = getBaseQuote(pair, pairChain)
 
   return (
     <Link
-      href={`/pair/${pair.address}`}
+      href={`/${pairChain}/pair/${pair.address}`}
       className={clsx(
         'block transition-colors hover:bg-surface/50 cursor-pointer',
         flash === 'up'   && 'animate-flash-green',
@@ -225,12 +218,15 @@ interface FrozenProps {
 }
 
 export function PairRowFrozen({ pair, rank, flash, showStar = false, compact = false }: FrozenProps) {
-  const [base, quote] = getBaseQuote(pair)
+  const { chain } = useChain()
+  const pairChain = (pair._chain as ChainSlug) || chain
+  const [base, quote] = getBaseQuote(pair, pairChain)
   const extraPools = pair.all_addresses ? pair.all_addresses.length - 1 : 0
+  const chainIcon = pair._chain ? CHAINS[pairChain]?.icon : null
 
   return (
     <Link
-      href={`/pair/${pair.address}`}
+      href={`/${pairChain}/pair/${pair.address}`}
       className={clsx(
         'flex items-center border-b border-border transition-colors group-hover:bg-surface/50 cursor-pointer',
         compact ? 'gap-1.5 h-[56px] px-2 text-[11px]' : 'gap-2 h-[70px] px-4 text-[12px]',
@@ -242,7 +238,14 @@ export function PairRowFrozen({ pair, rank, flash, showStar = false, compact = f
 
       <span className={clsx('text-sub text-right flex-shrink-0', compact ? 'text-[10px] w-[24px]' : 'text-[11px] w-[36px]')}>#{rank}</span>
 
-      <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={compact ? 24 : 30} rounded="md" />
+      <div className="relative flex-shrink-0">
+        <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={compact ? 24 : 30} rounded="md" />
+        {/* Chain icon badge — shown in "All Chains" mode */}
+        {chainIcon && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={chainIcon} alt="" className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-1 ring-bg" />
+        )}
+      </div>
 
       {!compact && <DexBadge dex={pair.dex} extraPools={extraPools} />}
 
@@ -270,13 +273,15 @@ interface DataProps {
 }
 
 export function PairRowData({ pair, livePrice, flash, timeWindow, columnConfig, compact = false }: DataProps) {
+  const { chain } = useChain()
+  const pairChain = (pair._chain as ChainSlug) || chain
   const price = livePrice ?? pair.price_usd
   const visCols = columnConfig ? getVisibleColumns(columnConfig) : undefined
   const gridTemplate = visCols ? buildDataGridCols(visCols) : DEFAULT_DATA_GRID
 
   return (
     <Link
-      href={`/pair/${pair.address}`}
+      href={`/${pairChain}/pair/${pair.address}`}
       className={clsx(
         'block transition-colors group-hover:bg-surface/50 cursor-pointer',
         flash === 'up'   && 'animate-flash-green',

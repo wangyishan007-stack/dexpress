@@ -4,6 +4,8 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import clsx from 'clsx'
 import { fmtUsd, fmtPrice, fmtEth, fmtNum, shortAddr } from '../../lib/formatters'
+import { useChain } from '@/contexts/ChainContext'
+import { explorerLink } from '@/lib/chains'
 
 interface RecentSwap {
   id: string
@@ -366,6 +368,7 @@ function MakerFilter({ value, onChange }: { value: string; onChange: (v: string)
 /* ── Main component ─────────────────────────────────────── */
 
 export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore, baseTokenSymbol, newSwapIds }: Props) {
+  const { chain } = useChain()
   const tTx = useTranslations('txFilters')
   const tTable = useTranslations('txTable')
   const tCommon = useTranslations('common')
@@ -515,7 +518,7 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
             {shortAddr(s.sender ?? '')}
           </span>
           <a
-            href={`https://basescan.org/tx/${s.tx_hash}`}
+            href={explorerLink(chain, 'tx', s.tx_hash)}
             target="_blank"
             rel="noopener"
             className="flex items-center justify-center text-sub hover:text-text transition-colors"

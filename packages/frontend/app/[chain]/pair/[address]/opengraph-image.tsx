@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og'
+import { getChain, DEFAULT_CHAIN, type ChainSlug, SUPPORTED_CHAINS } from '@/lib/chains'
 
 export const runtime = 'edge'
 export const alt = 'Token pair on dex.express'
@@ -7,8 +8,10 @@ export const contentType = 'image/png'
 
 const GT_BASE = 'https://api.geckoterminal.com/api/v2'
 
-export default async function OGImage({ params }: { params: { address: string } }) {
-  const address = params.address
+export default async function OGImage({ params }: { params: { chain: string; address: string } }) {
+  const { chain: chainParam, address } = params
+  const chain: ChainSlug = SUPPORTED_CHAINS.includes(chainParam as ChainSlug) ? chainParam as ChainSlug : DEFAULT_CHAIN
+  const gtNetwork = getChain(chain).geckoTerminalSlug
 
   // Fetch pool data from GeckoTerminal
   let symbol = '???'
@@ -22,7 +25,7 @@ export default async function OGImage({ params }: { params: { address: string } 
 
   try {
     const res = await fetch(
-      `${GT_BASE}/networks/base/pools/${address}?include=base_token,quote_token`,
+      `${GT_BASE}/networks/${gtNetwork}/pools/${address}?include=base_token,quote_token`,
       { next: { revalidate: 300 } }
     )
     if (res.ok) {

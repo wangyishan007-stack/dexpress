@@ -4,6 +4,8 @@ import { useTranslations } from 'next-intl'
 import { fmtUsd, shortAddr } from '../../lib/formatters'
 import type { GoPlusLpHolder } from '../../lib/goplus'
 import type { LPProvidersResult } from '../../lib/uniswap-subgraph'
+import { useChain } from '@/contexts/ChainContext'
+import { explorerLink } from '@/lib/chains'
 
 interface Props {
   lpHolders?: GoPlusLpHolder[]
@@ -12,6 +14,7 @@ interface Props {
 
 export function LiquidityTable({ lpHolders, subgraphData }: Props) {
   const t = useTranslations('liquidityTable')
+  const { chain } = useChain()
   // Prefer Subgraph data (up to 50), fall back to GoPlus (top 10)
   const useSubgraph = subgraphData && subgraphData.providers.length > 0
 
@@ -45,7 +48,7 @@ export function LiquidityTable({ lpHolders, subgraphData }: Props) {
             <span className="text-sub tabular">{i + 1}</span>
             <div className="flex items-center gap-1.5 min-w-0">
               <a
-                href={`https://basescan.org/address/${lp.owner_address}`}
+                href={explorerLink(chain, 'address', lp.owner_address)}
                 target="_blank"
                 rel="noopener"
                 className="font-mono text-sub hover:text-blue truncate"
@@ -67,7 +70,7 @@ export function LiquidityTable({ lpHolders, subgraphData }: Props) {
             </div>
             <span className="tabular text-center text-sub">{lp.position_count}</span>
             <a
-              href={`https://basescan.org/address/${lp.owner_address}`}
+              href={explorerLink(chain, 'address', lp.owner_address)}
               target="_blank"
               rel="noopener"
               className="flex items-center justify-center text-sub hover:text-blue"
@@ -108,7 +111,7 @@ export function LiquidityTable({ lpHolders, subgraphData }: Props) {
             <span className="text-sub tabular">{i + 1}</span>
             <div className="flex items-center gap-1.5 min-w-0">
               <a
-                href={`https://basescan.org/address/${lp.address}`}
+                href={explorerLink(chain, 'address', lp.address)}
                 target="_blank"
                 rel="noopener"
                 className="font-mono text-sub hover:text-blue truncate"
@@ -131,7 +134,7 @@ export function LiquidityTable({ lpHolders, subgraphData }: Props) {
               )}
             </div>
             <a
-              href={`https://basescan.org/address/${lp.address}`}
+              href={explorerLink(chain, 'address', lp.address)}
               target="_blank"
               rel="noopener"
               className="flex items-center justify-center text-sub hover:text-blue"

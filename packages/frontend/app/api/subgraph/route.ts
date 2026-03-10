@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const GRAPH_API_KEY = process.env.GRAPH_API_KEY || ''
-const SUBGRAPH_ID = 'HMuAwufqZ1YCRmzL2SfHTVkzZovC9VL2UAKhjvRqKiR1'
-const GRAPH_URL = `https://gateway.thegraph.com/api/${GRAPH_API_KEY}/subgraphs/id/${SUBGRAPH_ID}`
+const DEFAULT_SUBGRAPH_ID = 'HMuAwufqZ1YCRmzL2SfHTVkzZovC9VL2UAKhjvRqKiR1'
 
 export async function POST(req: NextRequest) {
   if (!GRAPH_API_KEY) {
@@ -11,7 +10,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const res = await fetch(GRAPH_URL, {
+    const subgraphId = body.subgraphId || DEFAULT_SUBGRAPH_ID
+    const graphUrl = `https://gateway.thegraph.com/api/${GRAPH_API_KEY}/subgraphs/id/${subgraphId}`
+    const res = await fetch(graphUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

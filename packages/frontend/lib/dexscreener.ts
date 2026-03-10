@@ -5,6 +5,7 @@
 
 import type { Pool, Token, Dex } from '@dex/shared'
 import { ProxyAgent } from 'undici'
+import { DEFAULT_CHAIN } from './chains'
 
 const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || null
 const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
@@ -86,9 +87,18 @@ function buildSparkline(price: number, c5m: number, c1h: number, c6h: number, c2
 
 function mapDex(dexId: string): Dex {
   const id = dexId.toLowerCase()
+  // Base
   if (id.includes('aerodrome') || id.includes('velodrome')) return 'aerodrome'
-  if (id.includes('v4')) return 'uniswap_v4'
-  return 'uniswap_v3'
+  if (id.includes('uniswap') && id.includes('v4')) return 'uniswap_v4'
+  if (id.includes('uniswap')) return 'uniswap_v3'
+  // BNB
+  if (id.includes('pancakeswap') && id.includes('v2')) return 'pancakeswap_v2'
+  if (id.includes('pancakeswap')) return 'pancakeswap_v3'
+  // Solana
+  if (id.includes('raydium')) return 'raydium'
+  if (id.includes('orca') || id.includes('whirlpool')) return 'orca'
+  if (id.includes('meteora')) return 'meteora'
+  return id
 }
 
 function makeToken(t: DSToken, logoUrl?: string | null, createdAt?: string): Token {
@@ -138,7 +148,7 @@ const BASE_TOP_TOKENS = [
 
 // ─── Main fetch function ──────────────────────────────────────
 
-export async function fetchDexScreenerPairs(chain = 'base'): Promise<Pool[]> {
+export async function fetchDexScreenerPairs(chain = DEFAULT_CHAIN): Promise<Pool[]> {
   // Use tokens endpoint with known Base tokens (max 30 addresses per call)
   const tokenAddrs = BASE_TOP_TOKENS.join(',')
   const url = `https://api.dexscreener.com/latest/dex/tokens/${tokenAddrs}`

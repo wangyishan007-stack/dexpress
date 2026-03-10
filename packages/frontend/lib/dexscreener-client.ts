@@ -9,6 +9,7 @@
  */
 
 import type { Pool, Token, Dex, PairsResponse } from '@dex/shared'
+import { getChain, DEFAULT_CHAIN, SUPPORTED_CHAINS, type ChainSlug } from '@/lib/chains'
 
 const GT_BASE     = 'https://api.geckoterminal.com/api/v2'
 const GT_HEADERS  = { Accept: 'application/json;version=20230302' }
@@ -111,9 +112,19 @@ function safeFloat(v: string | null | undefined, fallback = 0): number {
 
 function mapDex(dexId: string): Dex {
   const id = dexId.toLowerCase()
+  // Base
   if (id.includes('aerodrome') || id.includes('velodrome')) return 'aerodrome'
-  if (id.includes('uniswap-v4') || id.includes('uniswap_v4')) return 'uniswap_v4'
-  return 'uniswap_v3'
+  if (id.includes('uniswap') && id.includes('v4')) return 'uniswap_v4'
+  if (id.includes('uniswap')) return 'uniswap_v3'
+  // BNB
+  if (id.includes('pancakeswap') && id.includes('v2')) return 'pancakeswap_v2'
+  if (id.includes('pancakeswap')) return 'pancakeswap_v3'
+  // Solana
+  if (id.includes('raydium')) return 'raydium'
+  if (id.includes('orca') || id.includes('whirlpool')) return 'orca'
+  if (id.includes('meteora')) return 'meteora'
+  // Fallback: return normalized id
+  return id
 }
 
 /** Extract token address from GeckoTerminal relationship id: "base_0x..." → "0x..." */
@@ -328,30 +339,39 @@ async function fetchGTBatch(urls: string[]): Promise<{ pools: GTPool[]; logos: L
 
 // ─── In-memory cache with stale-while-revalidate ─────────────
 
-let _cachedPools: Pool[] = []
-let _cacheTs = 0
-let _refreshing = false
+interface ChainCache { pools: Pool[]; ts: number; refreshing: boolean }
+const _cacheByChain = new Map<ChainSlug, ChainCache>()
 const CACHE_FRESH_TTL = 30_000  // 30s — serve instantly
 const CACHE_STALE_TTL = 120_000 // 2min — serve stale, refresh in bg
+
+function _getCache(chain: ChainSlug): ChainCache {
+  let c = _cacheByChain.get(chain)
+  if (!c) { c = { pools: [], ts: 0, refreshing: false }; _cacheByChain.set(chain, c) }
+  return c
+}
 
 // ─── Main export ──────────────────────────────────────────────
 
 const TRENDING_WINDOWS = ['5m', '1h', '6h', '24h'] as const
-const GT_ALL_URLS = [
-  // First 4: trending per window (indexes 0-3 map to TRENDING_WINDOWS)
-  `${GT_BASE}/networks/base/trending_pools?duration=5m`,
-  `${GT_BASE}/networks/base/trending_pools?duration=1h`,
-  `${GT_BASE}/networks/base/trending_pools?duration=6h`,
-  `${GT_BASE}/networks/base/trending_pools?duration=24h`,
-  // Other endpoints
-  `${GT_BASE}/networks/base/new_pools`,
-  `${GT_BASE}/networks/base/pools?sort=h24_volume_usd_desc&page=1`,
-  `${GT_BASE}/networks/base/pools?sort=h24_volume_usd_desc&page=2`,
-]
 
-async function fetchPoolsFromGT(): Promise<Pool[]> {
+function buildGTUrls(chain: ChainSlug): string[] {
+  const network = getChain(chain).geckoTerminalSlug
+  return [
+    // First 4: trending per window (indexes 0-3 map to TRENDING_WINDOWS)
+    `${GT_BASE}/networks/${network}/trending_pools?duration=5m`,
+    `${GT_BASE}/networks/${network}/trending_pools?duration=1h`,
+    `${GT_BASE}/networks/${network}/trending_pools?duration=6h`,
+    `${GT_BASE}/networks/${network}/trending_pools?duration=24h`,
+    // Other endpoints
+    `${GT_BASE}/networks/${network}/new_pools`,
+    `${GT_BASE}/networks/${network}/pools?sort=h24_volume_usd_desc&page=1`,
+    `${GT_BASE}/networks/${network}/pools?sort=h24_volume_usd_desc&page=2`,
+  ]
+}
+
+async function fetchPoolsFromGT(chain: ChainSlug = DEFAULT_CHAIN): Promise<Pool[]> {
   // Single batch request — server handles rate limiting
-  const results = await fetchGTBatch(GT_ALL_URLS)
+  const results = await fetchGTBatch(buildGTUrls(chain))
 
   // Build trending rank per time window from GT's order (first 4 results)
   const trendingRanks = TRENDING_WINDOWS.map((_, wi) => {
@@ -397,46 +417,65 @@ async function fetchPoolsFromGT(): Promise<Pool[]> {
   return pools
 }
 
-export async function fetchDexScreenerClient(): Promise<Pool[]> {
-  const age = Date.now() - _cacheTs
+export async function fetchDexScreenerClient(chain: ChainSlug = DEFAULT_CHAIN): Promise<Pool[]> {
+  const cc = _getCache(chain)
+  const age = Date.now() - cc.ts
 
   // Fresh cache — return instantly
-  if (_cachedPools.length > 0 && age < CACHE_FRESH_TTL) {
-    return _cachedPools
+  if (cc.pools.length > 0 && age < CACHE_FRESH_TTL) {
+    return cc.pools
   }
 
   // Stale cache — return instantly but kick off background refresh
-  if (_cachedPools.length > 0 && age < CACHE_STALE_TTL) {
-    if (!_refreshing) {
-      _refreshing = true
-      fetchPoolsFromGT()
+  if (cc.pools.length > 0 && age < CACHE_STALE_TTL) {
+    if (!cc.refreshing) {
+      cc.refreshing = true
+      fetchPoolsFromGT(chain)
         .then(pools => {
           if (pools.length > 0) {
-            _cachedPools = pools
-            _cacheTs = Date.now()
+            cc.pools = pools
+            cc.ts = Date.now()
           }
         })
         .catch(() => {})
-        .finally(() => { _refreshing = false })
+        .finally(() => { cc.refreshing = false })
     }
-    return _cachedPools
+    return cc.pools
   }
 
   // No cache or hard-expired — block and wait
-  const pools = await fetchPoolsFromGT()
+  const pools = await fetchPoolsFromGT(chain)
 
   if (pools.length > 0) {
-    _cachedPools = pools
-    _cacheTs = Date.now()
+    cc.pools = pools
+    cc.ts = Date.now()
   }
 
-  return pools.length > 0 ? pools : _cachedPools
+  return pools.length > 0 ? pools : cc.pools
 }
 
 // ─── SWR fetcher ──────────────────────────────────────────────
 
-export async function pairsFetcher(_key: string): Promise<PairsResponse> {
-  const pools = await fetchDexScreenerClient()
+/** SWR fetcher. Key format: 'pairs:{chain}' e.g. 'pairs:base' or 'pairs:all' */
+export async function pairsFetcher(key: string): Promise<PairsResponse> {
+  const chainStr = key.split(':')[1] || DEFAULT_CHAIN
+
+  // "All Chains" mode — fetch all supported chains in parallel and merge
+  if (chainStr === 'all') {
+    const allPools = await Promise.all(
+      SUPPORTED_CHAINS.map(c =>
+        fetchDexScreenerClient(c).then(pools =>
+          pools.map(p => ({ ...p, _chain: c as string }))
+        )
+      )
+    )
+    const merged = allPools.flat()
+    const sorted = merged.sort((a, b) => b.trending_score - a.trending_score)
+    return { pairs: sorted, total: sorted.length, limit: sorted.length, offset: 0 }
+  }
+
+  const chain = chainStr as ChainSlug
+  const pools = await fetchDexScreenerClient(chain)
   const sorted = [...pools].sort((a, b) => b.trending_score - a.trending_score)
   return { pairs: sorted, total: sorted.length, limit: sorted.length, offset: 0 }
 }
@@ -464,13 +503,14 @@ export interface TokenInfo {
 const _tokenInfoCache = new Map<string, { data: TokenInfo; ts: number }>()
 const TOKEN_INFO_CACHE_TTL = 300_000 // 5min — social links rarely change
 
-export async function fetchTokenInfo(tokenAddress: string): Promise<TokenInfo | null> {
-  const addrLower = tokenAddress.toLowerCase()
-  const cached = _tokenInfoCache.get(addrLower)
+export async function fetchTokenInfo(tokenAddress: string, chain: ChainSlug = DEFAULT_CHAIN): Promise<TokenInfo | null> {
+  const cacheKey = `${chain}:${tokenAddress.toLowerCase()}`
+  const cached = _tokenInfoCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < TOKEN_INFO_CACHE_TTL) return cached.data
 
   try {
-    const url = `${GT_BASE}/networks/base/tokens/${tokenAddress}/info`
+    const network = getChain(chain).geckoTerminalSlug
+    const url = `${GT_BASE}/networks/${network}/tokens/${tokenAddress}/info`
     const batchRes = await fetch('/api/gt/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -493,7 +533,7 @@ export async function fetchTokenInfo(tokenAddress: string): Promise<TokenInfo | 
       discord_url:      a.discord_url || null,
       description:      a.description || null,
     }
-    _tokenInfoCache.set(addrLower, { data: info, ts: Date.now() })
+    _tokenInfoCache.set(cacheKey, { data: info, ts: Date.now() })
     return info
   } catch (e) {
     console.error('[fetchTokenInfo] error:', e)
@@ -515,9 +555,10 @@ export interface GTTrade {
   sender: string | null
 }
 
-export async function fetchPoolTrades(address: string, beforeTimestamp?: string): Promise<GTTrade[]> {
+export async function fetchPoolTrades(address: string, chain: ChainSlug = DEFAULT_CHAIN, beforeTimestamp?: string): Promise<GTTrade[]> {
   try {
-    let url = `${GT_BASE}/networks/base/pools/${address}/trades?trade_volume_in_usd_greater_than=0`
+    const network = getChain(chain).geckoTerminalSlug
+    let url = `${GT_BASE}/networks/${network}/pools/${address}/trades?trade_volume_in_usd_greater_than=0`
     if (beforeTimestamp) {
       url += `&before_timestamp=${encodeURIComponent(beforeTimestamp)}`
     }
@@ -559,10 +600,11 @@ export async function fetchPoolTrades(address: string, beforeTimestamp?: string)
 
 // ─── Search pools ────────────────────────────────────────────
 
-export async function searchPools(query: string): Promise<Pool[]> {
+export async function searchPools(query: string, chain: ChainSlug = DEFAULT_CHAIN): Promise<Pool[]> {
   if (!query.trim()) return []
   try {
-    const url = `${GT_BASE}/search/pools?query=${encodeURIComponent(query)}&network=base&include=base_token,quote_token&page=1`
+    const network = getChain(chain).geckoTerminalSlug
+    const url = `${GT_BASE}/search/pools?query=${encodeURIComponent(query)}&network=${network}&include=base_token,quote_token&page=1`
     const res = await fetchWithTimeout(url)
     if (!res.ok) return []
     const data = await res.json()
@@ -576,10 +618,11 @@ export async function searchPools(query: string): Promise<Pool[]> {
 
 // ─── Pools by token address ──────────────────────────────────
 
-export async function fetchPoolsByToken(tokenAddress: string): Promise<Pool[]> {
+export async function fetchPoolsByToken(tokenAddress: string, chain: ChainSlug = DEFAULT_CHAIN): Promise<Pool[]> {
   if (!tokenAddress) return []
   try {
-    const url = `${GT_BASE}/networks/base/tokens/${tokenAddress}/pools?include=base_token,quote_token&page=1`
+    const network = getChain(chain).geckoTerminalSlug
+    const url = `${GT_BASE}/networks/${network}/tokens/${tokenAddress}/pools?include=base_token,quote_token&page=1`
     const res = await fetchWithTimeout(url)
     if (!res.ok) return []
     const data = await res.json()
@@ -593,17 +636,22 @@ export async function fetchPoolsByToken(tokenAddress: string): Promise<Pool[]> {
 
 // ─── Get cached pools (for search modal "recently updated") ──
 
-export function getCachedPools(): Pool[] {
-  return _cachedPools
+export function getCachedPools(chain: string = DEFAULT_CHAIN): Pool[] {
+  if (chain === 'all') {
+    return SUPPORTED_CHAINS.flatMap(c =>
+      _getCache(c).pools.map(p => ({ ...p, _chain: p._chain || c }))
+    )
+  }
+  return _getCache(chain as ChainSlug).pools
 }
 
 // ─── Instant detail lookup from list/detail cache (no network) ──
 
-export function getPoolFromCache(address: string): (Pool & PoolExtended & { recent_swaps: GTTrade[] }) | null {
-  const addrLower = address.toLowerCase()
-  const detail = _detailCache.get(addrLower)
+export function getPoolFromCache(address: string, chain: ChainSlug = DEFAULT_CHAIN): (Pool & PoolExtended & { recent_swaps: GTTrade[] }) | null {
+  const cacheKey = `${chain}:${address.toLowerCase()}`
+  const detail = _detailCache.get(cacheKey)
   if (detail) return detail.data
-  return _poolFromList(addrLower)
+  return _poolFromList(address.toLowerCase(), chain)
 }
 
 // ─── Per-address detail cache ──────────────────────────────
@@ -613,8 +661,8 @@ const DETAIL_CACHE_TTL = 60_000 // 60s
 
 // ─── Single pair lookup ───────────────────────────────────────
 
-function _poolFromList(addrLower: string): (Pool & PoolExtended & { recent_swaps: GTTrade[] }) | null {
-  const fromList = _cachedPools.find(p => p.address.toLowerCase() === addrLower)
+function _poolFromList(addrLower: string, chain: ChainSlug = DEFAULT_CHAIN): (Pool & PoolExtended & { recent_swaps: GTTrade[] }) | null {
+  const fromList = _getCache(chain).pools.find(p => p.address.toLowerCase() === addrLower)
   if (!fromList) return null
   return {
     ...fromList,
@@ -627,36 +675,39 @@ function _poolFromList(addrLower: string): (Pool & PoolExtended & { recent_swaps
 }
 
 export async function fetchPairByAddress(
-  address: string
+  address: string,
+  chain: ChainSlug = DEFAULT_CHAIN
 ): Promise<(Pool & PoolExtended & { recent_swaps: GTTrade[] }) | null> {
-  const addrLower = address.toLowerCase()
+  const cacheKey = `${chain}:${address.toLowerCase()}`
 
   // 1. Check per-address detail cache (avoids redundant API calls)
-  const cached = _detailCache.get(addrLower)
+  const cached = _detailCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < DETAIL_CACHE_TTL) {
     return cached.data
   }
 
-  // 2. Fetch from GT API (always await — ensures extended fields like ETH price are real)
-  const result = await _fetchAndCacheDetail(address, addrLower)
+  // 2. Fetch from GT API (always await — ensures extended fields like native price are real)
+  const result = await _fetchAndCacheDetail(address, cacheKey, chain)
   if (result) return result
 
   // 4. API failed — use list cache as fallback (extended fields will be 0)
   // Kick off background fetch so the detail cache is populated for next SWR refresh
-  const fallback = _poolFromList(addrLower)
+  const fallback = _poolFromList(address.toLowerCase(), chain)
   if (fallback) {
-    _fetchAndCacheDetail(address, addrLower).catch(() => {})
+    _fetchAndCacheDetail(address, cacheKey, chain).catch(() => {})
   }
   return fallback
 }
 
 async function _fetchAndCacheDetail(
   address: string,
-  addrLower: string,
+  cacheKey: string,
+  chain: ChainSlug = DEFAULT_CHAIN,
 ): Promise<(Pool & PoolExtended & { recent_swaps: GTTrade[] }) | null> {
   try {
-    const poolUrl = `${GT_BASE}/networks/base/pools/${address}?include=base_token,quote_token`
-    const tradesUrl = `${GT_BASE}/networks/base/pools/${address}/trades?trade_volume_in_usd_greater_than=0`
+    const network = getChain(chain).geckoTerminalSlug
+    const poolUrl = `${GT_BASE}/networks/${network}/pools/${address}?include=base_token,quote_token`
+    const tradesUrl = `${GT_BASE}/networks/${network}/pools/${address}/trades?trade_volume_in_usd_greater_than=0`
 
     // Fetch pool + trades in ONE batch call — avoids coalesce delay + rate-limit contention
     const batchRes = await fetch('/api/gt/batch', {
@@ -719,7 +770,7 @@ async function _fetchAndCacheDetail(
     }
 
     // Cache for subsequent visits
-    _detailCache.set(addrLower, { data: result, ts: Date.now() })
+    _detailCache.set(cacheKey, { data: result, ts: Date.now() })
     return result
   } catch (e) {
     console.error('[fetchPairByAddress] error:', e)

@@ -8,22 +8,22 @@ import { getLocale, getMessages } from 'next-intl/server'
 export const metadata: Metadata = {
   metadataBase: new URL('https://base-dex-screener.vercel.app'),
   title: {
-    default: 'dex.express — Base Chain DEX Screener',
+    default: 'dex.express — Multi-Chain DEX Screener',
     template: '%s | dex.express',
   },
-  description: 'Real-time token & pair analytics on Base chain. Live prices, security audits, top traders, and watchlists for Uniswap V3/V4 and Aerodrome.',
-  keywords: ['DEX', 'Base chain', 'token screener', 'Uniswap', 'Aerodrome', 'crypto', 'DeFi', 'trading'],
+  description: 'Real-time token & pair analytics across Base, BNB Chain, and Solana. Live prices, security audits, top traders, and watchlists.',
+  keywords: ['DEX', 'Base', 'BNB Chain', 'Solana', 'token screener', 'Uniswap', 'PancakeSwap', 'crypto', 'DeFi', 'trading'],
   openGraph: {
     type: 'website',
     siteName: 'dex.express',
-    title: 'The Fastest Base Token Screener — dex.express',
-    description: 'Track Base tokens with live prices, smart money wallets, and contract security insights.',
+    title: 'The Fastest Multi-Chain DEX Screener — dex.express',
+    description: 'Track tokens across Base, BNB Chain, and Solana with live prices, smart money wallets, and contract security insights.',
     images: [{ url: '/og-image.jpg', width: 1456, height: 816 }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'The Fastest Base Token Screener — dex.express',
-    description: 'Track Base tokens with live prices, smart money wallets, and contract security insights.',
+    title: 'The Fastest Multi-Chain DEX Screener — dex.express',
+    description: 'Track tokens across Base, BNB Chain, and Solana with live prices, smart money wallets, and contract security insights.',
     images: ['/og-image.jpg'],
   },
   robots: {

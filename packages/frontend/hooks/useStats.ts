@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import useSWR from 'swr'
 import type { PairsResponse } from '@dex/shared'
 import { pairsFetcher } from '../lib/dexscreener-client'
+import { type ChainSlug, getChain } from '@/lib/chains'
 
 export interface Stats {
   volume_24h:   number
@@ -14,11 +15,12 @@ export interface Stats {
 
 const DEFAULT_STATS: Stats = { volume_24h: 0, txns_24h: 0, latest_block: 0, block_ts: null }
 
-const BASE_RPC = 'https://mainnet.base.org'
-
-async function fetchLatestBlock(): Promise<{ block: number; ts: string }> {
+async function fetchLatestBlock(key: string): Promise<{ block: number; ts: string }> {
+  // Key format: 'latest-block:{chain}'
+  const chain = (key.split(':')[1] as ChainSlug) || 'base'
+  const rpcUrl = getChain(chain).rpcUrl
   try {
-    const res = await fetch(BASE_RPC, {
+    const res = await fetch(rpcUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 }),
@@ -31,9 +33,9 @@ async function fetchLatestBlock(): Promise<{ block: number; ts: string }> {
 }
 
 /** Derive stats from the same SWR cache as usePairs — no extra API calls */
-export function useStats(): Stats {
+export function useStats(chain: ChainSlug = 'base' as ChainSlug): Stats {
   const { data } = useSWR<PairsResponse>(
-    'dexscreener-pairs',
+    `pairs:${chain}`,
     pairsFetcher,
     {
       revalidateOnFocus: false,
@@ -44,7 +46,7 @@ export function useStats(): Stats {
   )
 
   const { data: blockData } = useSWR(
-    'base-latest-block',
+    `latest-block:${chain}`,
     fetchLatestBlock,
     { refreshInterval: 12_000, revalidateOnFocus: false }
   )

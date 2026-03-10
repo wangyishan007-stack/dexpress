@@ -4,21 +4,23 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTranslations } from 'next-intl'
 import useSWR from 'swr'
 import type { Pool } from '@dex/shared'
-import { fmtPrice, fmtUsd, fmtAge, fmtNum, fmtPct, shortAddr } from '../../../lib/formatters'
-import { usePairWebSocket } from '../../../hooks/useWebSocket'
-import { fetchPoolTrades, getPoolFromCache, type PoolExtended } from '../../../lib/dexscreener-client'
-import { useTokenSecurity } from '../../../hooks/useTokenSecurity'
-import { useTokenInfo } from '../../../hooks/useTokenInfo'
-import { useTopTraders } from '../../../hooks/useTopTraders'
-import { useTokenHolders } from '../../../hooks/useTokenHolders'
-import { useLiquidityProviders } from '../../../hooks/useLiquidityProviders'
-import { PairTabs } from '../../../components/PairTabs'
-import { TrendingTicker } from '../../../components/TrendingTicker'
-import { TradingViewChart } from '../../../components/TradingViewChart'
+import { fmtPrice, fmtUsd, fmtAge, fmtNum, fmtPct, shortAddr } from '@/lib/formatters'
+import { usePairWebSocket } from '@/hooks/useWebSocket'
+import { fetchPoolTrades, getPoolFromCache, type PoolExtended } from '@/lib/dexscreener-client'
+import { useTokenSecurity } from '@/hooks/useTokenSecurity'
+import { useTokenInfo } from '@/hooks/useTokenInfo'
+import { useTopTraders } from '@/hooks/useTopTraders'
+import { useTokenHolders } from '@/hooks/useTokenHolders'
+import { useLiquidityProviders } from '@/hooks/useLiquidityProviders'
+import { PairTabs } from '@/components/PairTabs'
+import { TrendingTicker } from '@/components/TrendingTicker'
+import { TradingViewChart } from '@/components/TradingViewChart'
 import clsx from 'clsx'
-import { TokenAvatar, addrToHue } from '../../../components/TokenAvatar'
-import { PairWatchlistDropdown } from '../../../components/PairWatchlistDropdown'
-import { OtherPairsModal } from '../../../components/OtherPairsModal'
+import { TokenAvatar, addrToHue } from '@/components/TokenAvatar'
+import { PairWatchlistDropdown } from '@/components/PairWatchlistDropdown'
+import { OtherPairsModal } from '@/components/OtherPairsModal'
+import { useChain } from '@/contexts/ChainContext'
+import { isQuoteToken, explorerLink, getDexInfo } from '@/lib/chains'
 
 interface RecentSwap {
   id:         string
@@ -143,30 +145,25 @@ function Spinner({ size = 4 }: { size?: number }) {
   )
 }
 
-const QUOTE_ADDRS = new Set([
-  '0x4200000000000000000000000000000000000006',
-  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
-  '0xfde4c96c8593536e31f229ea8f37b2ada2699bb2',
-  '0x50c5725949a6f0c72e6c4a641f24049a917db0cb',
-])
-
 /* ── Main ─────────────────────────────────────────────────── */
 export function PairDetailClient({ address }: Props) {
+  const { chain, chainConfig } = useChain()
   const tDetail = useTranslations('pairDetail')
   const tCommon = useTranslations('common')
+  const tSec = useTranslations('security')
 
   // Instant fallback from list/detail cache — renders page immediately
   const fallback = useMemo(() => {
-    const cached = getPoolFromCache(address)
+    const cached = getPoolFromCache(address, chain)
     return cached ? ({ ...cached, recent_swaps: [] } as PairDetail) : undefined
-  }, [address])
+  }, [address, chain])
 
   // Fetch full pair data from GT API (SWR revalidates in background)
   const { data: pair, error, isLoading, isValidating } = useSWR<PairDetail>(
-    `pair-${address}`,
+    `pair-${chain}:${address}`,
     async () => {
-      const { fetchPairByAddress } = await import('../../../lib/dexscreener-client')
-      const result = await fetchPairByAddress(address)
+      const { fetchPairByAddress } = await import('@/lib/dexscreener-client')
+      const result = await fetchPairByAddress(address, chain)
       if (!result) throw new Error('Pool not found')
       return result as PairDetail
     },
@@ -182,13 +179,13 @@ export function PairDetailClient({ address }: Props) {
 
   // GoPlus security data for base token
   const baseTokenAddr = pair?.token0 && pair?.token1
-    ? (QUOTE_ADDRS.has(pair.token0.address.toLowerCase()) ? pair.token1.address : pair.token0.address)
+    ? (isQuoteToken(chain, pair.token0.address) ? pair.token1.address : pair.token0.address)
     : undefined
-  const { data: security } = useTokenSecurity(baseTokenAddr)
-  const { data: tokenInfo } = useTokenInfo(baseTokenAddr)
-  const { data: topTraders } = useTopTraders(baseTokenAddr)
-  const { data: holdersData } = useTokenHolders(baseTokenAddr)
-  const { data: lpProvidersData } = useLiquidityProviders(address)
+  const { data: security } = useTokenSecurity(baseTokenAddr, chain)
+  const { data: tokenInfo } = useTokenInfo(baseTokenAddr, chain)
+  const { data: topTraders } = useTopTraders(baseTokenAddr, chain)
+  const { data: holdersData } = useTokenHolders(baseTokenAddr, chain)
+  const { data: lpProvidersData } = useLiquidityProviders(address, chain)
 
   const [livePrice, setLivePrice] = useState<number | null>(null)
   const [flash,     setFlash]     = useState<'up' | 'down' | null>(null)
@@ -196,7 +193,7 @@ export function PairDetailClient({ address }: Props) {
   const [statsPeriod, setStatsPeriod] = useState<'5m' | '1h' | '6h' | '24h'>('6h')
   const [expandedAudit, setExpandedAudit] = useState<string | null>(null)
   const [auditDisclaimer, setAuditDisclaimer] = useState(false)
-  const [swapUnit, setSwapUnit] = useState<'USD' | 'WETH'>('USD')
+  const [swapUnit, setSwapUnit] = useState<'USD' | 'NATIVE'>('USD')
   const [swapAmount, setSwapAmount] = useState('1')
   const [embedOpen, setEmbedOpen] = useState(false)
   const [embedCopied, setEmbedCopied] = useState(false)
@@ -260,7 +257,7 @@ export function PairDetailClient({ address }: Props) {
 
     const poll = async () => {
       try {
-        const trades = await fetchPoolTrades(address)
+        const trades = await fetchPoolTrades(address, chain)
         if (cancelled || trades.length === 0) return
         setSwaps(prev => {
           const existingIds = new Set(prev.map(s => s.id))
@@ -309,7 +306,7 @@ export function PairDetailClient({ address }: Props) {
     setLoadingMore(true)
     try {
       const lastSwap = swaps[swaps.length - 1]
-      const trades = await fetchPoolTrades(address, lastSwap.timestamp)
+      const trades = await fetchPoolTrades(address, chain, lastSwap.timestamp)
       if (trades.length === 0) {
         setSwapHasMore(false)
         return  // finally block still runs
@@ -341,18 +338,19 @@ export function PairDetailClient({ address }: Props) {
       <div className="flex flex-col items-center justify-center h-48 gap-2">
         <p className="text-sub text-sm">{isLoading ? tDetail('loadingPair') : tDetail('failedToLoad')}</p>
         {error && <p className="text-sub text-xs font-mono">{String(error?.message ?? error)}</p>}
-        <a href="/" className="text-blue text-xs hover:underline mt-2">{tDetail('backToAllCoins')}</a>
+        <a href={`/${chain}`} className="text-blue text-xs hover:underline mt-2">{tDetail('backToAllCoins')}</a>
       </div>
     )
   }
 
   const price     = livePrice ?? Number(pair.price_usd)
-  const t0IsQuote = QUOTE_ADDRS.has(pair.token0.address.toLowerCase())
-  const t1IsQuote = QUOTE_ADDRS.has(pair.token1.address.toLowerCase())
+  const t0IsQuote = isQuoteToken(chain, pair.token0.address)
+  const t1IsQuote = isQuoteToken(chain, pair.token1.address)
   const [base, quote] = t0IsQuote && !t1IsQuote ? [pair.token1, pair.token0] : [pair.token0, pair.token1]
   // Use GT token-info image as fallback when pool response has no logo
   const baseLogoUrl = base.logo_url || tokenInfo?.image_url || null
-  const dexLabel  = pair.dex === 'uniswap_v3' ? 'Uniswap V3' : pair.dex === 'uniswap_v4' ? 'Uniswap V4' : 'Aerodrome'
+  const dexInfo   = getDexInfo(pair.dex)
+  const dexLabel  = dexInfo.label
   const feeLabel  = pair.fee_tier != null ? `${parseFloat((pair.fee_tier / 10000).toFixed(4))}%` : null
   const change24h = Number(pair.change_24h)
 
@@ -421,23 +419,15 @@ export function PairDetailClient({ address }: Props) {
               <div className="flex items-center gap-[5px]">
                 <div className="flex items-center gap-[2px]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/branding/base-icon.svg" alt="Base" width={14} height={14} />
-                  <span className="text-[14px] text-sub">Base</span>
+                  <img src={chainConfig.icon} alt={chainConfig.name} width={14} height={14} />
+                  <span className="text-[14px] text-sub">{chainConfig.name}</span>
                 </div>
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-sub"><path d="M4.5 2L8.5 6L4.5 10" stroke="currentColor" strokeWidth="1.2"/></svg>
                 <div className="flex items-center gap-1">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {pair.dex === 'aerodrome'
-                    ? <span className="text-[14px] text-sub">Aerodrome</span>
-                    : <>
-                        <img src="/branding/uniswap-icon.svg" alt="Uniswap" width={16} height={16} />
-                        <span className="text-[14px] text-sub">Uniswap</span>
-                      </>
-                  }
+                  {dexInfo.icon && <img src={dexInfo.icon} alt={dexInfo.label} width={16} height={16} />}
+                  <span className="text-[14px] text-sub">{dexInfo.label}</span>
                 </div>
-                {pair.dex !== 'aerodrome' && (
-                  <span className="border border-border rounded px-1 py-0.5 text-[12px] text-sub">{pair.dex === 'uniswap_v4' ? 'V4' : 'V3'}</span>
-                )}
               </div>
             </div>
           </div>
@@ -723,14 +713,12 @@ export function PairDetailClient({ address }: Props) {
 
           {/* ── 8. Trade on DEX ──────────────────────────────────── */}
           <a
-            href={pair.dex === 'aerodrome'
-              ? `https://aerodrome.finance/swap?from=eth&to=${base.address}`
-              : `https://app.uniswap.org/swap?chain=base&inputCurrency=ETH&outputCurrency=${base.address}`}
+            href={chainConfig.swapUrl(base.address, pair.dex)}
             target="_blank"
             rel="noopener"
             className="flex items-center justify-center gap-2.5 rounded bg-muted text-[13px] text-sub hover:text-text transition-colors py-[10px]"
           >
-            {tDetail('tradeOn', { dex: pair.dex === 'aerodrome' ? 'Aerodrome' : 'Uniswap' })}
+            {tDetail('tradeOn', { dex: dexInfo.label.split(' ')[0] })}
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 1h7v7M11 1L5 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </a>
 
@@ -767,7 +755,7 @@ export function PairDetailClient({ address }: Props) {
                     <span className="text-[14px] text-text">{shortAddr(pair.address)}</span>
                     <CopyButton text={pair.address} />
                   </div>
-                  <a href={`https://basescan.org/address/${pair.address}`} target="_blank" rel="noopener" className="flex items-center gap-1 text-[12px] text-sub hover:text-blue">
+                  <a href={explorerLink(chain, 'address', pair.address)} target="_blank" rel="noopener" className="flex items-center gap-1 text-[12px] text-sub hover:text-blue">
                     EXP <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 1h7v7M11 1L5 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </a>
                 </div>
@@ -779,7 +767,7 @@ export function PairDetailClient({ address }: Props) {
                     <span className="text-[14px] text-text">{shortAddr(base.address)}</span>
                     <CopyButton text={base.address} />
                   </div>
-                  <a href={`https://basescan.org/token/${base.address}`} target="_blank" rel="noopener" className="flex items-center gap-1 text-[12px] text-sub hover:text-blue">
+                  <a href={explorerLink(chain, 'token', base.address)} target="_blank" rel="noopener" className="flex items-center gap-1 text-[12px] text-sub hover:text-blue">
                     EXP <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 1h7v7M11 1L5 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </a>
                 </div>
@@ -791,7 +779,7 @@ export function PairDetailClient({ address }: Props) {
                     <span className="text-[14px] text-text">{shortAddr(quote.address)}</span>
                     <CopyButton text={quote.address} />
                   </div>
-                  <a href={`https://basescan.org/token/${quote.address}`} target="_blank" rel="noopener" className="flex items-center gap-1 text-[12px] text-sub hover:text-blue">
+                  <a href={explorerLink(chain, 'token', quote.address)} target="_blank" rel="noopener" className="flex items-center gap-1 text-[12px] text-sub hover:text-blue">
                     EXP <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 1h7v7M11 1L5 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </a>
                 </div>
@@ -821,53 +809,53 @@ export function PairDetailClient({ address }: Props) {
               const s = security
               // Build Go+ rows from real data
               const fmtTax = (v: string | undefined) => {
-                if (!v || v === '') return { value: 'Unknown', status: 'neutral' as const }
+                if (!v || v === '') return { value: tSec('unknown'), status: 'neutral' as const }
                 const n = parseFloat(v) * 100
                 return { value: `${n.toFixed(1)}%`, status: n > 5 ? 'warn' as const : 'ok' as const }
               }
               const flag = (v: string | undefined, goodVal: string) => {
-                if (!v || v === '') return { value: 'Unknown', status: 'neutral' as const }
+                if (!v || v === '') return { value: tSec('unknown'), status: 'neutral' as const }
                 return v === goodVal
-                  ? { value: goodVal === '0' ? 'No' : 'Yes', status: 'ok' as const }
-                  : { value: goodVal === '0' ? 'Yes' : 'No', status: 'warn' as const }
+                  ? { value: goodVal === '0' ? tSec('no') : tSec('yes'), status: 'ok' as const }
+                  : { value: goodVal === '0' ? tSec('yes') : tSec('no'), status: 'warn' as const }
               }
               const isRenounced = s
                 ? (s.owner_address === '0x0000000000000000000000000000000000000000' || s.owner_address === '')
                 : null
 
               const goPlusRows: { label: string; value: string; status: 'ok' | 'warn' | 'neutral' | 'link' }[] = s ? [
-                { label: 'Sell tax', ...fmtTax(s.sell_tax) },
-                { label: 'Buy tax', ...fmtTax(s.buy_tax) },
-                { label: 'Tax modifiable', ...flag(s.slippage_modifiable, '0') },
-                { label: 'External call', ...flag(s.external_call, '0') },
-                { label: 'Ownership renounced', value: isRenounced ? 'Yes' : 'No', status: isRenounced ? 'ok' : 'warn' },
-                { label: 'Hidden owner', ...flag(s.hidden_owner, '0') },
-                { label: 'Open source', ...flag(s.is_open_source, '1') },
-                { label: 'Honeypot', ...flag(s.is_honeypot, '0') },
-                { label: 'Proxy contract', ...flag(s.is_proxy, '0') },
-                { label: 'Mintable', ...flag(s.is_mintable, '0') },
-                { label: 'Transfer pausable', ...flag(s.transfer_pausable, '0') },
-                { label: 'Trading cooldown', ...flag(s.trading_cooldown, '0') },
-                { label: "Can't sell all", ...flag(s.cannot_sell_all, '0') },
-                { label: 'Owner can change balance', ...flag(s.owner_change_balance, '0') },
-                { label: 'Has blacklist', ...flag(s.is_blacklisted, '0') },
-                { label: 'Has whitelist', ...flag(s.is_whitelisted, '0') },
-                { label: 'Is anti whale', ...flag(s.is_anti_whale, '0') },
-                { label: 'LP Holder count', value: s.lp_holder_count || '—', status: 'neutral' },
-                { label: 'Creator address', value: s.creator_address ? shortAddr(s.creator_address) : '—', status: s.creator_address ? 'link' : 'neutral' },
-                { label: 'Creator balance', value: s.creator_balance ? `${parseFloat(s.creator_balance).toLocaleString()} (${(parseFloat(s.creator_percent || '0') * 100).toFixed(2)}%)` : '—', status: 'neutral' },
-                { label: 'Owner address', value: s.owner_address ? shortAddr(s.owner_address) : '—', status: s.owner_address ? 'link' : 'neutral' },
-                { label: 'Owner balance', value: s.owner_balance ? `${parseFloat(s.owner_balance).toLocaleString()} (${(parseFloat(s.owner_percent || '0') * 100).toFixed(2)}%)` : '—', status: 'neutral' },
+                { label: tSec('sellTax'), ...fmtTax(s.sell_tax) },
+                { label: tSec('buyTax'), ...fmtTax(s.buy_tax) },
+                { label: tSec('taxModifiable'), ...flag(s.slippage_modifiable, '0') },
+                { label: tSec('externalCall'), ...flag(s.external_call, '0') },
+                { label: tSec('ownershipRenounced'), value: isRenounced ? tSec('yes') : tSec('no'), status: isRenounced ? 'ok' : 'warn' },
+                { label: tSec('hiddenOwner'), ...flag(s.hidden_owner, '0') },
+                { label: tSec('openSource'), ...flag(s.is_open_source, '1') },
+                { label: tSec('honeypot'), ...flag(s.is_honeypot, '0') },
+                { label: tSec('proxyContract'), ...flag(s.is_proxy, '0') },
+                { label: tSec('mintable'), ...flag(s.is_mintable, '0') },
+                { label: tSec('transferPausable'), ...flag(s.transfer_pausable, '0') },
+                { label: tSec('tradingCooldown'), ...flag(s.trading_cooldown, '0') },
+                { label: tSec('cantSellAll'), ...flag(s.cannot_sell_all, '0') },
+                { label: tSec('ownerCanChangeBalance'), ...flag(s.owner_change_balance, '0') },
+                { label: tSec('hasBlacklist'), ...flag(s.is_blacklisted, '0') },
+                { label: tSec('hasWhitelist'), ...flag(s.is_whitelisted, '0') },
+                { label: tSec('isAntiWhale'), ...flag(s.is_anti_whale, '0') },
+                { label: tSec('lpHolderCount'), value: s.lp_holder_count || '—', status: 'neutral' },
+                { label: tSec('creatorAddress'), value: s.creator_address ? shortAddr(s.creator_address) : '—', status: s.creator_address ? 'link' : 'neutral' },
+                { label: tSec('creatorBalance'), value: s.creator_balance ? `${parseFloat(s.creator_balance).toLocaleString()} (${(parseFloat(s.creator_percent || '0') * 100).toFixed(2)}%)` : '—', status: 'neutral' },
+                { label: tSec('ownerAddress'), value: s.owner_address ? shortAddr(s.owner_address) : '—', status: s.owner_address ? 'link' : 'neutral' },
+                { label: tSec('ownerBalance'), value: s.owner_balance ? `${parseFloat(s.owner_balance).toLocaleString()} (${(parseFloat(s.owner_percent || '0') * 100).toFixed(2)}%)` : '—', status: 'neutral' },
               ] : []
 
               // Count issues for Go+ summary
               const goPlusIssues = goPlusRows.filter(r => r.status === 'warn').length
-              const goPlusSummary = s ? (goPlusIssues === 0 ? 'No issues' : `${goPlusIssues} issue${goPlusIssues > 1 ? 's' : ''}`) : 'Loading...'
+              const goPlusSummary = s ? (goPlusIssues === 0 ? tSec('noIssues') : tSec('issueCount', { count: goPlusIssues })) : tCommon('loading')
               const goPlusOk = s ? goPlusIssues === 0 : true
 
               // Contract Risk — derived from GoPlus data
               const contractRisk = (() => {
-                if (!s) return { level: 'Loading...', ok: true, color: '' }
+                if (!s) return { key: 'loading' as const, level: tCommon('loading'), ok: true, color: '' }
                 const isHp = s.is_honeypot === '1'
                 const hiddenOwner = s.hidden_owner === '1'
                 const sellTax = parseFloat(s.sell_tax || '0') * 100
@@ -879,19 +867,19 @@ export function PairDetailClient({ address }: Props) {
                 const canChangeBalance = s.owner_change_balance === '1'
 
                 if (isHp || hiddenOwner || sellTax > 10 || buyTax > 10 || canChangeBalance) {
-                  return { level: 'High', ok: false, color: 'text-red' }
+                  return { key: 'high' as const, level: tSec('high'), ok: false, color: 'text-red' }
                 }
                 if (mintable || ownerNotRenounced || taxModifiable || pausable) {
-                  return { level: 'Medium', ok: true, color: 'text-yellow-400' }
+                  return { key: 'medium' as const, level: tSec('medium'), ok: true, color: 'text-yellow-400' }
                 }
-                return { level: 'Low', ok: true, color: 'text-green' }
+                return { key: 'low' as const, level: tSec('low'), ok: true, color: 'text-green' }
               })()
 
-              const riskDot = contractRisk.level === 'High' ? '#ef5350' : contractRisk.level === 'Medium' ? '#facc15' : '#2fe06b'
+              const riskDot = contractRisk.key === 'high' ? '#ef5350' : contractRisk.key === 'medium' ? '#facc15' : '#2fe06b'
 
               const audits = [
-                { name: 'Go+ Security', result: goPlusSummary, ok: goPlusOk, expandable: true, rows: goPlusRows },
-                { name: 'Contract Risk', result: contractRisk.level, ok: contractRisk.level !== 'High', expandable: false, rows: [], riskDot },
+                { name: tSec('goPlusSecurity'), result: goPlusSummary, ok: goPlusOk, expandable: true, rows: goPlusRows },
+                { name: tSec('contractRisk'), result: contractRisk.level, ok: contractRisk.key !== 'high', expandable: false, rows: [], riskDot },
               ]
 
               return (
@@ -909,7 +897,7 @@ export function PairDetailClient({ address }: Props) {
                               <span className="text-[12px] text-text font-medium">{item.name}</span>
                               <div className="flex items-center gap-2">
                                 <span className="text-[14px] text-text">{item.result}</span>
-                                {item.result !== 'N/A' && item.result !== 'Loading...' && (
+                                {item.result !== 'N/A' && item.result !== tCommon('loading') && (
                                   (item as any).riskDot
                                     ? <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><circle cx="4" cy="4" r="3.5" fill={(item as any).riskDot}/></svg>
                                     : item.ok
@@ -951,16 +939,16 @@ export function PairDetailClient({ address }: Props) {
                     })}
                   </div>
                   <p className="text-[12px] text-sub text-center">
-                    Warning! Audits may not be 100% accurate!{' '}
+                    {tSec('warning')}{' '}
                     <button
                       onClick={() => setAuditDisclaimer(v => !v)}
                       className="text-sub underline hover:text-text transition-colors"
                     >
-                      {auditDisclaimer ? 'Less' : 'More'}
+                      {auditDisclaimer ? tSec('less') : tSec('more')}
                     </button>
                     {auditDisclaimer && (
                       <span className="block mt-1 text-sub">
-                        Audit results may not be 100% accurate. They are provided for informational purposes only and should not be considered financial or investment advice. Dexpress does not verify or assume responsibility for the accuracy or completeness of data obtained from third-party auditors.
+                        {tSec('disclaimer')}
                       </span>
                     )}
                   </p>
@@ -995,7 +983,7 @@ export function PairDetailClient({ address }: Props) {
                 })()}
               </div>
               <p className="text-[14px] text-sub text-center">
-                {tokenInfo?.description || `${base.symbol} on Base chain · ${dexLabel}${feeLabel ? ` · ${feeLabel} fee` : ''}`}
+                {tokenInfo?.description || `${base.symbol} on ${chainConfig.name} · ${dexLabel}${feeLabel ? ` · ${feeLabel} fee` : ''}`}
               </p>
             </div>
           </div>
@@ -1020,8 +1008,8 @@ export function PairDetailClient({ address }: Props) {
                   const amt = parseFloat(swapAmount)
                   if (!amt || price <= 0) return '—'
                   if (swapUnit === 'USD') return fmtPrice(amt * price)
-                  const ethPrice = pair.base_token_price_native ?? 0
-                  return ethPrice > 0 ? (amt * ethPrice).toFixed(8) : '—'
+                  const nativePrice = pair.base_token_price_native ?? 0
+                  return nativePrice > 0 ? (amt * nativePrice).toFixed(8) : '—'
                 })()}
                 readOnly
                 className="flex-1 text-[14px] text-text bg-transparent outline-none min-w-0"
@@ -1036,11 +1024,11 @@ export function PairDetailClient({ address }: Props) {
                   USD
                 </button>
                 <button
-                  onClick={() => setSwapUnit('WETH')}
-                  className={clsx('px-2 py-[7px] text-[14px] flex items-center gap-1.5 transition-colors', swapUnit === 'WETH' ? 'bg-muted text-text' : 'bg-muted/40 text-sub')}
+                  onClick={() => setSwapUnit('NATIVE')}
+                  className={clsx('px-2 py-[7px] text-[14px] flex items-center gap-1.5 transition-colors', swapUnit === 'NATIVE' ? 'bg-muted text-text' : 'bg-muted/40 text-sub')}
                 >
-                  {swapUnit === 'WETH' && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                  WETH
+                  {swapUnit === 'NATIVE' && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                  {chainConfig.nativeCurrency.symbol}
                 </button>
               </div>
             </div>

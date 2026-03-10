@@ -8,11 +8,8 @@ import { fetchPoolsByToken } from '../lib/dexscreener-client'
 import { fmtUsd, fmtAge, shortAddr } from '../lib/formatters'
 import { useWatchlist } from '../hooks/useWatchlist'
 import type { Pool } from '@dex/shared'
-
-const QUOTE_ADDRS = new Set([
-  '0x4200000000000000000000000000000000000006', // WETH
-  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC
-])
+import { useChain } from '@/contexts/ChainContext'
+import { isQuoteToken, getDexInfo } from '@/lib/chains'
 
 interface Props {
   open: boolean
@@ -22,6 +19,7 @@ interface Props {
 }
 
 export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }: Props) {
+  const { chain, chainConfig } = useChain()
   const tModal = useTranslations('modals')
   const tCommon = useTranslations('common')
   const tDetail = useTranslations('pairDetail')
@@ -31,7 +29,7 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
 
   const { data: pools, isLoading } = useSWR<Pool[]>(
     open && tokenAddress ? `other-pairs-${tokenAddress}` : null,
-    () => fetchPoolsByToken(tokenAddress),
+    () => fetchPoolsByToken(tokenAddress, chain),
     { dedupingInterval: 120_000, revalidateOnFocus: false }
   )
 
@@ -124,28 +122,28 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
           )}
 
           {filtered.map((p) => {
-            const base = QUOTE_ADDRS.has(p.token0.address.toLowerCase()) ? p.token1 : p.token0
-            const quote = QUOTE_ADDRS.has(p.token0.address.toLowerCase()) ? p.token0 : p.token1
+            const base = isQuoteToken(chain, p.token0.address) ? p.token1 : p.token0
+            const quote = isQuoteToken(chain, p.token0.address) ? p.token0 : p.token1
             const change24h = Number(p.change_24h)
             const isPos = Number.isFinite(change24h) && change24h > 0
             const isNeg = Number.isFinite(change24h) && change24h < 0
-            const dexLabel = p.dex === 'uniswap_v3' ? 'V3' : p.dex === 'uniswap_v4' ? 'V4' : 'Aero'
+            const dexInfo = getDexInfo(p.dex)
 
             return (
               <Link
                 key={p.address}
-                href={`/pair/${p.address}`}
+                href={`/${chain}/pair/${p.address}`}
                 onClick={onClose}
                 className="flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-lg transition-colors border border-border hover:border-blue"
               >
                 {/* Left: Chain + DEX icons + Token avatar */}
                 <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
                   <div className="flex flex-col gap-1.5 items-center w-4">
-                    <img src="/branding/base-icon.svg" alt="Base" className="w-4 h-4" />
-                    {p.dex === 'aerodrome' ? (
-                      <span className="text-[9px] font-bold text-sub leading-none">Aero</span>
+                    <img src={chainConfig.icon} alt={chainConfig.name} className="w-4 h-4" />
+                    {dexInfo.icon ? (
+                      <img src={dexInfo.icon} alt={dexInfo.shortLabel} className="w-4 h-4" />
                     ) : (
-                      <img src="/branding/uniswap-icon.svg" alt={dexLabel} className="w-4 h-4" />
+                      <span className="text-[9px] font-bold text-sub leading-none">{dexInfo.shortLabel}</span>
                     )}
                   </div>
                   <div className="w-[40px] h-[40px] md:w-[54px] md:h-[54px] rounded bg-muted flex-shrink-0 overflow-hidden">

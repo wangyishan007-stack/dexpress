@@ -1,8 +1,9 @@
 // ============================================================
-// Base DEX Screener — Shared Types
+// Multi-Chain DEX Screener — Shared Types
 // ============================================================
 
-export type Dex = 'uniswap_v3' | 'uniswap_v4' | 'aerodrome'
+// Known DEXes (not exhaustive — any string is accepted for future chains)
+export type Dex = string
 export type TimeWindow = '5m' | '1h' | '6h' | '24h'
 export type SortField =
   | 'trending_score' | 'trending_5m' | 'trending_1h' | 'trending_6h' | 'trending_24h'
@@ -82,6 +83,8 @@ export interface Pool {
   all_dexes?:     string[]
   // 24 hourly close prices for sparkline rendering
   sparkline_data?: number[]
+  // Set when displaying multi-chain "All Chains" view
+  _chain?: string
 }
 
 export interface Swap {

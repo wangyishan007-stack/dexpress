@@ -4,6 +4,8 @@
  * This file is safe to bundle in browser JS — no secrets here.
  */
 
+import { getChain, DEFAULT_CHAIN, type ChainSlug } from './chains'
+
 export interface MoralisTrader {
   address: string
   avg_buy_price_usd: string
@@ -37,16 +39,17 @@ export interface MoralisHoldersResult {
 
 const _holdersCache = new Map<string, { data: MoralisHoldersResult; ts: number }>()
 
-export async function fetchTokenHolders(tokenAddress: string, limit = 50): Promise<MoralisHoldersResult> {
+export async function fetchTokenHolders(tokenAddress: string, chain: ChainSlug = DEFAULT_CHAIN, limit = 50): Promise<MoralisHoldersResult> {
   const empty: MoralisHoldersResult = { holders: [], totalSupply: '0' }
+  const moralisChain = getChain(chain).moralisChain
   const addrLower = tokenAddress.toLowerCase()
 
-  const cached = _holdersCache.get(addrLower)
+  const cached = _holdersCache.get(`${chain}:${addrLower}`)
   if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data
 
   try {
     const res = await fetch(
-      `/api/moralis?type=holders&address=${tokenAddress}&limit=${limit}`,
+      `/api/moralis?type=holders&address=${tokenAddress}&chain=${moralisChain}&limit=${limit}`,
       { signal: AbortSignal.timeout(15_000) }
     )
     if (!res.ok) return empty
@@ -61,7 +64,7 @@ export async function fetchTokenHolders(tokenAddress: string, limit = 50): Promi
       })) : [],
       totalSupply: data?.totalSupply || '0',
     }
-    _holdersCache.set(addrLower, { data: result, ts: Date.now() })
+    _holdersCache.set(`${chain}:${addrLower}`, { data: result, ts: Date.now() })
     return result
   } catch (e) {
     console.error('[Moralis] fetchTokenHolders error:', e)
@@ -71,21 +74,22 @@ export async function fetchTokenHolders(tokenAddress: string, limit = 50): Promi
 
 /* ── Top Traders ──────────────────────────────────────── */
 
-export async function fetchTopTraders(tokenAddress: string): Promise<MoralisTrader[]> {
+export async function fetchTopTraders(tokenAddress: string, chain: ChainSlug = DEFAULT_CHAIN): Promise<MoralisTrader[]> {
+  const moralisChain = getChain(chain).moralisChain
   const addrLower = tokenAddress.toLowerCase()
 
-  const cached = _tradersCache.get(addrLower)
+  const cached = _tradersCache.get(`${chain}:${addrLower}`)
   if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data
 
   try {
     const res = await fetch(
-      `/api/moralis?type=traders&address=${tokenAddress}`,
+      `/api/moralis?type=traders&address=${tokenAddress}&chain=${moralisChain}`,
       { signal: AbortSignal.timeout(15_000) }
     )
     if (!res.ok) return []
     const data = await res.json()
     const result: MoralisTrader[] = Array.isArray(data?.result) ? data.result : []
-    _tradersCache.set(addrLower, { data: result, ts: Date.now() })
+    _tradersCache.set(`${chain}:${addrLower}`, { data: result, ts: Date.now() })
     return result
   } catch (e) {
     console.error('[Moralis] fetchTopTraders error:', e)

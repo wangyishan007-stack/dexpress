@@ -6,28 +6,24 @@ import useSWR from 'swr'
 import { getCachedPools, pairsFetcher } from '../lib/dexscreener-client'
 import { TokenAvatar } from './TokenAvatar'
 import type { Pool } from '@dex/shared'
+import { useChain } from '@/contexts/ChainContext'
+import { isQuoteToken } from '@/lib/chains'
 
-const QUOTE_ADDRS = new Set([
-  '0x4200000000000000000000000000000000000006', // WETH
-  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC
-  '0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca', // USDbC
-  '0x50c5725949a6f0c72e6c4a641f24049a917db0cb', // DAI
-])
-
-function getBase(p: Pool) {
-  return QUOTE_ADDRS.has(p.token0.address.toLowerCase()) ? p.token1 : p.token0
+function getBase(p: Pool, chain: import('@/lib/chains').ChainSlug) {
+  return isQuoteToken(chain, p.token0.address) ? p.token1 : p.token0
 }
 
 export function TrendingTicker() {
+  const { chain } = useChain()
   // Fix 2: subscribe to the shared SWR cache so Ticker refreshes
   // when the main pair list refreshes (every 45s). Using keepPreviousData
   // so it never flashes empty while revalidating.
-  const { data } = useSWR('dexscreener-pairs', pairsFetcher, {
+  const { data } = useSWR(`pairs:${chain}`, pairsFetcher, {
     dedupingInterval: 10_000,
     revalidateOnFocus: false,
     keepPreviousData: true,
     // Fallback to module-level cache if SWR hasn't loaded yet
-    fallbackData: { pairs: getCachedPools(), total: 0, limit: 0, offset: 0 },
+    fallbackData: { pairs: getCachedPools(chain), total: 0, limit: 0, offset: 0 },
   })
 
   const pools = useMemo(() => {
@@ -53,7 +49,7 @@ export function TrendingTicker() {
       {/* Scrollable ticker */}
       <div className="flex items-center gap-5 overflow-x-auto scrollbar-hide px-3 h-full flex-1 min-w-0">
         {pools.map((p, i) => {
-          const base = getBase(p)
+          const base = getBase(p, chain)
           const change = Number(p.change_24h)
           const isPos = Number.isFinite(change) && change > 0
           const isNeg = Number.isFinite(change) && change < 0
@@ -61,7 +57,7 @@ export function TrendingTicker() {
           return (
             <Link
               key={p.address}
-              href={`/pair/${p.address}`}
+              href={`/${chain}/pair/${p.address}`}
               className="flex items-center gap-1.5 flex-shrink-0 hover:bg-border/20 rounded px-1.5 py-1 transition-colors"
             >
               <span className="text-[12px] text-sub tabular">{i + 1}</span>

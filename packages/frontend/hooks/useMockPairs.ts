@@ -10,6 +10,7 @@ import { useMemo }           from 'react'
 import type { PairsQuery, Pool } from '@dex/shared'
 import { usePairs }          from './usePairs'
 import type { FilterValues, TextFilterValues } from '../components/FiltersModal'
+import type { ChainSlug } from '@/lib/chains'
 
 export { useLivePrices } from './usePairs'
 
@@ -79,10 +80,11 @@ function applyCustomFilters(pools: Pool[], customFilters?: FilterValues, textFil
 interface MockPairsParams extends Omit<PairsQuery, 'limit' | 'offset'> {
   customFilters?: FilterValues
   textFilters?:   TextFilterValues
+  chain?: string
 }
 
-export function useMockPairs({ customFilters, textFilters, ...baseParams }: MockPairsParams) {
-  const result = usePairs(baseParams)
+export function useMockPairs({ customFilters, textFilters, chain, ...baseParams }: MockPairsParams) {
+  const result = usePairs(baseParams, chain)
 
   const pairs = useMemo(
     () => applyCustomFilters(result.pairs, customFilters, textFilters),

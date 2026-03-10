@@ -10,7 +10,16 @@ import { SearchModal } from '../SearchModal'
 import { useAuth } from '../../hooks/useAuth'
 import { shortAddr } from '../../lib/formatters'
 import { LanguageSwitcher } from '../LanguageSwitcher'
+import { ChainSelector } from '../ChainSelector'
 import { useTranslations } from 'next-intl'
+import { SUPPORTED_CHAINS, DEFAULT_CHAIN, type ChainSlug } from '@/lib/chains'
+
+/** Extract chain slug from pathname like /base/pair/0x... → 'base' */
+function getChainFromPath(pathname: string): ChainSlug {
+  const seg = pathname.split('/')[1] || ''
+  if (SUPPORTED_CHAINS.includes(seg as ChainSlug)) return seg as ChainSlug
+  return DEFAULT_CHAIN
+}
 
 /* ── Nav icons ────────────────────────────────────────────── */
 function IconAllCoins({ active }: { active?: boolean }) {
@@ -57,25 +66,34 @@ function LogoMark({ className }: { className?: string }) {
 
 /* ── Nav items config ────────────────────────────────────── */
 type NavKey = 'allCoins' | 'newPairs' | 'gainers' | 'watchlist'
-const NAV_ITEMS: { href: string; key: NavKey; Icon: React.ComponentType<{ active?: boolean }> }[] = [
-  { href: '/',          key: 'allCoins',  Icon: IconAllCoins  },
-  { href: '/new-pairs', key: 'newPairs',  Icon: IconNewPairs  },
-  { href: '/gainers',   key: 'gainers',   Icon: IconGainers   },
-  { href: '/watchlist', key: 'watchlist', Icon: IconWatchlist },
+const NAV_KEYS: { path: string; key: NavKey; Icon: React.ComponentType<{ active?: boolean }> }[] = [
+  { path: '',          key: 'allCoins',  Icon: IconAllCoins  },
+  { path: '/new-pairs', key: 'newPairs',  Icon: IconNewPairs  },
+  { path: '/gainers',   key: 'gainers',   Icon: IconGainers   },
+  { path: '/watchlist', key: 'watchlist', Icon: IconWatchlist },
 ]
+
+function buildNavItems(chain: ChainSlug) {
+  return NAV_KEYS.map(item => ({
+    ...item,
+    href: `/${chain}${item.path}`,
+  }))
+}
 
 /* ── Mobile tab nav ──────────────────────────────────────── */
 function MobileTabNav() {
   const pathname = usePathname()
   const t = useTranslations('nav')
+  const chain = getChainFromPath(pathname)
+  const navItems = buildNavItems(chain)
 
   return (
     <nav className="flex md:hidden overflow-x-auto scrollbar-hide border-b border-border bg-bg flex-shrink-0">
-      {NAV_ITEMS.map(({ href, key, Icon }) => {
-        // Fix 5: treat /pair/... as being under All Coins (href='/')
-        const active = href === '/'
-          ? pathname === '/' || pathname.startsWith('/pair')
-          : pathname === href
+      {navItems.map(({ href, path, key, Icon }) => {
+        const chainBase = `/${chain}`
+        const active = path === ''
+          ? pathname === chainBase || pathname.startsWith(`${chainBase}/pair`)
+          : pathname === href || pathname.startsWith(href + '/')
         return (
           <Link
             key={href}
@@ -128,6 +146,8 @@ const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed'
 /* ── Sidebar ─────────────────────────────────────────────── */
 export function Sidebar() {
   const pathname = usePathname()
+  const chain = getChainFromPath(pathname)
+  const navItems = buildNavItems(chain)
   const [searchOpen, setSearchOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
@@ -159,7 +179,10 @@ export function Sidebar() {
     <>
       {/* ── Mobile top bar ──────────────────────────────────── */}
       <div className="flex md:hidden items-center justify-between h-[48px] px-3 bg-bg flex-shrink-0">
-        <Link href="/"><LogoMark className="h-[28px] w-auto" /></Link>
+        <div className="flex items-center gap-2">
+          <Link href={`/${chain}`}><LogoMark className="h-[28px] w-auto" /></Link>
+          <ChainSelector collapsed />
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSearchOpen(true)}
@@ -216,7 +239,7 @@ export function Sidebar() {
           {/* Logo + toggle */}
           {collapsed ? (
             <div className="flex flex-col items-center pt-[20px] pb-[10px] gap-2">
-              <Link href="/">
+              <Link href={`/${chain}`}>
                 <img
                   src="/branding/dex-logo.svg"
                   alt="dex.express"
@@ -233,7 +256,7 @@ export function Sidebar() {
             </div>
           ) : (
             <div className="relative flex items-center pt-[20px] pb-[10px]">
-              <Link href="/"><LogoMark /></Link>
+              <Link href={`/${chain}`}><LogoMark /></Link>
               <button
                 onClick={toggleCollapsed}
                 className="absolute -right-[24px] flex items-center justify-center w-[24px] h-[24px] rounded-l-md rounded-r-none border border-border bg-bg text-sub hover:text-text hover:bg-border/40 transition-colors z-10"
@@ -263,16 +286,19 @@ export function Sidebar() {
             </button>
           )}
 
+          {/* Chain selector */}
+          <ChainSelector collapsed={collapsed} />
+
           {/* Nav + Login */}
           <div className={clsx('flex flex-col', collapsed ? 'gap-[12px]' : 'gap-[20px]')}>
 
             {/* Nav items */}
             <nav className={clsx('flex flex-col', collapsed ? 'gap-[8px] items-center' : 'gap-[16px]')}>
-              {NAV_ITEMS.map(({ href, key, Icon }) => {
-                // Fix 5: /pair/... pages highlight All Coins in sidebar
-                const active = href === '/'
-                  ? pathname === '/' || pathname.startsWith('/pair')
-                  : pathname === href
+              {navItems.map(({ href, path, key, Icon }) => {
+                const chainBase = `/${chain}`
+                const active = path === ''
+                  ? pathname === chainBase || pathname.startsWith(`${chainBase}/pair`)
+                  : pathname === href || pathname.startsWith(href + '/')
                 const label = tNav(key)
                 return (
                   <Link

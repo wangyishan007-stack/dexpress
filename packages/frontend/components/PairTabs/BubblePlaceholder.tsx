@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
+import { useChain } from '@/contexts/ChainContext'
 
 interface Props {
   tokenAddress: string
@@ -11,6 +12,7 @@ const PARTNER_ID = process.env.NEXT_PUBLIC_BUBBLEMAPS_PARTNER_ID ?? 'demo'
 
 export function BubblemapsEmbed({ tokenAddress }: Props) {
   const t = useTranslations('bubblemaps')
+  const { chainConfig } = useChain()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
@@ -25,7 +27,7 @@ export function BubblemapsEmbed({ tokenAddress }: Props) {
     return () => clearTimeout(timer)
   }, [loading, tokenAddress])
 
-  const src = `https://iframe.bubblemaps.io/map?chain=base&address=${tokenAddress}&partnerId=${PARTNER_ID}`
+  const src = `https://iframe.bubblemaps.io/map?chain=${chainConfig.bubblemapsChain}&address=${tokenAddress}&partnerId=${PARTNER_ID}`
 
   return (
     <div className="relative" style={{ minHeight: 500 }}>
@@ -44,7 +46,7 @@ export function BubblemapsEmbed({ tokenAddress }: Props) {
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-sub text-[13px]">
           <span>{t('failed')}</span>
           <a
-            href={`https://app.bubblemaps.io/base/token/${tokenAddress}`}
+            href={`https://app.bubblemaps.io/${chainConfig.bubblemapsChain}/token/${tokenAddress}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue hover:underline text-[12px]"

@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl'
 import clsx from 'clsx'
 import { fmtUsd, shortAddr } from '../../lib/formatters'
 import type { MoralisTrader } from '../../lib/moralis'
+import { useChain } from '@/contexts/ChainContext'
+import { explorerLink } from '@/lib/chains'
 
 type SortKey = 'bought' | 'sold' | 'pnl' | 'trades'
 type SortDir = 'asc' | 'desc'
@@ -43,6 +45,7 @@ interface Props {
 }
 
 export function TopTradersTable({ traders }: Props) {
+  const { chain } = useChain()
   const t = useTranslations('tradersTable')
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -114,7 +117,7 @@ export function TopTradersTable({ traders }: Props) {
         >
           <span className="text-sub tabular">{i + 1}</span>
           <a
-            href={`https://basescan.org/address/${t.address}`}
+            href={explorerLink(chain, 'address', t.address)}
             target="_blank"
             rel="noopener"
             className="font-mono text-sub hover:text-blue truncate transition-colors"
@@ -131,7 +134,7 @@ export function TopTradersTable({ traders }: Props) {
           </span>
           <span className="tabular text-right text-sub">{t.trades}</span>
           <a
-            href={`https://basescan.org/address/${t.address}`}
+            href={explorerLink(chain, 'address', t.address)}
             target="_blank"
             rel="noopener"
             className="flex items-center justify-center text-sub hover:text-blue transition-colors"

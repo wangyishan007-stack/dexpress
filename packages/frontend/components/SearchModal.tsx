@@ -7,6 +7,8 @@ import { TokenAvatar } from './TokenAvatar'
 import { searchPools, getCachedPools } from '../lib/dexscreener-client'
 import { fmtUsd, fmtPrice } from '../lib/formatters'
 import type { Pool } from '@dex/shared'
+import { useChainSlug } from '@/hooks/useChainSlug'
+import { isQuoteToken } from '@/lib/chains'
 
 function IconSearch() {
   return (
@@ -51,20 +53,15 @@ function getHistory(): HistoryItem[] {
   } catch { return [] }
 }
 
-const QUOTE_ADDRS = new Set([
-  '0x4200000000000000000000000000000000000006', // WETH
-  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC
-])
-
-function resolveBase(pool: Pool) {
-  return QUOTE_ADDRS.has(pool.token0.address.toLowerCase()) ? pool.token1 : pool.token0
+function resolveBase(pool: Pool, chain: import('@/lib/chains').ChainSlug) {
+  return isQuoteToken(chain, pool.token0.address) ? pool.token1 : pool.token0
 }
-function resolveQuote(pool: Pool) {
-  return QUOTE_ADDRS.has(pool.token0.address.toLowerCase()) ? pool.token0 : pool.token1
+function resolveQuote(pool: Pool, chain: import('@/lib/chains').ChainSlug) {
+  return isQuoteToken(chain, pool.token0.address) ? pool.token0 : pool.token1
 }
 
-function addHistory(pool: Pool) {
-  const base = resolveBase(pool)
+function addHistory(pool: Pool, chain: import('@/lib/chains').ChainSlug) {
+  const base = resolveBase(pool, chain)
   const item: HistoryItem = {
     address: pool.address,
     symbol: base.symbol,
@@ -83,6 +80,7 @@ interface Props {
 }
 
 export function SearchModal({ open, onClose }: Props) {
+  const chain = useChainSlug()
   const tSearch = useTranslations('search')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Pool[]>([])
@@ -94,9 +92,9 @@ export function SearchModal({ open, onClose }: Props) {
 
   // Recently updated: top pools from cache sorted by volume
   const recentTokens = useMemo(() => {
-    const pools = getCachedPools()
+    const pools = getCachedPools(chain)
     return [...pools].sort((a, b) => b.volume_24h - a.volume_24h).slice(0, 12)
-  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, chain]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load history from localStorage when modal opens
   useEffect(() => {
@@ -123,7 +121,7 @@ export function SearchModal({ open, onClose }: Props) {
     setSearching(true)
 
     // First: instant local filter from cached pools
-    const cached = getCachedPools()
+    const cached = getCachedPools(chain)
     const ql = q.toLowerCase()
     const localResults = cached.filter(p => {
       const t0 = p.token0, t1 = p.token1
@@ -138,7 +136,7 @@ export function SearchModal({ open, onClose }: Props) {
     // Then: debounced API search for broader results
     debounceRef.current = setTimeout(async () => {
       try {
-        const apiResults = await searchPools(q)
+        const apiResults = await searchPools(q, chain)
         if (apiResults.length > 0) {
           // Merge: local results first (deduplicated), then API results
           const seen = new Set(localResults.map(p => p.address))
@@ -167,15 +165,15 @@ export function SearchModal({ open, onClose }: Props) {
   }, [open, onClose])
 
   const goToPair = useCallback((pool: Pool) => {
-    addHistory(pool)
+    addHistory(pool, chain)
     onClose()
-    router.push(`/pair/${pool.address}`)
-  }, [onClose, router])
+    router.push(`/${chain}/pair/${pool.address}`)
+  }, [onClose, router, chain])
 
   const goToHistory = useCallback((item: HistoryItem) => {
     onClose()
-    router.push(`/pair/${item.address}`)
-  }, [onClose, router])
+    router.push(`/${chain}/pair/${item.address}`)
+  }, [onClose, router, chain])
 
   if (!open) return null
 
@@ -274,9 +272,10 @@ export function SearchModal({ open, onClose }: Props) {
 }
 
 function TokenCard({ pool, onClick }: { pool: Pool; onClick: () => void }) {
+  const chain = useChainSlug()
   const tSearch = useTranslations('search')
-  const base = resolveBase(pool)
-  const quote = resolveQuote(pool)
+  const base = resolveBase(pool, chain)
+  const quote = resolveQuote(pool, chain)
   return (
     <button
       onClick={onClick}

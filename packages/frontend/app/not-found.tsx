@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getTranslations } from 'next-intl/server'
+import { DEFAULT_CHAIN } from '@/lib/chains'
 
 export default async function NotFound() {
   const t = await getTranslations('error')
@@ -12,7 +13,7 @@ export default async function NotFound() {
         {t('notFoundDesc')}
       </p>
       <Link
-        href="/"
+        href={`/${DEFAULT_CHAIN}`}
         className="flex items-center gap-2 h-[40px] px-5 rounded-lg bg-blue text-[14px] font-medium text-white hover:bg-blue/90 transition-colors"
       >
         {t('backToAllCoins')}

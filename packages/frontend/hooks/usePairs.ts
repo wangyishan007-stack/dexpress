@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import useSWR from 'swr'
 import type { PairsQuery, PairsResponse, Pool, SortField } from '@dex/shared'
 import { pairsFetcher } from '../lib/dexscreener-client'
+import type { ChainSlug } from '@/lib/chains'
 
 const PAGE_SIZE = 50
 
@@ -43,7 +44,7 @@ function filterPools(pools: Pool[], filter?: string, sort?: string): Pool[] {
   return pools
 }
 
-export function usePairs(baseParams: Omit<PairsQuery, 'limit' | 'offset'>) {
+export function usePairs(baseParams: Omit<PairsQuery, 'limit' | 'offset'>, chain: string = 'base') {
   const [size, setSize] = useState(1)
 
   // [#8] Reset size when filter/sort/order changes
@@ -54,7 +55,7 @@ export function usePairs(baseParams: Omit<PairsQuery, 'limit' | 'offset'>) {
 
   // [#14] Expose error state
   const { data, error, isLoading, isValidating, mutate } = useSWR<PairsResponse>(
-    'dexscreener-pairs',
+    `pairs:${chain}`,
     pairsFetcher,
     {
       revalidateOnFocus: false,

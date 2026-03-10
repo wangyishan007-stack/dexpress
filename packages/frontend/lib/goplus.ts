@@ -4,8 +4,9 @@
  * Endpoint: GET /api/v1/token_security/{chainId}?contract_addresses={address}
  */
 
+import { getChain, DEFAULT_CHAIN, type ChainSlug } from './chains'
+
 const GOPLUS_BASE = 'https://api.gopluslabs.io/api/v1'
-const BASE_CHAIN_ID = '8453'
 
 export interface GoPlusHolder {
   address: string
@@ -72,10 +73,11 @@ export interface GoPlusResult {
   honeypot_with_same_creator: number
 }
 
-export async function fetchTokenSecurity(tokenAddress: string): Promise<GoPlusResult | null> {
+export async function fetchTokenSecurity(tokenAddress: string, chain: ChainSlug = DEFAULT_CHAIN): Promise<GoPlusResult | null> {
   try {
+    const chainId = getChain(chain).goplusChainId
     const res = await fetch(
-      `${GOPLUS_BASE}/token_security/${BASE_CHAIN_ID}?contract_addresses=${tokenAddress}`,
+      `${GOPLUS_BASE}/token_security/${chainId}?contract_addresses=${tokenAddress}`,
       { signal: AbortSignal.timeout(10_000) }
     )
     if (!res.ok) return null

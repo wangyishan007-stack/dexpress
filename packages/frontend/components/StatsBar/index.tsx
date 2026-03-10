@@ -5,12 +5,15 @@ import { fmtUsd } from '../../lib/formatters'
 import { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
+import { useChain } from '@/contexts/ChainContext'
 
-const BASE_RPC = 'https://mainnet.base.org'
-
-async function fetchLatestBlock(): Promise<{ block: number; ts: string }> {
+async function fetchLatestBlock(key: string): Promise<{ block: number; ts: string }> {
+  // Key format: 'latest-block:{chain}' — extract chain to get rpcUrl
+  const chain = key.split(':')[1] || 'base'
+  const { getChain } = await import('@/lib/chains')
+  const rpcUrl = getChain(chain as import('@/lib/chains').ChainSlug).rpcUrl
   try {
-    const res = await fetch(BASE_RPC, {
+    const res = await fetch(rpcUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 }),
@@ -50,11 +53,12 @@ interface Props {
 }
 
 export function StatsBar({ pairs, showBlock = true }: Props) {
+  const { chain } = useChain()
   const [agoStr, setAgoStr] = useState('')
   const t = useTranslations('stats')
 
   const { data: blockData } = useSWR(
-    showBlock ? 'base-latest-block' : null,
+    showBlock ? `latest-block:${chain}` : null,
     fetchLatestBlock,
     { refreshInterval: 12_000, revalidateOnFocus: false }
   )
