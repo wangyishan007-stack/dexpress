@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import clsx from 'clsx'
 import type { Pool, TimeWindow } from '@dex/shared'
@@ -311,17 +312,19 @@ export function PairRowData({ pair, livePrice, flash, timeWindow, columnConfig, 
 
 /* ─── Frozen Header (left panel) ──────────────────────────── */
 export function PairRowHeaderFrozen({ showStar = false, compact = false }: { showStar?: boolean; compact?: boolean }) {
+  const tTable = useTranslations('table')
   return (
     <div className={clsx('flex items-center gap-2 py-3 border-b border-border bg-surface', compact ? 'px-2' : 'px-4')}>
       {showStar && <span className="w-[14px]" />}
       <span className={clsx('font-medium text-header text-right flex-shrink-0', compact ? 'text-[12px] w-[24px]' : 'text-[14px] w-[36px]')}>#</span>
-      <span className={clsx('font-medium text-header', compact ? 'text-[12px]' : 'text-[14px]')}>Token</span>
+      <span className={clsx('font-medium text-header', compact ? 'text-[12px]' : 'text-[14px]')}>{tTable('token')}</span>
     </div>
   )
 }
 
 /* ─── Data Header (right panel) ──────────────────────────── */
 export function PairRowHeaderData({ columnConfig, compact = false }: { columnConfig?: ScreenerConfig; compact?: boolean }) {
+  const t = useTranslations('table')
   const visCols = columnConfig ? getVisibleColumns(columnConfig) : undefined
   const gridTemplate = visCols ? buildDataGridCols(visCols) : DEFAULT_DATA_GRID
 
@@ -360,6 +363,7 @@ const TH = ({ children, right }: { children: React.ReactNode; right?: boolean })
 )
 
 export function PairRowHeader({ showStar = false, columnConfig }: { showStar?: boolean; columnConfig?: ScreenerConfig }) {
+  const t = useTranslations('table')
   const visCols = columnConfig ? getVisibleColumns(columnConfig) : undefined
   const gridTemplate = visCols
     ? buildGridCols(visCols, showStar)
@@ -377,21 +381,21 @@ export function PairRowHeader({ showStar = false, columnConfig }: { showStar?: b
     >
       {showStar && <span />}
       <TH right>#</TH>
-      <TH>Token</TH>
+      <TH>{t('token')}</TH>
       {visCols
         ? visCols.map(col => <TH key={col.key} right>{col.headerLabel}</TH>)
         : <>
-            <TH right>Price</TH>
-            <TH right>Age</TH>
-            <TH right>Txns</TH>
-            <TH right>Volume</TH>
-            <TH right>Makers</TH>
+            <TH right>{t('price')}</TH>
+            <TH right>{t('age')}</TH>
+            <TH right>{t('txns')}</TH>
+            <TH right>{t('volume')}</TH>
+            <TH right>{t('makers')}</TH>
             <TH right>5M</TH>
             <TH right>1H</TH>
             <TH right>6H</TH>
             <TH right>24H</TH>
-            <TH right>Liquidity</TH>
-            <TH right>MCap</TH>
+            <TH right>{t('liquidity')}</TH>
+            <TH right>{t('mcap')}</TH>
           </>
       }
     </div>

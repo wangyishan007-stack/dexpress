@@ -22,7 +22,10 @@
     "sells": "売り",
     "liquidity": "流動性",
     "mcap": "時価総額",
-    "createdAt": "作成日時"
+    "createdAt": "作成日時",
+    "orderLabel": "並び順",
+    "descending": "降順",
+    "ascending": "昇順"
   },
   "stats": {
     "volume24h": "24H出来高",

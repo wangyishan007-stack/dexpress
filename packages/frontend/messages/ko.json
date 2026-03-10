@@ -22,7 +22,10 @@
     "sells": "매도",
     "liquidity": "유동성",
     "mcap": "시가쾴액",
-    "createdAt": "생성일"
+    "createdAt": "생성일",
+    "orderLabel": "정렬 순서",
+    "descending": "내림차순",
+    "ascending": "오름차순"
   },
   "stats": {
     "volume24h": "24H 거래량",

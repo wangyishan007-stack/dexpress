@@ -22,7 +22,10 @@
     "sells": "Sells",
     "liquidity": "Liquidity",
     "mcap": "Market Cap",
-    "createdAt": "Created At"
+    "createdAt": "Created At",
+    "orderLabel": "Order",
+    "descending": "Descending",
+    "ascending": "Ascending"
   },
   "stats": {
     "volume24h": "24H Volume",

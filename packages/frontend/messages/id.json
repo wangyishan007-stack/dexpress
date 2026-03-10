@@ -22,7 +22,10 @@
     "sells": "Jual",
     "liquidity": "Likuiditas",
     "mcap": "Market Cap",
-    "createdAt": "Dibuat Pada"
+    "createdAt": "Dibuat Pada",
+    "orderLabel": "Urutan",
+    "descending": "Menurun",
+    "ascending": "Menaik"
   },
   "stats": {
     "volume24h": "Volume 24H",

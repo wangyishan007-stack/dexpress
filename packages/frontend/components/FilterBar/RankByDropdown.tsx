@@ -50,17 +50,17 @@ export function RankByDropdown({ sort, order, onSort, onOrder, rankLabel, dataWi
         </button>
       }
     >
-      <DropdownSectionTitle>Order</DropdownSectionTitle>
+      <DropdownSectionTitle>{t('orderLabel')}</DropdownSectionTitle>
       <DropdownItem active={order === 'desc'} onClick={() => onOrder('desc')}>
-        Descending
+        {t('descending')}
       </DropdownItem>
       <DropdownItem active={order === 'asc'} onClick={() => onOrder('asc')}>
-        Ascending
+        {t('ascending')}
       </DropdownItem>
 
       <DropdownDivider />
 
-      <DropdownSectionTitle>Rank by</DropdownSectionTitle>
+      <DropdownSectionTitle>{t('rankBy')}</DropdownSectionTitle>
       {rankOptions.map((opt) => (
         <DropdownItem
           key={opt.value}
