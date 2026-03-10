@@ -45,6 +45,7 @@ interface HistoryItem {
   symbol: string
   logoUrl: string | null
   tokenAddress: string
+  chain?: string
 }
 
 function getHistory(): HistoryItem[] {
@@ -67,6 +68,7 @@ function addHistory(pool: Pool, chain: import('@/lib/chains').ChainSlug) {
     symbol: base.symbol,
     logoUrl: base.logo_url,
     tokenAddress: base.address,
+    chain,
   }
   const prev = getHistory().filter(h => h.address !== pool.address)
   localStorage.setItem(HISTORY_KEY, JSON.stringify([item, ...prev].slice(0, MAX_HISTORY)))
@@ -154,7 +156,7 @@ export function SearchModal({ open, onClose }: Props) {
     }, 400)
 
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [query])
+  }, [query, chain])
 
   // Close on Escape
   useEffect(() => {

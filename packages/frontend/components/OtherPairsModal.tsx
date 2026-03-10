@@ -28,7 +28,7 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
   const isInAnyList = (addr: string) => lists.some(l => l.pairIds.includes(addr))
 
   const { data: pools, isLoading } = useSWR<Pool[]>(
-    open && tokenAddress ? `other-pairs-${tokenAddress}` : null,
+    open && tokenAddress ? `other-pairs-${chain}:${tokenAddress}` : null,
     () => fetchPoolsByToken(tokenAddress, chain),
     { dedupingInterval: 120_000, revalidateOnFocus: false }
   )
