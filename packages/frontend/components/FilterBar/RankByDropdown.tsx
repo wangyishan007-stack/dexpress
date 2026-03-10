@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Dropdown, DropdownItem, DropdownSectionTitle, DropdownDivider } from '../Dropdown'
 
 function IconRank() {
@@ -10,16 +11,10 @@ function IconRank() {
   )
 }
 
-const TRENDING_OPTIONS: { value: string; label: string }[] = [
-  { value: 'trending_5m',   label: 'Trending 5M'  },
-  { value: 'trending_1h',   label: 'Trending 1H'  },
-  { value: 'trending_6h',   label: 'Trending 6H'  },
-  { value: 'trending_24h',  label: 'Trending 24H' },
-]
-
-const STATIC_OPTIONS: { value: string; label: string }[] = [
-  { value: 'liquidity_usd', label: 'Liquidity'  },
-  { value: 'mcap_usd',      label: 'Market Cap' },
+const TRENDING_WINDOWS = ['5m', '1h', '6h', '24h'] as const
+const STATIC_FIELD_KEYS = [
+  { value: 'liquidity_usd', key: 'liquidity' as const },
+  { value: 'mcap_usd',      key: 'mcap'      as const },
 ]
 
 interface Props {
@@ -32,13 +27,18 @@ interface Props {
 }
 
 export function RankByDropdown({ sort, order, onSort, onOrder, rankLabel, dataWindow }: Props) {
+  const t = useTranslations('filter')
   const dynamicOptions = [
-    { value: `txns_${dataWindow}`,   label: 'Txns'   },
-    { value: `buys_${dataWindow}`,   label: 'Buys'   },
-    { value: `sells_${dataWindow}`,  label: 'Sells'  },
-    { value: `volume_${dataWindow}`, label: 'Volume' },
+    { value: `txns_${dataWindow}`,   label: t('txns')      },
+    { value: `buys_${dataWindow}`,   label: t('buys')      },
+    { value: `sells_${dataWindow}`,  label: t('sells')     },
+    { value: `volume_${dataWindow}`, label: t('volume')    },
   ]
-  const rankOptions = [...TRENDING_OPTIONS, ...dynamicOptions, ...STATIC_OPTIONS]
+  const trendingOptions = TRENDING_WINDOWS.map(w => ({
+    value: `trending_${w}`, label: `${t('trending')} ${w.toUpperCase()}`,
+  }))
+  const staticOptions = STATIC_FIELD_KEYS.map(o => ({ value: o.value, label: t(o.key) }))
+  const rankOptions = [...trendingOptions, ...dynamicOptions, ...staticOptions]
 
   return (
     <Dropdown

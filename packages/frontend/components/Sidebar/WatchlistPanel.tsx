@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import clsx from 'clsx'
+import { useTranslations } from 'next-intl'
 import { useWatchlist } from '../../hooks/useWatchlist'
 import { useAuth } from '../../hooks/useAuth'
 import { getCachedPools } from '../../lib/dexscreener-client'
@@ -21,6 +22,7 @@ export function WatchlistPanel() {
   const { ready, authenticated } = useAuth()
   const { activeList, count } = useWatchlist()
   const [expanded, setExpanded] = useState(false)
+  const t = useTranslations('watchlistPanel')
 
   // Don't show watchlist data when not logged in
   if (!ready || !authenticated) {
@@ -70,9 +72,9 @@ export function WatchlistPanel() {
         expanded && 'overflow-y-auto max-h-[280px]'
       )}>
         {!cacheReady && activeList.pairIds.length > 0 ? (
-          <p className="text-[12px] text-sub/60">Loading...</p>
+          <p className="text-[12px] text-sub/60">{t('loading')}</p>
         ) : watchedPools.length === 0 ? (
-          <p className="text-[12px] text-sub/60">Nothing in this list yet...</p>
+          <p className="text-[12px] text-sub/60">{t('emptyList')}</p>
         ) : (
           <div className="flex flex-col gap-1">
             {visiblePools.map(pool => {

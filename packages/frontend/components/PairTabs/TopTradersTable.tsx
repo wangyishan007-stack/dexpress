@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import clsx from 'clsx'
 import { fmtUsd, shortAddr } from '../../lib/formatters'
 import type { MoralisTrader } from '../../lib/moralis'
@@ -42,6 +43,7 @@ interface Props {
 }
 
 export function TopTradersTable({ traders }: Props) {
+  const t = useTranslations('tradersTable')
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
@@ -77,7 +79,7 @@ export function TopTradersTable({ traders }: Props) {
       <div className="flex items-center justify-center py-12 text-sub text-[14px]">
         <span className="flex items-center gap-2">
           <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-          Loading top traders...
+          {t('loadingTraders')}
         </span>
       </div>
     )
@@ -86,7 +88,7 @@ export function TopTradersTable({ traders }: Props) {
   if (rows.length === 0) {
     return (
       <div className="flex items-center justify-center py-12 text-sub text-[14px]">
-        No top trader data for this token yet
+        {t('noTraders')}
       </div>
     )
   }
@@ -96,12 +98,12 @@ export function TopTradersTable({ traders }: Props) {
       {/* Column header */}
       <div className="grid grid-cols-[40px_1fr_100px_100px_100px_60px_40px] gap-x-3 px-3 md:px-5 py-2 text-[14px] text-header border-b border-border sticky top-0 bg-surface z-10" style={{ minWidth: 580 }}>
         <span>#</span>
-        <span>Maker</span>
-        <SortableHeader label="Bought" sortKey="bought" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="justify-end" />
-        <SortableHeader label="Sold" sortKey="sold" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="justify-end" />
-        <SortableHeader label="PnL" sortKey="pnl" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="justify-end" />
-        <SortableHeader label="Txns" sortKey="trades" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="justify-end" />
-        <span className="text-center">Exp</span>
+        <span>{t('maker')}</span>
+        <SortableHeader label={t('bought')} sortKey="bought" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="justify-end" />
+        <SortableHeader label={t('sold')} sortKey="sold" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="justify-end" />
+        <SortableHeader label={t('pnl')} sortKey="pnl" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="justify-end" />
+        <SortableHeader label={t('txns')} sortKey="trades" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} className="justify-end" />
+        <span className="text-center">{t('exp')}</span>
       </div>
 
       {rows.map((t, i) => (

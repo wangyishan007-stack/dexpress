@@ -3,6 +3,7 @@
 import { useRef, useState, useEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import clsx from 'clsx'
+import { useTranslations } from 'next-intl'
 import type { Pool, TimeWindow } from '@dex/shared'
 import { PairRowFrozen, PairRowData, PairRowHeader, PairRowHeaderFrozen, PairRowHeaderData } from './PairRow'
 import { SkeletonRow } from '../SkeletonRow'
@@ -30,6 +31,7 @@ interface Props {
 
 export function PairList({ pairs, hasMore, onLoadMore, isValidating, livePrices, flashing, timeWindow, loading, showStar = false, autoHeight = false, columnConfig }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const t = useTranslations('common')
 
   const [isMobile, setIsMobile] = useState(false)
 
@@ -92,8 +94,8 @@ export function PairList({ pairs, hasMore, onLoadMore, isValidating, livePrices,
       <div className={outerCls}>
         <PairRowHeader showStar={showStar} columnConfig={columnConfig} />
         <EmptyState
-          heading="No pairs found"
-          description="Try adjusting your filters or check back later."
+          heading={t('noPairsFound')}
+          description={t('noPairsDesc')}
         />
       </div>
     )
@@ -163,7 +165,7 @@ export function PairList({ pairs, hasMore, onLoadMore, isValidating, livePrices,
                   <div className="flex-1 min-w-0">
                     {isLoader ? (
                       <div className={clsx('flex items-center justify-center text-[11px] text-sub', loaderH)}>
-                        {isValidating ? 'Loading more…' : null}
+                        {isValidating ? t('loadingMore') : null}
                       </div>
                     ) : (
                       <PairRowData

@@ -210,3 +210,27 @@ The goal: Be helpful without being annoying. Check in a few times a day, do usef
 ## Make It Yours
 
 This is a starting point. Add your own conventions, style, and rules as you figure out what works.
+
+---
+
+## 🚀 base-dex-screener 专属规则
+
+### 启动时必读
+
+除了标准文件外，每次启动还要读：
+1. `CONTEXT.md` — 项目技术简报
+2. `MEMORY.md` — 项目长期记忆
+3. `skills/INDEX.md` — 可用 skills 列表
+
+### 编码任务
+
+- 包管理器用 **pnpm**，不用 npm/yarn
+- 修改共享类型前先确认影响范围
+- 完成一个功能后，更新 `CONTEXT.md` 的「当前重点任务」和 `skills/` 目录
+
+### Skill 积累
+
+每完成一个功能模块：
+1. 在 `skills/<feature>/SKILL.md` 记录用法
+2. 更新 `skills/INDEX.md`
+3. 把重要决策写进 `MEMORY.md`

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { useWatchlist } from '../hooks/useWatchlist'
 
 function fmtUpdated(ts: string): string {
@@ -20,6 +21,8 @@ interface Props {
 }
 
 export function ManageListsModal({ onClose }: Props) {
+  const tModal = useTranslations('modals')
+  const tCommon = useTranslations('common')
   const { lists, createList, renameList, deleteList } = useWatchlist()
   const [newName, setNewName]         = useState('')
   const [editingId, setEditingId]     = useState<string | null>(null)
@@ -71,7 +74,7 @@ export function ManageListsModal({ onClose }: Props) {
       <div className="w-full max-w-[440px] mx-4 rounded-xl border border-border bg-[#111] shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="text-[16px] font-bold text-text">Manage My Lists</h2>
+          <h2 className="text-[16px] font-bold text-text">{tModal('manageTitle')}</h2>
           <button
             onClick={onClose}
             className="flex items-center justify-center w-[28px] h-[28px] rounded-md text-sub hover:text-text hover:bg-border/40 transition-colors"
@@ -89,7 +92,7 @@ export function ManageListsModal({ onClose }: Props) {
             value={newName}
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handleCreate() }}
-            placeholder="New List"
+            placeholder={tModal('newListPlaceholder')}
             className="flex-1 h-[36px] rounded-lg border border-border bg-transparent px-3 text-[13px] text-text placeholder-sub outline-none focus:border-blue transition-colors"
           />
           <button
@@ -97,7 +100,7 @@ export function ManageListsModal({ onClose }: Props) {
             disabled={!newName.trim()}
             className="h-[36px] px-4 rounded-lg bg-blue text-[13px] font-medium text-white hover:bg-blue/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Create list
+            {tModal('createList')}
           </button>
         </div>
 
@@ -132,8 +135,8 @@ export function ManageListsModal({ onClose }: Props) {
                     <>
                       <div className="text-[13px] font-medium text-text truncate">{list.name}</div>
                       <div className="text-[11px] text-sub">
-                        {list.pairIds.length} pair{list.pairIds.length !== 1 ? 's' : ''}
-                        {list.updatedAt ? `, updated ${fmtUpdated(list.updatedAt)}` : ''}
+                        {tModal('pairCount', { count: list.pairIds.length })}
+                        {list.updatedAt ? `, ${tModal('updated', { time: fmtUpdated(list.updatedAt) })}` : ''}
                       </div>
                     </>
                   )}
@@ -146,7 +149,7 @@ export function ManageListsModal({ onClose }: Props) {
                     <button
                       onClick={() => startRename(list.id, list.name)}
                       className="flex items-center justify-center w-[28px] h-[28px] rounded-md text-sub hover:text-text hover:bg-border/40 transition-colors"
-                      title="Rename"
+                      title={tCommon('rename')}
                     >
                       <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
                         <path d="M8.5 1.5l3 3L4 12H1v-3L8.5 1.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
@@ -157,7 +160,7 @@ export function ManageListsModal({ onClose }: Props) {
                       <button
                         onClick={() => deleteList(list.id)}
                         className="flex items-center justify-center w-[28px] h-[28px] rounded-md text-sub hover:text-red hover:bg-red/10 transition-colors"
-                        title="Delete"
+                        title={tCommon('delete')}
                       >
                         <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
                           <path d="M2 3.5h9M4.5 3.5V2.5a1 1 0 011-1h2a1 1 0 011 1v1M5.5 6v3.5M7.5 6v3.5M3 3.5l.5 7a1 1 0 001 1h4a1 1 0 001-1l.5-7" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>

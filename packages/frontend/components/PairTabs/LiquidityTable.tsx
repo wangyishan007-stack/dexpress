@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { fmtUsd, shortAddr } from '../../lib/formatters'
 import type { GoPlusLpHolder } from '../../lib/goplus'
 import type { LPProvidersResult } from '../../lib/uniswap-subgraph'
@@ -10,13 +11,14 @@ interface Props {
 }
 
 export function LiquidityTable({ lpHolders, subgraphData }: Props) {
+  const t = useTranslations('liquidityTable')
   // Prefer Subgraph data (up to 50), fall back to GoPlus (top 10)
   const useSubgraph = subgraphData && subgraphData.providers.length > 0
 
   if (!useSubgraph && (!lpHolders || lpHolders.length === 0)) {
     return (
       <div className="flex items-center justify-center py-12 text-sub text-[14px]">
-        {lpHolders === undefined && !subgraphData ? 'Loading LP data...' : 'No LP data available'}
+        {lpHolders === undefined && !subgraphData ? t('loadingLp') : t('noLpData')}
       </div>
     )
   }
@@ -27,11 +29,11 @@ export function LiquidityTable({ lpHolders, subgraphData }: Props) {
       <div className="overflow-auto" style={{ maxHeight: 400 }}>
         <div className="grid grid-cols-[40px_1fr_70px_200px_60px_40px] gap-x-3 px-3 md:px-5 py-2 text-[14px] text-header border-b border-border sticky top-0 bg-surface z-10" style={{ minWidth: 540 }}>
           <span>#</span>
-          <span>Address</span>
+          <span>{t('address')}</span>
           <span className="text-right">%</span>
-          <span className="text-center">Value</span>
-          <span className="text-center">Pos</span>
-          <span className="text-center">Exp</span>
+          <span className="text-center">{t('value')}</span>
+          <span className="text-center">{t('pos')}</span>
+          <span className="text-center">{t('exp')}</span>
         </div>
 
         {providers.map((lp, i) => (
@@ -87,10 +89,10 @@ export function LiquidityTable({ lpHolders, subgraphData }: Props) {
     <div className="overflow-auto" style={{ maxHeight: 400 }}>
       <div className="grid grid-cols-[40px_1fr_70px_200px_40px] gap-x-3 px-3 md:px-5 py-2 text-[14px] text-header border-b border-border sticky top-0 bg-surface z-10" style={{ minWidth: 500 }}>
         <span>#</span>
-        <span>Address</span>
+        <span>{t('address')}</span>
         <span className="text-right">%</span>
-        <span className="text-center">Value</span>
-        <span className="text-center">Exp</span>
+        <span className="text-center">{t('value')}</span>
+        <span className="text-center">{t('exp')}</span>
       </div>
 
       {lpHolders!.map((lp, i) => {
@@ -113,8 +115,8 @@ export function LiquidityTable({ lpHolders, subgraphData }: Props) {
               >
                 {shortAddr(lp.address)}
               </a>
-              {lp.is_contract === 1 && <span className="text-[11px] text-sub bg-border/40 rounded px-1 flex-shrink-0">Contract</span>}
-              {lp.is_locked === 1 && <span className="text-[11px] text-green bg-green/10 rounded px-1 flex-shrink-0">Locked</span>}
+              {lp.is_contract === 1 && <span className="text-[11px] text-sub bg-border/40 rounded px-1 flex-shrink-0">{t('contract')}</span>}
+              {lp.is_locked === 1 && <span className="text-[11px] text-green bg-green/10 rounded px-1 flex-shrink-0">{t('locked')}</span>}
             </div>
             <span className="tabular text-right text-text">{pct.toFixed(2)}%</span>
             <div className="flex items-center gap-2 min-w-0">

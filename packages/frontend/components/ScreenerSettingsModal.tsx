@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { COLUMN_DEFS, DEFAULT_CONFIG } from '../lib/columnConfig'
 import type { ScreenerConfig } from '../lib/columnConfig'
 
@@ -119,6 +120,9 @@ export function ScreenerSettingsModal({ open, onClose, config, onApply }: Props)
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
 
+  const t = useTranslations('common')
+  const tModal = useTranslations('modals')
+
   if (!open) return null
 
   return (
@@ -130,7 +134,7 @@ export function ScreenerSettingsModal({ open, onClose, config, onApply }: Props)
       <div className="relative rounded-xl border border-border bg-[#111] shadow-2xl w-[600px] max-w-[90vw] flex flex-col p-6" style={{ maxHeight: '85vh' }}>
         {/* Header */}
         <div className="flex items-center justify-between mb-5 flex-shrink-0">
-          <h2 className="text-[24px] font-bold text-text">Customize Screener</h2>
+          <h2 className="text-[24px] font-bold text-text">{tModal('customizeScreener')}</h2>
           <button onClick={onClose} className="text-sub hover:text-text transition-colors">
             <IconClose />
           </button>
@@ -170,14 +174,14 @@ export function ScreenerSettingsModal({ open, onClose, config, onApply }: Props)
             className="flex-1 h-[44px] rounded-[10px] text-[14px] font-bold text-white transition-colors"
             style={{ backgroundColor: '#2744FF' }}
           >
-            Apply
+            {t('apply')}
           </button>
           <button
             onClick={handleReset}
             className="flex-1 h-[44px] rounded-[10px] text-[14px] font-bold text-text transition-colors"
             style={{ backgroundColor: '#333333' }}
           >
-            Reset
+            {t('reset')}
           </button>
         </div>
       </div>

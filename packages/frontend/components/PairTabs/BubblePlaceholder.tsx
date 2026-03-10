@@ -1,36 +1,30 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 
 interface Props {
   tokenAddress: string
 }
 
-// Bubblemaps partner ID.
-// Use 'demo' until a real partner ID is obtained from https://bubblemaps.io/partner
-// The demo ID works but may be rate-limited or watermarked.
-// Replace with the real ID once approved to unlock your domain.
 const PARTNER_ID = process.env.NEXT_PUBLIC_BUBBLEMAPS_PARTNER_ID ?? 'demo'
 
 export function BubblemapsEmbed({ tokenAddress }: Props) {
+  const t = useTranslations('bubblemaps')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
-  // Reset state when token changes
   useEffect(() => {
     setLoading(true)
     setError(false)
   }, [tokenAddress])
 
-  // Timeout fallback: if iframe hasn't loaded after 15s, show error
   useEffect(() => {
     if (!loading) return
-    const t = setTimeout(() => { setLoading(false); setError(true) }, 15_000)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => { setLoading(false); setError(true) }, 15_000)
+    return () => clearTimeout(timer)
   }, [loading, tokenAddress])
 
-  // Correct iframe URL per Bubblemaps docs:
-  // https://iframe.bubblemaps.io/map?chain=base&address={addr}&partnerId={id}
   const src = `https://iframe.bubblemaps.io/map?chain=base&address=${tokenAddress}&partnerId=${PARTNER_ID}`
 
   return (
@@ -42,20 +36,20 @@ export function BubblemapsEmbed({ tokenAddress }: Props) {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
             </svg>
-            Loading Bubblemaps…
+            {t('loading')}
           </span>
         </div>
       )}
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-sub text-[13px]">
-          <span>Failed to load Bubblemaps.</span>
+          <span>{t('failed')}</span>
           <a
             href={`https://app.bubblemaps.io/base/token/${tokenAddress}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue hover:underline text-[12px]"
           >
-            Open in Bubblemaps ↗
+            {t('openIn')}
           </a>
         </div>
       )}

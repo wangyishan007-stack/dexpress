@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { TimeWindow } from '@dex/shared'
+import { useTranslations } from 'next-intl'
 import { TimeRangeDropdown } from './TimeRangeDropdown'
 import { RankByDropdown } from './RankByDropdown'
 import { ScreenerSettingsModal } from '../ScreenerSettingsModal'
@@ -92,6 +93,7 @@ export function FilterBar({
 }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const t = useTranslations('filter')
 
   const filterCount =
     (customFilters ? Object.values(customFilters).filter(v => v.min !== '' || v.max !== '').length : 0)
@@ -101,15 +103,16 @@ export function FilterBar({
   /* Build rank label from current sort field */
   const rankLabel = (() => {
     const s = sort ?? 'trending_score'
-    if (s === 'trending_score' || s.startsWith('trending_'))  return `Trending ${trendingWindow.toUpperCase()}`
-    if (s.startsWith('txns_'))    return `Txns ${s.split('_').pop()?.toUpperCase()}`
-    if (s.startsWith('buys_'))    return `Buys ${s.split('_').pop()?.toUpperCase()}`
-    if (s.startsWith('sells_'))   return `Sells ${s.split('_').pop()?.toUpperCase()}`
-    if (s.startsWith('volume_'))  return `Volume ${s.split('_').pop()?.toUpperCase()}`
-    if (s.startsWith('change_'))  return `Gainers ${s.split('_').pop()?.toUpperCase()}`
-    if (s === 'liquidity_usd')    return 'Liquidity'
-    if (s === 'mcap_usd')         return 'Market Cap'
-    if (s === 'created_at')       return 'Created At'
+    const w = (field: string) => field.split('_').pop()?.toUpperCase() ?? ''
+    if (s === 'trending_score' || s.startsWith('trending_'))  return `${t('trending')} ${trendingWindow.toUpperCase()}`
+    if (s.startsWith('txns_'))    return `${t('txns')} ${w(s)}`
+    if (s.startsWith('buys_'))    return `${t('buys')} ${w(s)}`
+    if (s.startsWith('sells_'))   return `${t('sells')} ${w(s)}`
+    if (s.startsWith('volume_'))  return `${t('volume')} ${w(s)}`
+    if (s.startsWith('change_'))  return `${t('gainers')} ${w(s)}`
+    if (s === 'liquidity_usd')    return t('liquidity')
+    if (s === 'mcap_usd')         return t('mcap')
+    if (s === 'created_at')       return t('createdAt')
     return s
   })()
 
@@ -129,7 +132,7 @@ export function FilterBar({
               className="flex items-center gap-2 text-text transition-colors"
             >
               <IconTrending />
-              <span className="text-[12px] md:text-[14px] font-medium">Trending</span>
+              <span className="text-[12px] md:text-[14px] font-medium">{t('trending')}</span>
             </button>
             {WINDOWS.map((w) => (
               <button
@@ -152,7 +155,7 @@ export function FilterBar({
             className={clsx(BTN, 'bg-border text-text hover:text-white')}
           >
             <IconTrending />
-            Trending
+            {t('trending')}
           </button>
         )}
 
@@ -164,7 +167,7 @@ export function FilterBar({
               className="flex items-center gap-2 text-text transition-colors"
             >
               <IconTop />
-              <span className="text-[12px] md:text-[14px] font-medium">Top</span>
+              <span className="text-[12px] md:text-[14px] font-medium">{t('top')}</span>
             </button>
             <button
               onClick={() => { onFilter('top'); onSort?.(`volume_${dataWindow}`) }}
@@ -175,7 +178,7 @@ export function FilterBar({
                   : 'bg-muted text-text hover:text-white'
               )}
             >
-              Volume
+              {t('volume')}
             </button>
             <button
               onClick={() => { onFilter('top'); onSort?.(`txns_${dataWindow}`) }}
@@ -186,7 +189,7 @@ export function FilterBar({
                   : 'bg-muted text-text hover:text-white'
               )}
             >
-              Txns
+              {t('txns')}
             </button>
           </div>
         ) : (
@@ -195,7 +198,7 @@ export function FilterBar({
             className={clsx(BTN, 'bg-border text-text hover:text-white')}
           >
             <IconTop />
-            Top
+            {t('top')}
           </button>
         )}
 
@@ -207,7 +210,7 @@ export function FilterBar({
               className="flex items-center gap-2 text-text transition-colors"
             >
               <IconGainers />
-              <span className="text-[12px] md:text-[14px] font-medium">Gainers</span>
+              <span className="text-[12px] md:text-[14px] font-medium">{t('gainers')}</span>
             </button>
             {WINDOWS.map((w) => (
               <button
@@ -230,7 +233,7 @@ export function FilterBar({
             className={clsx(BTN, 'bg-border text-text hover:text-white')}
           >
             <IconGainers />
-            Gainers
+            {t('gainers')}
           </button>
         )}
 
@@ -240,7 +243,7 @@ export function FilterBar({
           className={clsx(BTN, filter === 'new' ? 'bg-blue text-white' : 'bg-border text-text hover:text-white')}
         >
           <IconNew />
-          New Pairs
+          {t('newPairs')}
         </button>
 
       </div>
@@ -263,7 +266,7 @@ export function FilterBar({
           className="flex items-center gap-2 h-full px-3 md:px-4 border-r border-border text-sub hover:text-white transition-colors"
         >
           <IconFilter />
-          <span className="hidden md:inline text-[14px]">Filters</span>
+          <span className="hidden md:inline text-[14px]">{t('filters')}</span>
           {filterCount > 0 && (
             <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-blue text-white text-[11px] font-bold leading-none">
               {filterCount}

@@ -6,7 +6,7 @@ const HAS_PRIVY = !!process.env.NEXT_PUBLIC_PRIVY_APP_ID
 
 const NOOP = () => {}
 const FALLBACK = {
-  ready: false,
+  ready: true,
   authenticated: false,
   user: null,
   login: NOOP,

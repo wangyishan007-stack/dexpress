@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import useSWR from 'swr'
 import type { Pool } from '@dex/shared'
 import { fmtPrice, fmtUsd, fmtAge, fmtNum, fmtPct, shortAddr } from '../../../lib/formatters'
@@ -151,6 +152,9 @@ const QUOTE_ADDRS = new Set([
 
 /* ── Main ─────────────────────────────────────────────────── */
 export function PairDetailClient({ address }: Props) {
+  const tDetail = useTranslations('pairDetail')
+  const tCommon = useTranslations('common')
+
   // Instant fallback from list/detail cache — renders page immediately
   const fallback = useMemo(() => {
     const cached = getPoolFromCache(address)
@@ -328,16 +332,16 @@ export function PairDetailClient({ address }: Props) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-48 gap-2 text-sub text-sm">
-        <Spinner /> Loading pair…
+        <Spinner /> {tDetail('loadingPair')}
       </div>
     )
   }
   if (error || !pair) {
     return (
       <div className="flex flex-col items-center justify-center h-48 gap-2">
-        <p className="text-sub text-sm">{isLoading ? 'Loading...' : 'Failed to load pair data. Retrying...'}</p>
+        <p className="text-sub text-sm">{isLoading ? tDetail('loadingPair') : tDetail('failedToLoad')}</p>
         {error && <p className="text-sub text-xs font-mono">{String(error?.message ?? error)}</p>}
-        <a href="/" className="text-blue text-xs hover:underline mt-2">← Back to all coins</a>
+        <a href="/" className="text-blue text-xs hover:underline mt-2">{tDetail('backToAllCoins')}</a>
       </div>
     )
   }
@@ -469,11 +473,11 @@ export function PairDetailClient({ address }: Props) {
           {/* ── 3. Price USD / Price ─────────────────────────────── */}
           <div className="flex gap-2 w-full">
             <div className="flex-1 border border-border rounded-lg p-2 flex flex-col gap-1 items-center text-center">
-              <span className="text-[12px] text-sub">Price USD</span>
+              <span className="text-[12px] text-sub">{tDetail('priceUsd')}</span>
               <span className="text-[16px] font-bold tabular text-text">{fmtPrice(price)}</span>
             </div>
             <div className="flex-1 border border-border rounded-lg p-2 flex flex-col gap-1 items-center text-center">
-              <span className="text-[12px] text-sub">Price {quote.symbol}</span>
+              <span className="text-[12px] text-sub">{tDetail('priceQuote', { symbol: quote.symbol })}</span>
               <span className="text-[16px] font-bold tabular text-text">
                 {(() => {
                   const quoteUsd = pair.quote_token_price_usd ?? 0
@@ -495,22 +499,21 @@ export function PairDetailClient({ address }: Props) {
             return (
               <div className="flex gap-2 w-full">
                 <div className="flex-1 border border-border rounded-lg p-2 flex flex-col gap-1 items-center text-center">
-                  <span className="text-[12px] text-sub">Liquidity</span>
+                  <span className="text-[12px] text-sub">{tDetail('liquidity')}</span>
                   <span className="text-[16px] font-bold tabular text-text">{fmtUsd(pair.liquidity_usd)}</span>
                 </div>
                 <Tooltip content={
                   <div className="flex flex-col gap-1">
-                    <span className="text-[13px] font-semibold text-text">Fully diluted valuation:</span>
-                    <span className="text-[12px] text-sub font-mono">total supply × price</span>
+                    <span className="text-[13px] font-semibold text-text">{tDetail('fdvTooltip')}</span>
                   </div>
                 }>
                   <div className="flex-1 border border-border rounded-lg p-2 flex flex-col gap-1 items-center text-center cursor-help">
-                    <span className="text-[12px] text-sub underline decoration-dotted">FDV</span>
+                    <span className="text-[12px] text-sub underline decoration-dotted">{tDetail('fdv')}</span>
                     <span className="text-[16px] font-bold tabular text-text">{fdv > 0 ? fmtUsd(fdv) : '—'}</span>
                   </div>
                 </Tooltip>
                 <div className="flex-1 border border-border rounded-lg p-2 flex flex-col gap-1 items-center text-center">
-                  <span className="text-[12px] text-sub">Market Cap</span>
+                  <span className="text-[12px] text-sub">{tDetail('marketCap')}</span>
                   <span className="text-[16px] font-bold tabular text-text">{Number(pair.mcap_usd) > 0 ? fmtUsd(pair.mcap_usd) : '—'}</span>
                 </div>
               </div>
@@ -555,7 +558,7 @@ export function PairDetailClient({ address }: Props) {
               <div className="border border-border rounded-lg px-3 py-3">
                 <div className="grid grid-cols-3 gap-y-5 text-center">
                   <div className="flex flex-col items-center gap-2">
-                    <span className="text-[12px] text-sub">Top 10</span>
+                    <span className="text-[12px] text-sub">{tDetail('top10')}</span>
                     {top10Pct !== null ? (
                       <div className="flex items-center gap-1">
                         {top10Ok ? <CheckIcon /> : <WarnIcon />}
@@ -564,7 +567,7 @@ export function PairDetailClient({ address }: Props) {
                     ) : <LoadingText />}
                   </div>
                   <div className="flex flex-col items-center gap-2">
-                    <span className="text-[12px] text-sub">DEV</span>
+                    <span className="text-[12px] text-sub">{tDetail('dev')}</span>
                     {devPct !== null ? (
                       <div className="flex items-center gap-1">
                         {devOk ? <CheckIcon /> : <WarnIcon />}
@@ -573,20 +576,20 @@ export function PairDetailClient({ address }: Props) {
                     ) : <LoadingText />}
                   </div>
                   <div className="flex flex-col items-center gap-2">
-                    <span className="text-[12px] text-sub">Holders</span>
+                    <span className="text-[12px] text-sub">{tDetail('holders')}</span>
                     <span className="text-[14px] text-text tabular">{holderCount !== null ? fmtNum(holderCount) : '—'}</span>
                   </div>
                   {/* Row 2 */}
                   <div className="flex flex-col items-center gap-2">
-                    <span className="text-[12px] text-sub">NoHoneypot</span>
+                    <span className="text-[12px] text-sub">{tDetail('noHoneypot')}</span>
                     {isHoneypot !== null ? (isHoneypot ? <WarnIcon /> : <CheckIcon />) : <LoadingText />}
                   </div>
                   <div className="flex flex-col items-center gap-2">
-                    <span className="text-[12px] text-sub">Verified</span>
+                    <span className="text-[12px] text-sub">{tDetail('verified')}</span>
                     {isVerified !== null ? (isVerified ? <CheckIcon /> : <WarnIcon />) : <LoadingText />}
                   </div>
                   <div className="flex flex-col items-center gap-2">
-                    <span className="text-[12px] text-sub">Locked</span>
+                    <span className="text-[12px] text-sub">{tDetail('locked')}</span>
                     {lockedPct !== null ? (
                       <span className={clsx('text-[14px] tabular', lockedPct > 50 ? 'text-green' : 'text-red')}>{lockedPct.toFixed(1)}%</span>
                     ) : <LoadingText />}
@@ -638,15 +641,15 @@ export function PairDetailClient({ address }: Props) {
                   {/* Left: Txns / Volume / Makers */}
                   <div className="flex flex-col gap-3 p-2 w-[80px]">
                     <div className="flex flex-col gap-1 p-1">
-                      <span className="text-[12px] text-sub">Txns</span>
+                      <span className="text-[12px] text-sub">{tDetail('txns')}</span>
                       <span className="text-[14px] font-bold tabular text-text">{fmtNum(active.txns)}</span>
                     </div>
                     <div className="flex flex-col gap-1 p-1">
-                      <span className="text-[12px] text-sub">Volume</span>
+                      <span className="text-[12px] text-sub">{tDetail('volume')}</span>
                       <span className="text-[14px] font-bold tabular text-text">{fmtUsd(active.volume)}</span>
                     </div>
                     <div className="flex flex-col gap-1 p-1">
-                      <span className="text-[12px] text-sub underline decoration-dotted">Makers</span>
+                      <span className="text-[12px] text-sub underline decoration-dotted">{tDetail('makers')}</span>
                       <span className="text-[14px] font-bold tabular text-text">{fmtNum((pair as any)[`makers_${active.key}`] ?? 0)}</span>
                     </div>
                   </div>
@@ -682,7 +685,7 @@ export function PairDetailClient({ address }: Props) {
                     return (
                       <div className="flex-1 flex flex-col gap-2 px-2 py-2">
                         <div className="flex flex-col gap-[5px]">
-                          <div className="flex justify-between text-[12px] text-sub"><span>Buys</span><span>Sells</span></div>
+                          <div className="flex justify-between text-[12px] text-sub"><span>{tDetail('buys')}</span><span>{tDetail('sells')}</span></div>
                           <div className="flex justify-between text-[14px] text-text"><span>{fmtNum(buys)}</span><span>{fmtNum(sells)}</span></div>
                           <div className="flex h-1 gap-[2px]">
                             <div className="rounded-full bg-green" style={{ width: `${buyPct}%` }} />
@@ -690,7 +693,7 @@ export function PairDetailClient({ address }: Props) {
                           </div>
                         </div>
                         <div className="flex flex-col gap-[5px]">
-                          <div className="flex justify-between text-[12px] text-sub"><span>Buy Vol</span><span>Sell Vol</span></div>
+                          <div className="flex justify-between text-[12px] text-sub"><span>{tDetail('buyVol')}</span><span>{tDetail('sellVol')}</span></div>
                           <div className="flex justify-between text-[14px] text-text"><span>{fmtUsd(buyVol)}</span><span>{fmtUsd(sellVol)}</span></div>
                           <div className="flex h-1 gap-[2px]">
                             <div className="rounded-full bg-green" style={{ width: `${buyVolPct}%` }} />
@@ -698,7 +701,7 @@ export function PairDetailClient({ address }: Props) {
                           </div>
                         </div>
                         <div className="flex flex-col gap-[5px]">
-                          <div className="flex justify-between text-[12px] text-sub"><span>Buyers</span><span>Sellers</span></div>
+                          <div className="flex justify-between text-[12px] text-sub"><span>{tDetail('buyers')}</span><span>{tDetail('sellers')}</span></div>
                           <div className="flex justify-between text-[14px] text-text"><span>{fmtNum(pm.buyers)}</span><span>{fmtNum(pm.sellers)}</span></div>
                           <div className="flex h-1 gap-[2px]">
                             <div className="rounded-full bg-green" style={{ width: `${buyerPct}%` }} />
@@ -727,7 +730,7 @@ export function PairDetailClient({ address }: Props) {
             rel="noopener"
             className="flex items-center justify-center gap-2.5 rounded bg-muted text-[13px] text-sub hover:text-text transition-colors py-[10px]"
           >
-            Trade on {pair.dex === 'aerodrome' ? 'Aerodrome' : 'Uniswap'}
+            {tDetail('tradeOn', { dex: pair.dex === 'aerodrome' ? 'Aerodrome' : 'Uniswap' })}
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 1h7v7M11 1L5 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </a>
 
@@ -735,8 +738,8 @@ export function PairDetailClient({ address }: Props) {
           <div className="flex flex-col gap-2">
             <div className="flex flex-col">
               <div className="flex items-center justify-between px-2 py-3 border-b border-border">
-                <span className="text-[12px] text-sub">Pair created</span>
-                <span className="text-[14px] text-text">{pair.created_at ? `${fmtAge(pair.created_at)} ago` : '—'}</span>
+                <span className="text-[12px] text-sub">{tDetail('pairCreated')}</span>
+                <span className="text-[14px] text-text">{pair.created_at ? `${fmtAge(pair.created_at)} ${tCommon('ago')}` : '—'}</span>
               </div>
               {(() => {
                 const liq = pair.liquidity_usd ?? 0
@@ -747,18 +750,18 @@ export function PairDetailClient({ address }: Props) {
                 return (
                   <>
                     <div className="flex items-center justify-between px-2 py-3 border-b border-border">
-                      <span className="text-[12px] text-sub">Pooled {base.symbol}</span>
+                      <span className="text-[12px] text-sub">{tDetail('pooled', { symbol: base.symbol })}</span>
                       <span className="text-[14px] text-text">{basePooled > 0 ? <><span>≈{fmtNum(basePooled)}</span> <span className="text-sub text-[12px]">({fmtUsd(halfLiq)})</span></> : '—'}</span>
                     </div>
                     <div className="flex items-center justify-between px-2 py-3 border-b border-border">
-                      <span className="text-[12px] text-sub">Pooled {quote.symbol}</span>
+                      <span className="text-[12px] text-sub">{tDetail('pooled', { symbol: quote.symbol })}</span>
                       <span className="text-[14px] text-text">{quotePooled > 0 ? <><span>≈{fmtNum(quotePooled)}</span> <span className="text-sub text-[12px]">({fmtUsd(halfLiq)})</span></> : '—'}</span>
                     </div>
                   </>
                 )
               })()}
               <div className="flex items-center justify-between px-2 py-3 border-b border-border">
-                <span className="text-[12px] text-sub">Pair</span>
+                <span className="text-[12px] text-sub">{tDetail('pair')}</span>
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1">
                     <span className="text-[14px] text-text">{shortAddr(pair.address)}</span>
@@ -800,14 +803,14 @@ export function PairDetailClient({ address }: Props) {
               <a href={`https://twitter.com/search?q=${base.symbol}`} target="_blank" rel="noopener"
                 className="flex-1 flex items-center justify-center gap-1 border border-border rounded-lg py-1.5 text-[12px] text-sub hover:text-text transition-colors">
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M8.3 6.1L12.7 1h-1L7.8 5.4 4.8 1H1l4.6 6.7L1 13h1l4-4.6 3.2 4.6H13L8.3 6.1zm-1.4 1.6l-.5-.7L2.8 1.9h1.6l3 4.3.5.7 3.8 5.4h-1.6L6.9 7.7z"/></svg>
-                Search on Twitter
+                {tDetail('searchOnTwitter')}
               </a>
               <button
                 onClick={() => setOtherPairsOpen(true)}
                 className="flex-1 flex items-center justify-center gap-1 border border-border rounded-lg py-1.5 text-[12px] text-sub hover:text-text transition-colors"
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="6" cy="6" r="4"/><path d="M9 9l3 3"/></svg>
-                Other pairs
+                {tDetail('otherPairs')}
               </button>
             </div>
           </div>
@@ -1047,12 +1050,12 @@ export function PairDetailClient({ address }: Props) {
                 className="border border-border rounded-lg flex items-center justify-center gap-3 p-2 w-full text-[14px] text-text hover:bg-muted transition-colors"
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M2 4h10M2 7h7M2 10h4"/></svg>
-                Embed this chart
+                {tDetail('embedChart')}
               </button>
               {embedOpen && (
                 <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-border bg-[#111] shadow-2xl p-4 flex flex-col gap-3 z-20">
                   <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-bold text-text">Embed Code</span>
+                    <span className="text-[13px] font-bold text-text">{tDetail('embedCode')}</span>
                     <button onClick={() => setEmbedOpen(false)} className="text-sub hover:text-text">
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
                     </button>
@@ -1071,12 +1074,12 @@ export function PairDetailClient({ address }: Props) {
                     }}
                     className="bg-blue text-white hover:bg-blue/90 rounded-lg text-[13px] font-medium py-2 transition-colors"
                   >
-                    {embedCopied ? 'Copied!' : 'Copy Code'}
+                    {embedCopied ? tDetail('copied') : tDetail('copyCode')}
                   </button>
                 </div>
               )}
             </div>
-            <span className="text-[12px] text-sub">Charts powered by Lightweight Charts</span>
+            <span className="text-[12px] text-sub">{tDetail('chartsPoweredBy')}</span>
           </div>
 
         </div>

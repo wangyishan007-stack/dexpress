@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import clsx from 'clsx'
 import { fmtUsd, fmtPrice, fmtEth, fmtNum, shortAddr } from '../../lib/formatters'
 
@@ -140,6 +141,7 @@ function FilterModal({ title, open, onClose, children, onApply, onClear }: {
   onApply: () => void
   onClear: () => void
 }) {
+  const tCommon = useTranslations('common')
   const backdropRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -181,13 +183,13 @@ function FilterModal({ title, open, onClose, children, onApply, onClear }: {
             className="flex items-center gap-1.5 h-[40px] px-6 rounded-lg bg-blue text-[14px] text-white hover:bg-blue/90 transition-colors"
           >
             <IconCheck />
-            Apply
+            {tCommon('apply')}
           </button>
           <button
             onClick={onClear}
             className="h-[40px] px-6 rounded-lg border border-border text-[14px] text-sub hover:text-text transition-colors"
           >
-            Clear
+            {tCommon('clear')}
           </button>
         </div>
       </div>
@@ -201,11 +203,12 @@ function DateFilter({ from, to, onFromChange, onToChange }: {
   from: string; to: string
   onFromChange: (v: string) => void; onToChange: (v: string) => void
 }) {
+  const tTx = useTranslations('txFilters')
   return (
     <div className="flex flex-col items-center gap-3">
       {/* From */}
       <div className="flex items-center w-full h-[48px] rounded-lg border border-border overflow-hidden">
-        <span className="flex items-center justify-center w-[72px] h-full bg-[#1a1a1a] text-[14px] text-sub border-r border-border flex-shrink-0">From</span>
+        <span className="flex items-center justify-center w-[72px] h-full bg-[#1a1a1a] text-[14px] text-sub border-r border-border flex-shrink-0">{tTx('from')}</span>
         <input
           type="datetime-local"
           value={from}
@@ -223,7 +226,7 @@ function DateFilter({ from, to, onFromChange, onToChange }: {
 
       {/* To */}
       <div className="flex items-center w-full h-[48px] rounded-lg border border-border overflow-hidden">
-        <span className="flex items-center justify-center w-[72px] h-full bg-[#1a1a1a] text-[14px] text-sub border-r border-border flex-shrink-0">To</span>
+        <span className="flex items-center justify-center w-[72px] h-full bg-[#1a1a1a] text-[14px] text-sub border-r border-border flex-shrink-0">{tTx('to')}</span>
         <input
           type="datetime-local"
           value={to}
@@ -241,11 +244,11 @@ function DateFilter({ from, to, onFromChange, onToChange }: {
 
 /* ── Type Dropdown ──────────────────────────────────────── */
 
-const TYPE_OPTIONS: { key: TypeFilterValue; label: string }[] = [
-  { key: 'all',      label: 'All' },
-  { key: 'buy_sell', label: 'Buy / Sell' },
-  { key: 'buy',      label: 'Buy' },
-  { key: 'sell',     label: 'Sell' },
+const TYPE_OPTION_KEYS: { key: TypeFilterValue; labelKey: string }[] = [
+  { key: 'all',      labelKey: 'all' },
+  { key: 'buy_sell', labelKey: 'buySell' },
+  { key: 'buy',      labelKey: 'buy' },
+  { key: 'sell',     labelKey: 'sell' },
 ]
 
 function TypeDropdown({ value, onChange, onClose }: {
@@ -253,6 +256,8 @@ function TypeDropdown({ value, onChange, onClose }: {
   onChange: (v: TypeFilterValue) => void
   onClose: () => void
 }) {
+  const tTx = useTranslations('txFilters')
+  const tTable = useTranslations('txTable')
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -274,7 +279,9 @@ function TypeDropdown({ value, onChange, onClose }: {
       ref={ref}
       className="absolute top-full left-0 mt-1 z-50 min-w-[180px] rounded-xl border border-border bg-[#111] shadow-2xl py-1 overflow-hidden"
     >
-      {TYPE_OPTIONS.map((o, i) => (
+      {TYPE_OPTION_KEYS.map((o, i) => {
+        const label = o.labelKey === 'buy' || o.labelKey === 'sell' ? tTable(o.labelKey) : tTx(o.labelKey)
+        return (
         <button
           key={o.key}
           onClick={() => { onChange(o.key); onClose() }}
@@ -291,9 +298,10 @@ function TypeDropdown({ value, onChange, onClose }: {
           ) : (
             <span className="w-[14px] flex-shrink-0" />
           )}
-          {o.label}
+          {label}
         </button>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -305,10 +313,11 @@ function RangeFilter({ min, max, onMinChange, onMaxChange, prefix, suffix }: {
   onMinChange: (v: string) => void; onMaxChange: (v: string) => void
   prefix?: string; suffix?: string
 }) {
+  const tCommon = useTranslations('common')
   return (
     <div className="flex items-center gap-3">
       <div className="flex items-center flex-1 h-[48px] rounded-lg border border-border overflow-hidden">
-        <span className="flex items-center justify-center w-[56px] h-full bg-[#1a1a1a] text-[14px] text-sub border-r border-border flex-shrink-0">Min</span>
+        <span className="flex items-center justify-center w-[56px] h-full bg-[#1a1a1a] text-[14px] text-sub border-r border-border flex-shrink-0">{tCommon('min')}</span>
         {prefix && <span className="text-[14px] text-sub pl-3">{prefix}</span>}
         <input
           type="text"
@@ -321,7 +330,7 @@ function RangeFilter({ min, max, onMinChange, onMaxChange, prefix, suffix }: {
       </div>
       <span className="text-sub text-[14px]">—</span>
       <div className="flex items-center flex-1 h-[48px] rounded-lg border border-border overflow-hidden">
-        <span className="flex items-center justify-center w-[56px] h-full bg-[#1a1a1a] text-[14px] text-sub border-r border-border flex-shrink-0">Max</span>
+        <span className="flex items-center justify-center w-[56px] h-full bg-[#1a1a1a] text-[14px] text-sub border-r border-border flex-shrink-0">{tCommon('max')}</span>
         {prefix && <span className="text-[14px] text-sub pl-3">{prefix}</span>}
         <input
           type="text"
@@ -339,9 +348,10 @@ function RangeFilter({ min, max, onMinChange, onMaxChange, prefix, suffix }: {
 /* ── Maker Filter ───────────────────────────────────────── */
 
 function MakerFilter({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const tTx = useTranslations('txFilters')
   return (
     <div className="flex items-center h-[48px] rounded-lg border border-border overflow-hidden">
-      <span className="flex items-center justify-center w-[72px] h-full bg-[#1a1a1a] text-[14px] text-sub border-r border-border flex-shrink-0">Address</span>
+      <span className="flex items-center justify-center w-[72px] h-full bg-[#1a1a1a] text-[14px] text-sub border-r border-border flex-shrink-0">{tTx('address')}</span>
       <input
         type="text"
         value={value}
@@ -356,6 +366,9 @@ function MakerFilter({ value, onChange }: { value: string; onChange: (v: string)
 /* ── Main component ─────────────────────────────────────── */
 
 export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore, baseTokenSymbol, newSwapIds }: Props) {
+  const tTx = useTranslations('txFilters')
+  const tTable = useTranslations('txTable')
+  const tCommon = useTranslations('common')
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS)
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null)
@@ -429,9 +442,9 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
     <div className="overflow-auto" style={{ maxHeight: 400 }}>
       {/* Column header */}
       <div className="grid grid-cols-[96px_56px_1fr_1fr_1fr_96px_40px] gap-x-3 px-3 md:px-5 py-2 text-[14px] text-header border-b border-border sticky top-0 bg-surface z-10" style={{ minWidth: 640 }}>
-        <HeaderCell label="Date"  filterKey="date"  activeFilters={activeFilters} onOpen={handleOpen} />
+        <HeaderCell label={tTx('date')}  filterKey="date"  activeFilters={activeFilters} onOpen={handleOpen} />
         <div className="relative">
-          <HeaderCell label="Type"  filterKey="type"  activeFilters={activeFilters} onOpen={handleOpen} />
+          <HeaderCell label={tTable('type')}  filterKey="type"  activeFilters={activeFilters} onOpen={handleOpen} />
           {typeDropdownOpen && (
             <TypeDropdown
               value={filters.type}
@@ -440,36 +453,35 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
             />
           )}
         </div>
-        <HeaderCell label="USD"   filterKey="usd"   activeFilters={activeFilters} onOpen={handleOpen} className="justify-end" />
-        <HeaderCell label={baseTokenSymbol || 'Amount'}   filterKey="eth"   activeFilters={activeFilters} onOpen={handleOpen} className="justify-end" />
+        <HeaderCell label={tTable('usd')}   filterKey="usd"   activeFilters={activeFilters} onOpen={handleOpen} className="justify-end" />
+        <HeaderCell label={baseTokenSymbol || tTable('amount')}   filterKey="eth"   activeFilters={activeFilters} onOpen={handleOpen} className="justify-end" />
         <button
           onClick={() => setPriceInUsd(v => !v)}
           className="flex items-center gap-1 justify-end hover:text-text transition-colors"
         >
-          <span>Price</span>
+          <span>{tTx('price')}</span>
           <IconToggle />
         </button>
-        <HeaderCell label="Maker" filterKey="maker"  activeFilters={activeFilters} onOpen={handleOpen} className="justify-end" />
-        <span className="text-center">TXN</span>
+        <HeaderCell label={tTable('maker')} filterKey="maker"  activeFilters={activeFilters} onOpen={handleOpen} className="justify-end" />
+        <span className="text-center">{tTx('txn')}</span>
       </div>
 
       {filtered.length === 0 && (
         <div className="flex items-center justify-center py-8 text-sub text-[13px]">
           {swapLoading ? (
-            <span className="flex items-center gap-2"><Spinner /> Loading transactions...</span>
+            <span className="flex items-center gap-2"><Spinner /> {tTx('loadingTx')}</span>
           ) : swaps.length > 0 ? (
-            // BUG D fix: there ARE swaps but all filtered out — give accurate message
             <span className="flex items-center gap-2">
-              No results match your filters.
+              {tTx('noMatchFilters')}
               <button
                 onClick={() => setFilters(EMPTY_FILTERS)}
                 className="text-blue hover:underline"
               >
-                Clear filters
+                {tTx('clearFilters')}
               </button>
             </span>
           ) : (
-            'No transactions yet.'
+            tTx('noTransactions')
           )}
         </div>
       )}
@@ -488,7 +500,7 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
             {new Date(s.timestamp).toLocaleTimeString()}
           </span>
           <span className={clsx(s.is_buy ? 'text-green' : 'text-red')}>
-            {s.is_buy ? 'BUY' : 'SELL'}
+            {s.is_buy ? tTable('buy').toUpperCase() : tTable('sell').toUpperCase()}
           </span>
           <span className={clsx('tabular text-right font-mono', s.is_buy ? 'text-green' : 'text-red')}>
             {fmtUsd(s.amount_usd)}
@@ -523,7 +535,7 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
             className="flex items-center gap-1.5 text-[12px] text-sub hover:text-text transition-colors disabled:opacity-50"
           >
             {swapLoading && <Spinner />}
-            {swapLoading ? 'Loading...' : 'Load more'}
+            {swapLoading ? tCommon('loadingMore') : tCommon('loadMore')}
           </button>
         </div>
       )}
@@ -532,7 +544,7 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
 
       {/* Date */}
       <FilterModal
-        title="Filter by Date"
+        title={tTx('filterByDate')}
         open={openFilter === 'date'}
         onClose={() => setOpenFilter(null)}
         onApply={handleApply}
@@ -548,7 +560,7 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
 
       {/* USD */}
       <FilterModal
-        title="Filter by USD"
+        title={tTx('filterByUsd')}
         open={openFilter === 'usd'}
         onClose={() => setOpenFilter(null)}
         onApply={handleApply}
@@ -565,7 +577,7 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
 
       {/* ETH */}
       <FilterModal
-        title={`Filter by ${baseTokenSymbol || 'Amount'}`}
+        title={tTx('filterByAmount', { symbol: baseTokenSymbol || tTable('amount') })}
         open={openFilter === 'eth'}
         onClose={() => setOpenFilter(null)}
         onApply={handleApply}
@@ -581,7 +593,7 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
 
       {/* Maker */}
       <FilterModal
-        title="Filter by Maker"
+        title={tTx('filterByMaker')}
         open={openFilter === 'maker'}
         onClose={() => setOpenFilter(null)}
         onApply={handleApply}

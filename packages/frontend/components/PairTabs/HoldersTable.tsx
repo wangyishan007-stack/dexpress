@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { fmtUsd, fmtNum, shortAddr } from '../../lib/formatters'
 import type { MoralisHoldersResult } from '../../lib/moralis'
 
@@ -8,12 +9,14 @@ interface Props {
 }
 
 export function HoldersTable({ holdersData }: Props) {
+  const t = useTranslations('holdersTable')
+
   if (!holdersData) {
     return (
       <div className="flex items-center justify-center py-12 text-sub text-[14px]">
         <span className="flex items-center gap-2">
           <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-          Loading holders...
+          {t('loadingHolders')}
         </span>
       </div>
     )
@@ -23,7 +26,7 @@ export function HoldersTable({ holdersData }: Props) {
   if (holders.length === 0) {
     return (
       <div className="flex items-center justify-center py-12 text-sub text-[14px]">
-        No holder data available
+        {t('noData')}
       </div>
     )
   }
@@ -35,11 +38,11 @@ export function HoldersTable({ holdersData }: Props) {
       {/* Column header */}
       <div className="grid grid-cols-[40px_1fr_70px_200px_90px_40px] gap-x-3 px-3 md:px-5 py-2 text-[14px] text-header border-b border-border sticky top-0 bg-surface z-10" style={{ minWidth: 560 }}>
         <span>#</span>
-        <span>Address</span>
-        <span className="text-right">%</span>
-        <span className="text-center">Amount</span>
-        <span className="text-right">Value</span>
-        <span className="text-center">Exp</span>
+        <span>{t('address')}</span>
+        <span className="text-right">{t('percentage')}</span>
+        <span className="text-center">{t('amount')}</span>
+        <span className="text-right">{t('value')}</span>
+        <span className="text-center">{t('exp')}</span>
       </div>
 
       {holders.map((h, i) => {
@@ -57,7 +60,7 @@ export function HoldersTable({ holdersData }: Props) {
             <span className="text-sub tabular">{i + 1}</span>
             <div className="flex items-center gap-1.5 min-w-0">
               {isNullAddr ? (
-                <span className="text-sub">Null Address (Burn)</span>
+                <span className="text-sub">{t('nullAddress')}</span>
               ) : (
                 <>
                   <a
@@ -68,7 +71,7 @@ export function HoldersTable({ holdersData }: Props) {
                   >
                     {shortAddr(h.owner_address)}
                   </a>
-                  {h.is_contract && <span className="text-[11px] text-sub bg-border/40 rounded px-1 flex-shrink-0">Contract</span>}
+                  {h.is_contract && <span className="text-[11px] text-sub bg-border/40 rounded px-1 flex-shrink-0">{t('contract')}</span>}
                 </>
               )}
             </div>

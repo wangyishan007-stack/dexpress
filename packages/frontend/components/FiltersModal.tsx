@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 
 export interface FilterValues {
   [key: string]: { min: string; max: string }
@@ -12,39 +13,39 @@ export interface TextFilterValues {
 }
 
 const DOLLAR_FILTERS = [
-  { key: 'liquidity',  label: 'Liquidity' },
-  { key: 'mcap',       label: 'Market Cap' },
-  { key: 'fdv',        label: 'FDV' },
-  { key: 'volume_24h', label: '24H Volume' },
-  { key: 'volume_6h',  label: '6H Volume' },
-  { key: 'volume_1h',  label: '1H Volume' },
-  { key: 'volume_5m',  label: '5M Volume' },
+  { key: 'liquidity',  labelKey: 'liquidity' },
+  { key: 'mcap',       labelKey: 'marketCap' },
+  { key: 'fdv',        labelKey: 'fdv' },
+  { key: 'volume_24h', labelKey: 'volume24h' },
+  { key: 'volume_6h',  labelKey: 'volume6h' },
+  { key: 'volume_1h',  labelKey: 'volume1h' },
+  { key: 'volume_5m',  labelKey: 'volume5m' },
 ]
 
 const HOUR_FILTERS = [
-  { key: 'pair_age', label: 'Pair Age' },
+  { key: 'pair_age', labelKey: 'pairAge' },
 ]
 
 const PERCENT_FILTERS = [
-  { key: 'change_24h', label: '24H Change' },
-  { key: 'change_6h',  label: '6H Change' },
-  { key: 'change_1h',  label: '1H Change' },
-  { key: 'change_5m',  label: '5M Change' },
+  { key: 'change_24h', labelKey: 'change24h' },
+  { key: 'change_6h',  labelKey: 'change6h' },
+  { key: 'change_1h',  labelKey: 'change1h' },
+  { key: 'change_5m',  labelKey: 'change5m' },
 ]
 
 const NUMBER_FILTERS = [
-  { key: 'txns_24h',  label: '24H Txns' },
-  { key: 'buys_24h',  label: '24H Buys' },
-  { key: 'sells_24h', label: '24H Sells' },
-  { key: 'txns_6h',   label: '6H Txns' },
-  { key: 'buys_6h',   label: '6H Buys' },
-  { key: 'sells_6h',  label: '6H Sells' },
-  { key: 'txns_1h',   label: '1H Txns' },
-  { key: 'buys_1h',   label: '1H Buys' },
-  { key: 'sells_1h',  label: '1H Sells' },
-  { key: 'txns_5m',   label: '5M Txns' },
-  { key: 'buys_5m',   label: '5M Buys' },
-  { key: 'sells_5m',  label: '5M Sells' },
+  { key: 'txns_24h',  labelKey: 'txns24h' },
+  { key: 'buys_24h',  labelKey: 'buys24h' },
+  { key: 'sells_24h', labelKey: 'sells24h' },
+  { key: 'txns_6h',   labelKey: 'txns6h' },
+  { key: 'buys_6h',   labelKey: 'buys6h' },
+  { key: 'sells_6h',  labelKey: 'sells6h' },
+  { key: 'txns_1h',   labelKey: 'txns1h' },
+  { key: 'buys_1h',   labelKey: 'buys1h' },
+  { key: 'sells_1h',  labelKey: 'sells1h' },
+  { key: 'txns_5m',   labelKey: 'txns5m' },
+  { key: 'buys_5m',   labelKey: 'buys5m' },
+  { key: 'sells_5m',  labelKey: 'sells5m' },
 ]
 
 function IconClose() {
@@ -72,6 +73,9 @@ interface Props {
 }
 
 export function FiltersModal({ open, onClose, initialFilters, initialTextFilters, onApply, onReset }: Props) {
+  const tF = useTranslations('filtersModal')
+  const tModal = useTranslations('modals')
+  const tCommon = useTranslations('common')
   const [filters, setFilters] = useState<FilterValues>(() => initialFilters ?? buildInitialFilters())
   const [textFilters, setTextFilters] = useState<TextFilterValues>(() => initialTextFilters ?? { labels: '', addressSuffixes: '' })
 
@@ -126,7 +130,7 @@ export function FiltersModal({ open, onClose, initialFilters, initialTextFilters
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-5 flex-shrink-0">
-          <h2 className="text-[24px] font-bold text-text">Customize Filters</h2>
+          <h2 className="text-[24px] font-bold text-text">{tModal('customizeFilters')}</h2>
           <button onClick={onClose} className="text-sub hover:text-text transition-colors">
             <IconClose />
           </button>
@@ -136,11 +140,11 @@ export function FiltersModal({ open, onClose, initialFilters, initialTextFilters
         <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-4">
 
           {/* Dollar-prefixed filters */}
-          <Section title="Value Filters">
+          <Section title={tF('valueFilters')}>
             {DOLLAR_FILTERS.map(f => (
               <MinMaxRow
                 key={f.key}
-                label={f.label}
+                label={tF(f.labelKey)}
                 prefix="$"
                 min={filters[f.key].min}
                 max={filters[f.key].max}
@@ -151,12 +155,12 @@ export function FiltersModal({ open, onClose, initialFilters, initialTextFilters
           </Section>
 
           {/* Hour filters */}
-          <Section title="Age">
+          <Section title={tF('age')}>
             {HOUR_FILTERS.map(f => (
               <MinMaxRow
                 key={f.key}
-                label={f.label}
-                suffix="hours"
+                label={tF(f.labelKey)}
+                suffix={tF('hours')}
                 min={filters[f.key].min}
                 max={filters[f.key].max}
                 onMin={v => updateFilter(f.key, 'min', v)}
@@ -166,11 +170,11 @@ export function FiltersModal({ open, onClose, initialFilters, initialTextFilters
           </Section>
 
           {/* Percent filters */}
-          <Section title="Price Change">
+          <Section title={tF('priceChange')}>
             {PERCENT_FILTERS.map(f => (
               <MinMaxRow
                 key={f.key}
-                label={f.label}
+                label={tF(f.labelKey)}
                 suffix="%"
                 min={filters[f.key].min}
                 max={filters[f.key].max}
@@ -181,11 +185,11 @@ export function FiltersModal({ open, onClose, initialFilters, initialTextFilters
           </Section>
 
           {/* Number filters */}
-          <Section title="Transaction Counts">
+          <Section title={tF('transactionCounts')}>
             {NUMBER_FILTERS.map(f => (
               <MinMaxRow
                 key={f.key}
-                label={f.label}
+                label={tF(f.labelKey)}
                 min={filters[f.key].min}
                 max={filters[f.key].max}
                 onMin={v => updateFilter(f.key, 'min', v)}
@@ -195,26 +199,26 @@ export function FiltersModal({ open, onClose, initialFilters, initialTextFilters
           </Section>
 
           {/* Text filters */}
-          <Section title="Other Filters">
+          <Section title={tF('otherFilters')}>
             <div className="space-y-3">
               <div>
-                <label className="text-[12px] text-sub mb-1 block">Labels (comma separated)</label>
+                <label className="text-[12px] text-sub mb-1 block">{tF('labelsLabel')}</label>
                 <input
                   type="text"
                   value={textFilters.labels}
                   onChange={e => setTextFilters(prev => ({ ...prev, labels: e.target.value }))}
-                  placeholder="e.g. v3, v4"
+                  placeholder={tF('labelsPlaceholder')}
                   className="w-full h-[36px] rounded-[8px] px-3 text-[13px] text-text placeholder-sub outline-none"
                   style={{ border: '1px solid #333333' }}
                 />
               </div>
               <div>
-                <label className="text-[12px] text-sub mb-1 block">Base Token Address Suffixes (comma separated)</label>
+                <label className="text-[12px] text-sub mb-1 block">{tF('addressSuffixes')}</label>
                 <input
                   type="text"
                   value={textFilters.addressSuffixes}
                   onChange={e => setTextFilters(prev => ({ ...prev, addressSuffixes: e.target.value }))}
-                  placeholder="e.g. pump, moon"
+                  placeholder={tF('addressSuffixesPlaceholder')}
                   className="w-full h-[36px] rounded-[8px] px-3 text-[13px] text-text placeholder-sub outline-none"
                   style={{ border: '1px solid #333333' }}
                 />
@@ -230,14 +234,14 @@ export function FiltersModal({ open, onClose, initialFilters, initialTextFilters
             className="flex-1 h-[44px] rounded-[10px] text-[14px] font-bold text-white transition-colors"
             style={{ backgroundColor: '#2744FF' }}
           >
-            Apply
+            {tCommon('apply')}
           </button>
           <button
             onClick={handleReset}
             className="flex-1 h-[44px] rounded-[10px] text-[14px] font-bold text-text transition-colors"
             style={{ backgroundColor: '#333333' }}
           >
-            Reset
+            {tCommon('reset')}
           </button>
         </div>
       </div>
@@ -273,6 +277,7 @@ function MinMaxRow({
   onMin: (v: string) => void
   onMax: (v: string) => void
 }) {
+  const tCommon = useTranslations('common')
   return (
     <div className="flex items-center gap-3">
       <span className="text-[13px] text-sub w-[100px] flex-shrink-0">{label}</span>
@@ -286,7 +291,7 @@ function MinMaxRow({
             type="text"
             value={min}
             onChange={e => onMin(e.target.value)}
-            placeholder="Min"
+            placeholder={tCommon('min')}
             className="flex-1 bg-transparent text-[13px] text-text placeholder-sub outline-none w-0"
           />
           {suffix && <span className="text-[13px] text-sub ml-1">{suffix}</span>}
@@ -301,7 +306,7 @@ function MinMaxRow({
             type="text"
             value={max}
             onChange={e => onMax(e.target.value)}
-            placeholder="Max"
+            placeholder={tCommon('max')}
             className="flex-1 bg-transparent text-[13px] text-text placeholder-sub outline-none w-0"
           />
           {suffix && <span className="text-[13px] text-sub ml-1">{suffix}</span>}

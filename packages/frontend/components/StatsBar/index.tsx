@@ -4,6 +4,7 @@ import type { Pool } from '@dex/shared'
 import { fmtUsd } from '../../lib/formatters'
 import { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
+import { useTranslations } from 'next-intl'
 
 const BASE_RPC = 'https://mainnet.base.org'
 
@@ -50,6 +51,7 @@ interface Props {
 
 export function StatsBar({ pairs, showBlock = true }: Props) {
   const [agoStr, setAgoStr] = useState('')
+  const t = useTranslations('stats')
 
   const { data: blockData } = useSWR(
     showBlock ? 'base-latest-block' : null,
@@ -75,11 +77,11 @@ export function StatsBar({ pairs, showBlock = true }: Props) {
 
   return (
     <div className="flex gap-2 mb-3 md:gap-3 md:mb-4">
-      <StatCard label="24H Volume"    value={fmtVolume(volume)} />
-      <StatCard label="24H Txns"      value={fmtTxns(txns)} />
+      <StatCard label={t('volume24h')}    value={fmtVolume(volume)} />
+      <StatCard label={t('txns24h')}      value={fmtTxns(txns)} />
       {showBlock && (
         <StatCard
-          label="Latest Block"
+          label={t('latestBlock')}
           value={blockData?.block ? blockData.block.toLocaleString('en-US') : '—'}
           sub={agoStr}
         />

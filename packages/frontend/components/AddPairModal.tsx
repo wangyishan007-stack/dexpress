@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { getCachedPools } from '../lib/dexscreener-client'
 import { useWatchlist } from '../hooks/useWatchlist'
 import { TokenAvatar } from './TokenAvatar'
@@ -18,6 +19,8 @@ interface Props {
 }
 
 export function AddPairModal({ open, onClose }: Props) {
+  const tModal = useTranslations('modals')
+  const tCommon = useTranslations('common')
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const backdropRef = useRef<HTMLDivElement>(null)
@@ -64,7 +67,7 @@ export function AddPairModal({ open, onClose }: Props) {
       <div className="w-full max-w-[520px] mx-4 rounded-xl border border-border bg-[#111] shadow-2xl flex flex-col" style={{ maxHeight: '80vh' }}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="text-[16px] font-bold text-text">Add Pair to Watchlist</h2>
+          <h2 className="text-[16px] font-bold text-text">{tModal('addPairTitle')}</h2>
           <button
             onClick={onClose}
             className="flex items-center justify-center w-[28px] h-[28px] rounded-md text-sub hover:text-text hover:bg-border/40 transition-colors"
@@ -87,7 +90,7 @@ export function AddPairModal({ open, onClose }: Props) {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by name, symbol, or address"
+              placeholder={tModal('searchPlaceholder')}
               className="flex-1 bg-transparent text-[14px] text-text placeholder:text-sub outline-none"
             />
             {query && (
@@ -95,7 +98,7 @@ export function AddPairModal({ open, onClose }: Props) {
                 onClick={() => setQuery('')}
                 className="text-[13px] text-blue hover:text-blue/80 transition-colors flex-shrink-0"
               >
-                Clear
+                {tCommon('clear')}
               </button>
             )}
           </div>
@@ -105,7 +108,7 @@ export function AddPairModal({ open, onClose }: Props) {
         <div className="flex-1 min-h-0 overflow-y-auto">
           {results.length === 0 && (
             <div className="flex items-center justify-center py-8 text-sub text-[13px]">
-              {allPools.length === 0 ? 'Loading pairs...' : 'No pairs found.'}
+              {allPools.length === 0 ? tModal('loadingPairs') : tModal('noPairsFound')}
             </div>
           )}
 

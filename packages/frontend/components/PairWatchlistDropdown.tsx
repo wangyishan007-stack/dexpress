@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 import { useWatchlist } from '../hooks/useWatchlist'
 import { useAuth } from '../hooks/useAuth'
 import { ManageListsModal } from './ManageListsModal'
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function PairWatchlistDropdown({ pairAddress }: Props) {
+  const t = useTranslations('watchlist')
   const { authenticated, login } = useAuth()
   const { lists, activeListId, setActiveList, toggle } = useWatchlist()
   const [open, setOpen] = useState(false)
@@ -59,7 +61,7 @@ export function PairWatchlistDropdown({ pairAddress }: Props) {
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2">
               <path d="M7 1l1.8 3.6L13 5.3l-3 2.9.7 4.1L7 10.3 3.3 12.3l.7-4.1-3-2.9 4.2-.7z"/>
             </svg>
-            Log in to add to watchlist
+            {t('loginToWatch')}
           </button>
         ) : (
         <button
@@ -75,7 +77,7 @@ export function PairWatchlistDropdown({ pairAddress }: Props) {
               <path d="M7 1l1.8 3.6L13 5.3l-3 2.9.7 4.1L7 10.3 3.3 12.3l.7-4.1-3-2.9 4.2-.7z"/>
             </svg>
           )}
-          {isInAnyList ? 'Watchlisted' : 'Add to watchlist'}
+          {isInAnyList ? t('watchlisted') : t('addToWatchlist')}
         </button>
         )}
 
@@ -139,7 +141,7 @@ export function PairWatchlistDropdown({ pairAddress }: Props) {
                   <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.2"/>
                 </svg>
               </span>
-              <span className="text-[14px] text-text">Manage my lists</span>
+              <span className="text-[14px] text-text">{t('manageLists')}</span>
             </button>
           </div>
         )}

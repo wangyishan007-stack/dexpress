@@ -4,6 +4,10 @@
  */
 
 import type { Pool, Token, Dex } from '@dex/shared'
+import { ProxyAgent } from 'undici'
+
+const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || null
+const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
 
 // ─── DexScreener raw types ────────────────────────────────────
 
@@ -144,6 +148,8 @@ export async function fetchDexScreenerPairs(chain = 'base'): Promise<Pool[]> {
     res = await fetch(url, {
       cache: 'no-store',
       headers: { 'Accept': 'application/json' },
+      // @ts-ignore -- undici dispatcher for proxy support
+      dispatcher,
     })
   } catch (err) {
     console.error('[DexScreener] fetch failed:', err)

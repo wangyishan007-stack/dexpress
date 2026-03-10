@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useCallback, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   createChart,
   ColorType,
@@ -284,6 +285,7 @@ function DropdownItem({ active, onClick, children }: { active?: boolean; onClick
 
 /* ── Chart component ───────────────────────────────────────── */
 export function TradingViewChart({ pairAddress, symbol }: Props) {
+  const t = useTranslations('chart')
   const wrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<any>(null)
@@ -538,25 +540,25 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
 
         {/* Chart type dropdown */}
         <ToolbarDropdown
-          label={chartType === 'candles' ? 'Candles' : chartType === 'line' ? 'Line' : 'Area'}
+          label={chartType === 'candles' ? t('candles') : chartType === 'line' ? t('line') : t('area')}
           icon={chartType === 'candles' ? <IconCandle /> : chartType === 'line' ? <IconLine /> : <IconArea />}
           open={chartTypeOpen}
           onToggle={() => { setChartTypeOpen(v => !v); setIndicatorOpen(false) }}
         >
           <DropdownItem active={chartType === 'candles'} onClick={() => handleChartType('candles')}>
-            <span className="flex items-center gap-2"><IconCandle /> Candles</span>
+            <span className="flex items-center gap-2"><IconCandle /> {t('candles')}</span>
           </DropdownItem>
           <DropdownItem active={chartType === 'line'} onClick={() => handleChartType('line')}>
-            <span className="flex items-center gap-2"><IconLine /> Line</span>
+            <span className="flex items-center gap-2"><IconLine /> {t('line')}</span>
           </DropdownItem>
           <DropdownItem active={chartType === 'area'} onClick={() => handleChartType('area')}>
-            <span className="flex items-center gap-2"><IconArea /> Area</span>
+            <span className="flex items-center gap-2"><IconArea /> {t('area')}</span>
           </DropdownItem>
         </ToolbarDropdown>
 
         {/* Indicators dropdown */}
         <ToolbarDropdown
-          label="Indicators"
+          label={t('indicators')}
           icon={<IconIndicator />}
           open={indicatorOpen}
           onToggle={() => { setIndicatorOpen(v => !v); setChartTypeOpen(false) }}
@@ -564,7 +566,7 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
           <DropdownItem active={showMA} onClick={handleToggleMA}>
             <span className="flex items-center gap-2">
               {showMA ? <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#2962FF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg> : <span className="w-3" />}
-              MA (7, 25, 99)
+              {t('ma')}
             </span>
           </DropdownItem>
         </ToolbarDropdown>
@@ -579,15 +581,15 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
             'px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors',
             logScale ? 'bg-blue/15 text-blue' : 'text-sub hover:text-text hover:bg-border/50'
           )}
-          title="Logarithmic scale"
+          title={t('logScale')}
         >
-          log
+          {t('logScale')}
         </button>
 
         <button
           onClick={handleScreenshot}
           className="p-1.5 rounded-md text-sub hover:text-text hover:bg-border/50 transition-colors"
-          title="Screenshot"
+          title={t('screenshot')}
         >
           <IconScreenshot />
         </button>
@@ -595,7 +597,7 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
         <button
           onClick={toggleFullscreen}
           className="p-1.5 rounded-md text-sub hover:text-text hover:bg-border/50 transition-colors"
-          title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          title={isFullscreen ? t('exitFullscreen') : t('fullscreen')}
         >
           {isFullscreen ? <IconExitFullscreen /> : <IconFullscreen />}
         </button>

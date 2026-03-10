@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { Sidebar } from '../components/Sidebar'
 import { Providers } from '../components/Providers'
+import { NextIntlClientProvider } from 'next-intl'
+import { getLocale, getMessages } from 'next-intl/server'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://base-dex-screener.vercel.app'),
@@ -36,23 +38,28 @@ export const viewport: Viewport = {
   maximumScale: 1,
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body className="bg-bg text-text">
-        <Providers>
-          <div className="flex flex-col md:flex-row h-screen overflow-hidden">
-            {/* Left sidebar */}
-            <Sidebar />
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale()
+  const messages = await getMessages()
 
-            {/* Main content */}
-            <div className="flex flex-1 flex-col overflow-hidden min-h-0">
-              <main className="flex-1 flex flex-col overflow-hidden min-h-0">
-                {children}
-              </main>
+  return (
+    <html lang={locale}>
+      <body className="bg-bg text-text">
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <Providers>
+            <div className="flex flex-col md:flex-row h-screen overflow-hidden">
+              {/* Left sidebar */}
+              <Sidebar />
+
+              {/* Main content */}
+              <div className="flex flex-1 flex-col overflow-hidden min-h-0">
+                <main className="flex-1 flex flex-col overflow-hidden min-h-0">
+                  {children}
+                </main>
+              </div>
             </div>
-          </div>
-        </Providers>
+          </Providers>
+        </NextIntlClientProvider>
       </body>
     </html>
   )

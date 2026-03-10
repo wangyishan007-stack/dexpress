@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import clsx from 'clsx'
+import { useTranslations } from 'next-intl'
 import { TransactionsTable } from './TransactionsTable'
 import { TopTradersTable } from './TopTradersTable'
 import { HoldersTable } from './HoldersTable'
@@ -63,13 +64,13 @@ const TAB_ICONS: Record<TabKey, () => JSX.Element> = {
   'bubblemaps':   IconBubblemaps,
 }
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'transactions', label: 'Transactions' },
-  { key: 'top-traders',  label: 'Top Traders' },
-  { key: 'holders',      label: 'Holders' },
-  { key: 'liquidity',    label: 'Liquidity Providers' },
+const TAB_KEYS: { key: TabKey; tKey: string }[] = [
+  { key: 'transactions', tKey: 'transactions' },
+  { key: 'top-traders',  tKey: 'topTraders' },
+  { key: 'holders',      tKey: 'holders' },
+  { key: 'liquidity',    tKey: 'liquidity' },
   // Bubblemaps hidden until partner ID approved
-  // { key: 'bubblemaps',   label: 'Bubblemaps' },
+  // { key: 'bubblemaps',   tKey: 'bubblemaps' },
 ]
 
 interface RecentSwap {
@@ -101,13 +102,14 @@ interface Props {
 
 export function PairTabs({ swaps, swapHasMore, swapLoading, onLoadMore, tokenAddress, security, tokenPriceUsd, traders, baseTokenSymbol, newSwapIds, holdersData, lpProvidersData }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('transactions')
+  const t = useTranslations('tabs')
 
   return (
     <div className="flex flex-col gap-4 flex-shrink-0">
       {/* Tab bar */}
       <div className="relative flex items-center justify-between py-3 overflow-x-auto">
         <div className="flex items-center gap-6">
-          {TABS.map((tab) => {
+          {TAB_KEYS.map((tab) => {
             const Icon = TAB_ICONS[tab.key]
             const isActive = activeTab === tab.key
             return (
@@ -122,7 +124,7 @@ export function PairTabs({ swaps, swapHasMore, swapLoading, onLoadMore, tokenAdd
                 )}
               >
                 <Icon />
-                {tab.label}
+                {t(tab.tKey)}
                 <span className={clsx(
                   'absolute -bottom-3 left-0 right-0 h-[2px] rounded-full transition-all duration-200',
                   isActive ? 'bg-blue opacity-100' : 'bg-transparent opacity-0'

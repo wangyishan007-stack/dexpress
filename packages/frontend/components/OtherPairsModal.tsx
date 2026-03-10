@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import useSWR from 'swr'
 import { fetchPoolsByToken } from '../lib/dexscreener-client'
@@ -21,6 +22,9 @@ interface Props {
 }
 
 export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }: Props) {
+  const tModal = useTranslations('modals')
+  const tCommon = useTranslations('common')
+  const tDetail = useTranslations('pairDetail')
   const [query, setQuery] = useState('')
   const { lists, toggle } = useWatchlist()
   const isInAnyList = (addr: string) => lists.some(l => l.pairIds.includes(addr))
@@ -68,7 +72,7 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-border flex-shrink-0">
-          <span className="text-[16px] font-bold text-text">Other Pairs</span>
+          <span className="text-[16px] font-bold text-text">{tModal('otherPairsTitle')}</span>
           <button
             onClick={onClose}
             className="w-[28px] h-[28px] rounded-md flex items-center justify-center text-sub hover:text-text hover:bg-border/40 transition-colors"
@@ -90,7 +94,7 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search for coin"
+              placeholder={tModal('searchForCoin')}
               className="flex-1 bg-transparent text-[13px] md:text-[14px] text-text placeholder:text-sub outline-none ml-2"
               autoFocus
             />
@@ -99,7 +103,7 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
                 onClick={() => setQuery('')}
                 className="bg-border rounded-full px-2.5 h-[26px] text-[12px] text-blue hover:text-blue/80 transition-colors flex-shrink-0"
               >
-                Clear
+                {tCommon('clear')}
               </button>
             )}
           </div>
@@ -109,13 +113,13 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
         <div className="flex flex-col gap-2 md:gap-3 overflow-y-auto flex-1 min-h-0 px-4 md:px-6 pb-4">
           {isLoading && (
             <div className="flex items-center justify-center py-8 text-sub text-[13px]">
-              Loading pairs...
+              {tModal('loadingPairs')}
             </div>
           )}
 
           {!isLoading && filtered.length === 0 && (
             <div className="flex items-center justify-center py-8 text-sub text-[13px]">
-              No other pairs found.
+              {tModal('noOtherPairs')}
             </div>
           )}
 
@@ -177,19 +181,19 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
                   {/* Row 2: Tags — wrap on mobile */}
                   <div className="flex items-center gap-1 md:gap-1.5 text-[11px] md:text-[12px] flex-wrap">
                     <span className="border border-border rounded px-1.5 md:px-2 py-0.5 md:py-1">
-                      <span className="text-sub">MCap: </span>
+                      <span className="text-sub">{tDetail('mcap')}: </span>
                       <span className="font-bold text-text">{Number(p.mcap_usd) > 0 ? fmtUsd(p.mcap_usd) : '—'}</span>
                     </span>
                     <span className="border border-border rounded px-1.5 md:px-2 py-0.5 md:py-1">
-                      <span className="text-sub">Liq: </span>
+                      <span className="text-sub">{tDetail('liq')}: </span>
                       <span className="font-bold text-text">{fmtUsd(p.liquidity_usd)}</span>
                     </span>
                     <span className="border border-border rounded px-1.5 md:px-2 py-0.5 md:py-1">
-                      <span className="text-sub">Vol: </span>
+                      <span className="text-sub">{tDetail('vol')}: </span>
                       <span className="font-bold text-text">{fmtUsd(p.volume_24h)}</span>
                     </span>
                     <span className="border border-border rounded px-1.5 md:px-2 py-0.5 md:py-1">
-                      <span className="text-sub">Age: </span>
+                      <span className="text-sub">{tDetail('age')}: </span>
                       <span className="font-bold text-text">{p.created_at ? fmtAge(p.created_at) : '—'}</span>
                     </span>
                   </div>
@@ -197,8 +201,8 @@ export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }:
 
                 {/* Right: Addresses — desktop only */}
                 <div className="hidden md:flex flex-col gap-2.5 text-[14px] text-sub flex-shrink-0 w-[127px] text-right">
-                  <span>Pair: {shortAddr(p.address)}</span>
-                  <span>Token: {shortAddr(base.address)}</span>
+                  <span>{tDetail('pair')}: {shortAddr(p.address)}</span>
+                  <span>{tDetail('token')}: {shortAddr(base.address)}</span>
                 </div>
 
                 {/* Star button */}

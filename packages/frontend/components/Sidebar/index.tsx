@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
@@ -8,6 +9,8 @@ import { WatchlistPanel } from './WatchlistPanel'
 import { SearchModal } from '../SearchModal'
 import { useAuth } from '../../hooks/useAuth'
 import { shortAddr } from '../../lib/formatters'
+import { LanguageSwitcher } from '../LanguageSwitcher'
+import { useTranslations } from 'next-intl'
 
 /* ── Nav icons ────────────────────────────────────────────── */
 function IconAllCoins({ active }: { active?: boolean }) {
@@ -53,20 +56,22 @@ function LogoMark({ className }: { className?: string }) {
 }
 
 /* ── Nav items config ────────────────────────────────────── */
-const NAV_ITEMS = [
-  { href: '/',          label: 'All coins',       Icon: IconAllCoins  },
-  { href: '/new-pairs', label: 'New Pairs',        Icon: IconNewPairs  },
-  { href: '/gainers',   label: 'Gainers & Losers', Icon: IconGainers   },
-  { href: '/watchlist', label: 'Watchlist',        Icon: IconWatchlist },
+type NavKey = 'allCoins' | 'newPairs' | 'gainers' | 'watchlist'
+const NAV_ITEMS: { href: string; key: NavKey; Icon: React.ComponentType<{ active?: boolean }> }[] = [
+  { href: '/',          key: 'allCoins',  Icon: IconAllCoins  },
+  { href: '/new-pairs', key: 'newPairs',  Icon: IconNewPairs  },
+  { href: '/gainers',   key: 'gainers',   Icon: IconGainers   },
+  { href: '/watchlist', key: 'watchlist', Icon: IconWatchlist },
 ]
 
 /* ── Mobile tab nav ──────────────────────────────────────── */
 function MobileTabNav() {
   const pathname = usePathname()
+  const t = useTranslations('nav')
 
   return (
     <nav className="flex md:hidden overflow-x-auto scrollbar-hide border-b border-border bg-bg flex-shrink-0">
-      {NAV_ITEMS.map(({ href, label, Icon }) => {
+      {NAV_ITEMS.map(({ href, key, Icon }) => {
         // Fix 5: treat /pair/... as being under All Coins (href='/')
         const active = href === '/'
           ? pathname === '/' || pathname.startsWith('/pair')
@@ -83,7 +88,7 @@ function MobileTabNav() {
             )}
           >
             <Icon active={active} />
-            {label}
+            {t(key)}
           </Link>
         )
       })}
@@ -127,6 +132,7 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const { ready, authenticated, user, login, logout } = useAuth()
+  const tNav = useTranslations('nav')
 
   // Hydrate collapsed state from localStorage
   useEffect(() => {
@@ -161,6 +167,7 @@ export function Sidebar() {
           >
             <IconSearch />
           </button>
+          <LanguageSwitcher />
           {ready && authenticated ? (
             <div className="flex items-center h-[36px] rounded-lg bg-border/40 overflow-hidden">
               <span
@@ -186,7 +193,7 @@ export function Sidebar() {
               disabled={!ready}
               className="flex items-center justify-center h-[36px] px-4 rounded-lg bg-blue text-[13px] font-medium text-white hover:bg-blue/90 transition-colors"
             >
-              Log in
+              {tNav('login')}
             </button>
           )}
         </div>
@@ -252,7 +259,7 @@ export function Sidebar() {
               className="flex h-[40px] items-center gap-2 rounded-[8px] bg-[#151515] border border-border px-3 cursor-pointer w-full"
             >
               <span className="text-sub flex-shrink-0"><IconSearch /></span>
-              <span className="text-[14px] text-sub">Search</span>
+              <span className="text-[14px] text-sub">{tNav('search')}</span>
             </button>
           )}
 
@@ -261,11 +268,12 @@ export function Sidebar() {
 
             {/* Nav items */}
             <nav className={clsx('flex flex-col', collapsed ? 'gap-[8px] items-center' : 'gap-[16px]')}>
-              {NAV_ITEMS.map(({ href, label, Icon }) => {
+              {NAV_ITEMS.map(({ href, key, Icon }) => {
                 // Fix 5: /pair/... pages highlight All Coins in sidebar
                 const active = href === '/'
                   ? pathname === '/' || pathname.startsWith('/pair')
                   : pathname === href
+                const label = tNav(key)
                 return (
                   <Link
                     key={href}
@@ -341,12 +349,17 @@ export function Sidebar() {
                   disabled={!ready}
                   className="flex h-[44px] w-full items-center justify-center rounded-lg bg-blue text-[16px] text-white hover:bg-blue/90 transition-colors"
                 >
-                  Log in
+                  {tNav('login')}
                 </button>
               )
             )}
 
           </div>
+        </div>
+
+        {/* ── Language switcher ───────────────────────────── */}
+        <div className={collapsed ? 'flex justify-center pb-[12px]' : 'px-[24px] pb-[12px]'}>
+          <LanguageSwitcher iconOnly={collapsed} />
         </div>
 
         {/* ── Watchlist panel (bottom) ─────────────────────── */}

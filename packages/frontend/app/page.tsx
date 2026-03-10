@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import type { SortField, TimeWindow } from '@dex/shared'
+import { useTranslations } from 'next-intl'
 import { FilterBar }          from '../components/FilterBar'
 import type { FilterMode }    from '../components/FilterBar'
 import { PairList }           from '../components/PairList'
@@ -16,6 +17,7 @@ import type { ScreenerConfig } from '../lib/columnConfig'
 import { useToast } from '../components/Toast'
 
 export default function HomePage() {
+  const t = useTranslations('page')
   const [filter, setFilter]               = useState<FilterMode>('trending')
   const [dataWindow, setDataWindow]       = useState<TimeWindow>('24h')
   const [trendingWindow, setTrendingWindow] = useState<TimeWindow>('6h')
@@ -103,7 +105,7 @@ export default function HomePage() {
       <div className="hidden md:block mb-4">
         <div className="flex items-center gap-8 border-b border-border pb-0">
           <div className="border-b-2 border-blue pb-3">
-            <span className="text-[16px] font-bold text-text">All Coins</span>
+            <span className="text-[16px] font-bold text-text">{t('allCoins')}</span>
           </div>
         </div>
       </div>

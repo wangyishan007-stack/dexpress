@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { TokenAvatar } from './TokenAvatar'
 import { searchPools, getCachedPools } from '../lib/dexscreener-client'
 import { fmtUsd, fmtPrice } from '../lib/formatters'
@@ -82,6 +83,7 @@ interface Props {
 }
 
 export function SearchModal({ open, onClose }: Props) {
+  const tSearch = useTranslations('search')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Pool[]>([])
   const [searching, setSearching] = useState(false)
@@ -199,7 +201,7 @@ export function SearchModal({ open, onClose }: Props) {
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search by token name, symbol, or address"
+            placeholder={tSearch('searchByToken')}
             className="flex-1 bg-transparent text-[14px] text-text placeholder-sub outline-none"
           />
           {query && (
@@ -218,8 +220,8 @@ export function SearchModal({ open, onClose }: Props) {
             /* Search results */
             <div>
               <p className="text-[14px] font-bold text-text mb-4">
-                Search Results
-                {searching && <span className="ml-2 text-sub font-normal">searching...</span>}
+                {tSearch('searchResults')}
+                {searching && <span className="ml-2 text-sub font-normal">{tSearch('searchingLower')}</span>}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {results.map(pool => (
@@ -227,7 +229,7 @@ export function SearchModal({ open, onClose }: Props) {
                 ))}
               </div>
               {results.length === 0 && !searching && (
-                <p className="text-[14px] text-sub text-center py-8">No results found</p>
+                <p className="text-[14px] text-sub text-center py-8">{tSearch('noResultsFound')}</p>
               )}
             </div>
           ) : (
@@ -238,7 +240,7 @@ export function SearchModal({ open, onClose }: Props) {
                 <div className="flex items-center gap-3 px-2 mb-5 flex-wrap">
                   <div className="flex items-center gap-[7px]">
                     <span className="text-sub"><IconHistory /></span>
-                    <span className="text-[14px] text-sub">History</span>
+                    <span className="text-[14px] text-sub">{tSearch('history')}</span>
                   </div>
                   {history.map(item => (
                     <button
@@ -254,14 +256,14 @@ export function SearchModal({ open, onClose }: Props) {
               )}
 
               {/* Top Tokens by Volume */}
-              <p className="text-[14px] font-bold text-text mb-4">Top Tokens</p>
+              <p className="text-[14px] font-bold text-text mb-4">{tSearch('topTokens')}</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {recentTokens.map(pool => (
                   <TokenCard key={pool.address} pool={pool} onClick={() => goToPair(pool)} />
                 ))}
               </div>
               {recentTokens.length === 0 && (
-                <p className="text-[14px] text-sub text-center py-8">Loading...</p>
+                <p className="text-[14px] text-sub text-center py-8">{tSearch('searching')}</p>
               )}
             </>
           )}
@@ -272,6 +274,7 @@ export function SearchModal({ open, onClose }: Props) {
 }
 
 function TokenCard({ pool, onClick }: { pool: Pool; onClick: () => void }) {
+  const tSearch = useTranslations('search')
   const base = resolveBase(pool)
   const quote = resolveQuote(pool)
   return (
@@ -287,7 +290,7 @@ function TokenCard({ pool, onClick }: { pool: Pool; onClick: () => void }) {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[12px] text-sub">{fmtPrice(pool.price_usd)}</span>
-          <span className="text-[11px] text-sub">Vol {fmtUsd(pool.volume_24h)}</span>
+          <span className="text-[11px] text-sub">{tSearch('vol')} {fmtUsd(pool.volume_24h)}</span>
         </div>
       </div>
     </button>

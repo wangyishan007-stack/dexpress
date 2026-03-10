@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react'
 import useSWR from 'swr'
 import Link from 'next/link'
 import type { TimeWindow } from '@dex/shared'
+import { useTranslations } from 'next-intl'
 import { useAuth } from '../../hooks/useAuth'
 import { FilterBar }            from '../../components/FilterBar'
 import type { FilterMode }      from '../../components/FilterBar'
@@ -46,18 +47,19 @@ function IconShare() {
 
 /* ── State 1: Not logged in ──────────────────────────────── */
 function SignInState({ onLogin }: { onLogin: () => void }) {
+  const t = useTranslations('watchlist')
   return (
     <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
       <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#555" strokeWidth="1.5" className="mb-4">
         <path d="M24 6l5.3 10.7 11.8 1.7-8.5 8.3 2 11.8L24 32.6l-10.6 5.9 2-11.8-8.5-8.3 11.8-1.7L24 6z"/>
       </svg>
-      <h3 className="text-[16px] font-semibold text-text mb-2">Sign in to view your Watchlist</h3>
-      <p className="text-[13px] text-sub mb-5">Track your favorite pairs across multiple watchlists.</p>
+      <h3 className="text-[16px] font-semibold text-text mb-2">{t('signInTitle')}</h3>
+      <p className="text-[13px] text-sub mb-5">{t('signInDesc')}</p>
       <button
         onClick={onLogin}
         className="flex items-center justify-center gap-2 rounded-lg bg-blue px-6 py-2.5 text-[14px] font-medium text-white hover:bg-blue/90 transition-colors"
       >
-        Log in
+        {t('logIn')}
       </button>
     </div>
   )
@@ -65,18 +67,19 @@ function SignInState({ onLogin }: { onLogin: () => void }) {
 
 /* ── State 2: Logged in but empty ────────────────────────── */
 function EmptyWatchlistState() {
+  const t = useTranslations('watchlist')
   return (
     <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
       <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#555" strokeWidth="1.5" className="mb-4">
         <path d="M24 6l5.3 10.7 11.8 1.7-8.5 8.3 2 11.8L24 32.6l-10.6 5.9 2-11.8-8.5-8.3 11.8-1.7L24 6z"/>
       </svg>
-      <h3 className="text-[16px] font-semibold text-text mb-2">Your watchlist is empty</h3>
-      <p className="text-[13px] text-sub mb-5">Star any pair to add it here for quick access.</p>
+      <h3 className="text-[16px] font-semibold text-text mb-2">{t('emptyTitle')}</h3>
+      <p className="text-[13px] text-sub mb-5">{t('emptyDesc')}</p>
       <Link
         href="/"
         className="inline-flex items-center gap-2 rounded-lg bg-blue px-6 py-2.5 text-[14px] font-medium text-white hover:bg-blue/90 transition-colors"
       >
-        Go add pairs
+        {t('goAddPairs')}
       </Link>
     </div>
   )
@@ -89,6 +92,7 @@ function WatchlistHeader({ lists, activeListId, onSwitch, onManage }: {
   onSwitch: (id: string) => void
   onManage?: () => void
 }) {
+  const t = useTranslations('watchlist')
   return (
     <div className="hidden md:block mb-4">
       <div className="flex items-center justify-between border-b border-border pb-0">
@@ -112,7 +116,7 @@ function WatchlistHeader({ lists, activeListId, onSwitch, onManage }: {
           className="flex items-center gap-2 text-sub hover:text-text transition-colors pb-3 flex-shrink-0 ml-4"
         >
           <IconManage />
-          <span className="text-[13px] md:text-[14px]">Manage list</span>
+          <span className="text-[13px] md:text-[14px]">{t('manageList')}</span>
         </button>
       </div>
     </div>
@@ -121,6 +125,7 @@ function WatchlistHeader({ lists, activeListId, onSwitch, onManage }: {
 
 /* ── Share Watchlist Modal ──────────────────────────────────── */
 function ShareWatchlistModal({ listId, onClose }: { listId: string; onClose: () => void }) {
+  const t = useTranslations('watchlist')
   const [allowed, setAllowed] = useState(false)
   const [copied, setCopied]   = useState(false)
 
@@ -137,7 +142,7 @@ function ShareWatchlistModal({ listId, onClose }: { listId: string; onClose: () 
       <div className="w-full max-w-[480px] mx-4 rounded-xl border border-border bg-[#111] shadow-2xl" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="text-[16px] font-bold text-text">Share Watchlist</h2>
+          <h2 className="text-[16px] font-bold text-text">{t('shareTitle')}</h2>
           <button onClick={onClose} className="w-[28px] h-[28px] flex items-center justify-center rounded-md text-sub hover:text-text hover:bg-border/40 transition-colors">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg>
           </button>
@@ -155,7 +160,7 @@ function ShareWatchlistModal({ listId, onClose }: { listId: string; onClose: () 
                 <svg width="12" height="10" viewBox="0 0 12 10" fill="none"><path d="M1 5l3.5 3.5L11 1" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
               )}
             </div>
-            <span className="text-[14px] text-text">Allow anyone with link to view this watchlist</span>
+            <span className="text-[14px] text-text">{t('shareAllow')}</span>
           </label>
 
           {/* Link + Copy button (shown only when allowed) */}
@@ -172,7 +177,7 @@ function ShareWatchlistModal({ listId, onClose }: { listId: string; onClose: () 
                   <rect x="5" y="5" width="7" height="7" rx="1.5"/>
                   <path d="M9 5V3.5A1.5 1.5 0 007.5 2h-4A1.5 1.5 0 002 3.5v4A1.5 1.5 0 003.5 9H5"/>
                 </svg>
-                {copied ? 'Copied!' : 'Copy Link'}
+                {copied ? t('linkCopied') : t('copyLink')}
               </button>
             </div>
           )}
@@ -184,6 +189,7 @@ function ShareWatchlistModal({ listId, onClose }: { listId: string; onClose: () 
 
 /* ── Page ─────────────────────────────────────────────────── */
 export default function WatchlistPage() {
+  const t = useTranslations('watchlist')
   const { ready, authenticated, login } = useAuth()
   const { lists, activeList, activeListId, setActiveList, isWatched } = useWatchlist()
   const [filter, setFilter]               = useState<FilterMode>('trending')
@@ -318,14 +324,14 @@ export default function WatchlistPage() {
           className="flex items-center gap-2 h-[40px] px-5 rounded-[8px] border border-border text-[14px] text-sub hover:text-text transition-colors"
         >
           <IconAddPair />
-          Add pair
+          {t('addPair')}
         </button>
         <button
           onClick={() => setShareOpen(true)}
           className="flex items-center gap-2 h-[40px] px-5 rounded-[8px] border border-border text-[14px] text-sub hover:text-text transition-colors"
         >
           <IconShare />
-          Share this watchlist
+          {t('shareThis')}
         </button>
       </div>
 
