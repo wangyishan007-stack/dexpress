@@ -14,6 +14,7 @@ import { useWatchlist }         from '@/hooks/useWatchlist'
 import { useLivePrices }        from '@/hooks/useMockPairs'
 import { usePairWebSocket }     from '@/hooks/useWebSocket'
 import { getCachedPools, fetchDexScreenerClient } from '@/lib/dexscreener-client'
+import { SUPPORTED_CHAINS } from '@/lib/chains'
 import { ManageListsModal }    from '@/components/ManageListsModal'
 import { AddPairModal }        from '@/components/AddPairModal'
 import { loadConfig, saveConfig, DEFAULT_CONFIG } from '@/lib/columnConfig'
@@ -221,14 +222,14 @@ export default function WatchlistPage() {
     })
   }, [])
 
-  // Ensure pool cache is populated
-  const { data: _pools } = useSWR(`watchlist-pools:${chain}`, () => fetchDexScreenerClient(chain), {
+  // Ensure pool cache is populated for ALL chains (watchlist is cross-chain)
+  const { data: _pools } = useSWR('watchlist-pools:all', () => Promise.all(SUPPORTED_CHAINS.map(c => fetchDexScreenerClient(c))), {
     revalidateOnFocus: false,
     dedupingInterval: 30_000,
   })
 
   const watchedPairs = useMemo(() => {
-    const allPools = getCachedPools(chain)
+    const allPools = getCachedPools('all')
     return allPools.filter(p => isWatched(p.address))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeList.pairIds, _pools])

@@ -9,7 +9,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { getCachedPools } from '../../lib/dexscreener-client'
 import { fmtPrice } from '../../lib/formatters'
 import { useChainSlug } from '@/hooks/useChainSlug'
-import { isQuoteToken } from '@/lib/chains'
+import { isQuoteToken, type ChainSlug } from '@/lib/chains'
 
 const COLLAPSED_COUNT = 2
 
@@ -25,7 +25,7 @@ export function WatchlistPanel() {
     return null
   }
 
-  const allPools = getCachedPools(chain)
+  const allPools = getCachedPools('all')
 
   // Merge all pairIds from all watchlists, deduplicated
   const allPairIds = [...new Set(lists.flatMap(l => l.pairIds))]
@@ -66,12 +66,13 @@ export function WatchlistPanel() {
         ) : (
           <div className={clsx('flex flex-col gap-1', expanded ? 'overflow-y-auto max-h-[168px]' : '')}>
             {(expanded ? watchedPools : watchedPools.slice(0, 2)).map(pool => {
-              const t0IsQuote = isQuoteToken(chain, pool.token0.address)
+              const poolChain = ((pool as any)._chain as ChainSlug) || chain
+              const t0IsQuote = isQuoteToken(poolChain, pool.token0.address)
               const base = t0IsQuote ? pool.token1 : pool.token0
               return (
                 <Link
                   key={pool.address}
-                  href={`/${chain}/pair/${pool.address}`}
+                  href={`/${poolChain}/pair/${pool.address}`}
                   className="flex items-center justify-between py-1 hover:bg-border/20 rounded px-1 -mx-1 transition-colors"
                 >
                   <span className="text-[12px] text-text font-medium">{base.symbol}</span>

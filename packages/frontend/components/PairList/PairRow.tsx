@@ -238,14 +238,12 @@ export function PairRowFrozen({ pair, rank, flash, showStar = false, compact = f
 
       <span className={clsx('text-sub text-right flex-shrink-0', compact ? 'text-[10px] w-[24px]' : 'text-[11px] w-[36px]')}>#{rank}</span>
 
-      <div className="relative flex-shrink-0">
-        <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={compact ? 24 : 30} rounded="md" />
-        {/* Chain icon badge — shown in "All Chains" mode */}
-        {chainIcon && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={chainIcon} alt="" className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-1 ring-bg" />
-        )}
-      </div>
+      {/* Chain icon — shown in "All Chains" mode */}
+      {chainIcon && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={chainIcon} alt="" className="w-[18px] h-[18px] rounded-sm flex-shrink-0" />
+      )}
+      <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={compact ? 24 : 30} rounded="md" />
 
       {!compact && <DexBadge dex={pair.dex} extraPools={extraPools} />}
 

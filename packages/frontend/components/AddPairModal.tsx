@@ -6,7 +6,7 @@ import { getCachedPools } from '../lib/dexscreener-client'
 import { useWatchlist } from '../hooks/useWatchlist'
 import { TokenAvatar } from './TokenAvatar'
 import { useChain } from '@/contexts/ChainContext'
-import { isQuoteToken } from '@/lib/chains'
+import { isQuoteToken, CHAINS, type ChainSlug } from '@/lib/chains'
 
 interface Props {
   open: boolean
@@ -34,7 +34,7 @@ export function AddPairModal({ open, onClose }: Props) {
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
 
-  const allPools = useMemo(() => getCachedPools(chain), [open, chain])
+  const allPools = useMemo(() => getCachedPools('all'), [open])
   const results = useMemo(() => {
     if (!query.trim()) return allPools.slice(0, 20)
     const q = query.toLowerCase()
@@ -109,7 +109,9 @@ export function AddPairModal({ open, onClose }: Props) {
           )}
 
           {results.map((p) => {
-            const base = isQuoteToken(chain, p.token0.address) ? p.token1 : p.token0
+            const pairChain = ((p as any)._chain as ChainSlug) || chain
+            const base = isQuoteToken(pairChain, p.token0.address) ? p.token1 : p.token0
+            const chainIcon = CHAINS[pairChain]?.icon
             const watched = isWatched(p.address)
 
             return (
@@ -118,7 +120,11 @@ export function AddPairModal({ open, onClose }: Props) {
                 onClick={() => toggle(p.address)}
                 className="flex items-center gap-3 w-full px-5 py-3 text-left hover:bg-white/5 transition-colors border-b border-border/50 last:border-0"
               >
-                {/* Token avatar */}
+                {/* Chain icon + Token avatar */}
+                {chainIcon && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={chainIcon} alt="" className="w-[18px] h-[18px] rounded-sm flex-shrink-0" />
+                )}
                 <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={36} rounded="md" />
 
                 {/* Info */}
