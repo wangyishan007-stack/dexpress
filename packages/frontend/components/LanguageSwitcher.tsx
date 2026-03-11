@@ -129,8 +129,8 @@ export function LanguageSwitcher({ iconOnly }: Props) {
       <button
         ref={buttonRef}
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1.5 h-[36px] rounded-lg bg-border/40 text-sub hover:text-text transition-colors text-[13px] ${
-          iconOnly ? 'w-[36px] justify-center' : 'px-2.5'
+        className={`flex items-center gap-1.5 h-[36px] rounded-lg text-sub hover:text-text transition-colors text-[13px] ${
+          iconOnly ? 'w-[36px] justify-center bg-border/40' : 'px-2.5'
         }`}
         title="Language"
       >
