@@ -132,7 +132,7 @@ function ShareWatchlistModal({ listId, onClose }: { listId: string; onClose: () 
   const [allowed, setAllowed] = useState(false)
   const [copied, setCopied]   = useState(false)
 
-  const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/watchlist/${listId}`
+  const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/base/watchlist?shared=${listId}`
 
   const handleCopy = () => {
     navigator.clipboard.writeText(shareUrl)
@@ -223,7 +223,7 @@ export default function WatchlistPage() {
   }, [])
 
   // Ensure pool cache is populated for ALL chains (watchlist is cross-chain)
-  const { data: _pools } = useSWR('watchlist-pools:all', () => Promise.all(SUPPORTED_CHAINS.map(c => fetchDexScreenerClient(c))), {
+  const { data: _pools, isLoading: poolsLoading } = useSWR('watchlist-pools:all', () => Promise.all(SUPPORTED_CHAINS.map(c => fetchDexScreenerClient(c))), {
     revalidateOnFocus: false,
     dedupingInterval: 30_000,
   })
@@ -237,7 +237,7 @@ export default function WatchlistPage() {
   const sortedPairs = useMemo(() => {
     const s = sort || 'trending_score'
     // Apply filter
-    const dayAgo = Date.now() - 24 * 3600_000
+    const dayAgo = Date.now() - 72 * 3600_000
     let filtered = watchedPairs
     if (filter === 'new') {
       filtered = filtered.filter(p => new Date(p.created_at).getTime() > dayAgo)
@@ -275,7 +275,21 @@ export default function WatchlistPage() {
     )
   }
 
-  /* State 2: Logged in but empty (no pairIds or none matched in cache) */
+  /* State 2: Logged in but data still loading */
+  if (activeList.pairIds.length > 0 && watchedPairs.length === 0 && poolsLoading) {
+    return (
+      <div className="flex flex-col flex-1 min-h-0 px-3 pt-3 md:px-5 md:pt-4 pb-0">
+        <WatchlistHeader lists={lists} activeListId={activeListId} onSwitch={setActiveList} onManage={() => setManageOpen(true)} />
+        <div className="flex items-center justify-center h-48 gap-2 text-sub text-sm">
+          <svg className="animate-spin h-4 w-4 text-sub" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          Loading watchlist...
+        </div>
+        {manageOpen && <ManageListsModal onClose={() => setManageOpen(false)} />}
+      </div>
+    )
+  }
+
+  /* State 3: Logged in but empty (no pairIds or none matched in cache) */
   if (watchedPairs.length === 0) {
     return (
       <div className="flex flex-col flex-1 min-h-0 px-3 pt-3 md:px-5 md:pt-4 pb-0">

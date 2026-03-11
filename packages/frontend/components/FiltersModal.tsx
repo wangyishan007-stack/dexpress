@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 export interface FilterValues {
   [key: string]: { min: string; max: string }
@@ -73,6 +74,7 @@ interface Props {
 }
 
 export function FiltersModal({ open, onClose, initialFilters, initialTextFilters, onApply, onReset }: Props) {
+  useBodyScrollLock(open)
   const tF = useTranslations('filtersModal')
   const tModal = useTranslations('modals')
   const tCommon = useTranslations('common')

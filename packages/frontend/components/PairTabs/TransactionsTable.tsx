@@ -6,6 +6,7 @@ import clsx from 'clsx'
 import { fmtUsd, fmtPrice, fmtEth, fmtNum, shortAddr } from '../../lib/formatters'
 import { useChain } from '@/contexts/ChainContext'
 import { explorerLink } from '@/lib/chains'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 interface RecentSwap {
   id: string
@@ -143,6 +144,7 @@ function FilterModal({ title, open, onClose, children, onApply, onClear }: {
   onApply: () => void
   onClear: () => void
 }) {
+  useBodyScrollLock(open)
   const tCommon = useTranslations('common')
   const backdropRef = useRef<HTMLDivElement>(null)
 

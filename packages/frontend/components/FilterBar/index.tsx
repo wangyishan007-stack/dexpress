@@ -256,6 +256,7 @@ export function FilterBar({
           order={order ?? 'desc'}
           onSort={onSort ?? (() => {})}
           onOrder={onOrder ?? (() => {})}
+          onFilter={onFilter as ((f: string) => void) | undefined}
           rankLabel={rankLabel}
           dataWindow={dataWindow}
         />

@@ -98,7 +98,7 @@ function MobileTabNav() {
     <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-bg">
       {navItems.map(({ href, path, key, Icon }) => {
         const active = path === ''
-          ? pathname === `/${chain}` || pathname.startsWith(`/${chain}/pair`)
+          ? pathname === `/${chain}`
           : pathname === `/${chain}${path}` || pathname.startsWith(`/${chain}${path}/`)
         return (
           <Link
@@ -299,7 +299,7 @@ export function Sidebar() {
               {navItems.map(({ href, path, key, Icon }) => {
                 // Active detection always uses URL chain, not per-page href
                 const active = path === ''
-                  ? pathname === `/${chain}` || pathname.startsWith(`/${chain}/pair`)
+                  ? pathname === `/${chain}`
                   : pathname === `/${chain}${path}` || pathname.startsWith(`/${chain}${path}/`)
                 const label = tNav(key)
                 return (

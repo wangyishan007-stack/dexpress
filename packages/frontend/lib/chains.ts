@@ -135,7 +135,7 @@ export const CHAINS: Record<ChainSlug, ChainConfig> = {
       tokenPath: '/token/',
       txPath: '/tx/',
     },
-    rpcUrl: 'https://api.mainnet-beta.solana.com',
+    rpcUrl: 'https://solana-rpc.publicnode.com',
     trustWalletChain: 'solana',
     swapUrl: (addr) => `https://jup.ag/swap/SOL-${addr}`,
     isValidAddress: (addr) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(addr),

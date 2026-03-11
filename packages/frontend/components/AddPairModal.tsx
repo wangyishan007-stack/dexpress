@@ -7,6 +7,7 @@ import { useWatchlist } from '../hooks/useWatchlist'
 import { TokenAvatar } from './TokenAvatar'
 import { useChain } from '@/contexts/ChainContext'
 import { isQuoteToken, CHAINS, type ChainSlug } from '@/lib/chains'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 interface Props {
   open: boolean
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function AddPairModal({ open, onClose }: Props) {
+  useBodyScrollLock(open)
   const { chain } = useChain()
   const tModal = useTranslations('modals')
   const tCommon = useTranslations('common')
@@ -125,7 +127,7 @@ export function AddPairModal({ open, onClose }: Props) {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={chainIcon} alt="" className="w-[18px] h-[18px] rounded-sm flex-shrink-0" />
                 )}
-                <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={36} rounded="md" />
+                <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={36} rounded="md" chain={pairChain} />
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">

@@ -61,7 +61,7 @@ export function TrendingTicker() {
               className="flex items-center gap-1.5 flex-shrink-0 hover:bg-border/20 rounded px-1.5 py-1 transition-colors"
             >
               <span className="text-[12px] text-sub tabular">{i + 1}</span>
-              <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={20} rounded="md" />
+              <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={20} rounded="md" chain={chain} />
               <span className="text-[13px] font-medium text-text">{base.symbol}</span>
               <span className={`text-[12px] tabular ${isPos ? 'text-green' : isNeg ? 'text-red' : 'text-sub'}`}>
                 {Number.isFinite(change) ? `${isPos ? '+' : ''}${change.toFixed(2)}%` : '—'}

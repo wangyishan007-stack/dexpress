@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { useWatchlist } from '../hooks/useWatchlist'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 function fmtUpdated(ts: string): string {
   if (!ts) return ''
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export function ManageListsModal({ onClose }: Props) {
+  useBodyScrollLock()
   const tModal = useTranslations('modals')
   const tCommon = useTranslations('common')
   const { lists, createList, renameList, deleteList } = useWatchlist()

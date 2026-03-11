@@ -13,6 +13,7 @@ import clsx from 'clsx'
 interface Props {
   pairAddress: string
   symbol: string
+  chain?: string
 }
 
 type Resolution = '1' | '5' | '15' | '60' | '240' | '1D'
@@ -127,8 +128,47 @@ function generateMockCandles(address: string, resolution: Resolution) {
   return bars
 }
 
+/* ── GT OHLCV timeframe mapping ─────────────────────────────── */
+const GT_TIMEFRAME_MAP: Record<string, { timeframe: string; aggregate: string }> = {
+  '1':   { timeframe: 'minute', aggregate: '1' },
+  '5':   { timeframe: 'minute', aggregate: '5' },
+  '15':  { timeframe: 'minute', aggregate: '15' },
+  '60':  { timeframe: 'hour',   aggregate: '1' },
+  '240': { timeframe: 'hour',   aggregate: '4' },
+  '1D':  { timeframe: 'day',    aggregate: '1' },
+}
+
 /* ── Fetch real candles ─────────────────────────────────────── */
-async function fetchCandles(address: string, resolution: Resolution): Promise<{ bars: any[]; isMock: boolean }> {
+async function fetchCandles(address: string, resolution: Resolution, chainSlug?: string): Promise<{ bars: any[]; isMock: boolean }> {
+  // 1) Try GeckoTerminal OHLCV (works for all chains)
+  try {
+    const { getChain } = await import('@/lib/chains')
+    const network = chainSlug ? getChain(chainSlug as import('@/lib/chains').ChainSlug).geckoTerminalSlug : 'base'
+    const gt = GT_TIMEFRAME_MAP[resolution] || GT_TIMEFRAME_MAP['5']
+    const before = Math.floor(Date.now() / 1000)
+    const url = `https://api.geckoterminal.com/api/v2/networks/${network}/pools/${address}/ohlcv/${gt.timeframe}?aggregate=${gt.aggregate}&before_timestamp=${before}&limit=300&currency=usd`
+    const res = await fetch(url)
+    if (res.ok) {
+      const json = await res.json()
+      const list = json?.data?.attributes?.ohlcv_list
+      if (Array.isArray(list) && list.length > 0) {
+        // GT returns [timestamp_ms, open, high, low, close, volume] sorted newest-first
+        const bars = list
+          .map((c: number[]) => ({
+            time: Math.floor(c[0] / 1000),
+            open: c[1],
+            high: c[2],
+            low: c[3],
+            close: c[4],
+            volume: c[5],
+          }))
+          .sort((a: any, b: any) => a.time - b.time)
+        return { bars, isMock: false }
+      }
+    }
+  } catch {}
+
+  // 2) Fallback: backend API (Base chain only)
   if (BASE_URL) {
     const apiRes = RESOLUTION_API_MAP[resolution] || '5m'
     const to = Math.floor(Date.now() / 1000)
@@ -152,7 +192,8 @@ async function fetchCandles(address: string, resolution: Resolution): Promise<{ 
       }
     } catch {}
   }
-  // Fallback: generate mock candles (flagged so UI can warn user)
+
+  // 3) Fallback: generate mock candles
   return { bars: generateMockCandles(address, resolution), isMock: true }
 }
 
@@ -284,7 +325,7 @@ function DropdownItem({ active, onClick, children }: { active?: boolean; onClick
 }
 
 /* ── Chart component ───────────────────────────────────────── */
-export function TradingViewChart({ pairAddress, symbol }: Props) {
+export function TradingViewChart({ pairAddress, symbol, chain: chainProp }: Props) {
   const t = useTranslations('chart')
   const wrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -338,7 +379,7 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
 
   const loadData = useCallback(
     async (res: Resolution, type: ChartType, showMaOverlay: boolean) => {
-      const { bars, isMock } = await fetchCandles(pairAddress, res)
+      const { bars, isMock } = await fetchCandles(pairAddress, res, chainProp)
       barsRef.current = bars
       setIsMockData(isMock)
       if (!chartRef.current || bars.length === 0) return
@@ -402,7 +443,7 @@ export function TradingViewChart({ pairAddress, symbol }: Props) {
 
       chartRef.current?.timeScale().fitContent()
     },
-    [pairAddress, applyMA]
+    [pairAddress, chainProp, applyMA]
   )
 
   // Create chart

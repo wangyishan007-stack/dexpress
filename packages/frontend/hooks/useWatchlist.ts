@@ -101,13 +101,14 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const toggle = useCallback((pairId: string) => {
+    const lower = pairId.toLowerCase()
     setState(prev => {
       const lists = prev.lists.map(l => {
         if (l.id !== prev.activeListId) return l
-        const has = l.pairIds.includes(pairId)
+        const has = l.pairIds.some(p => p.toLowerCase() === lower)
         return {
           ...l,
-          pairIds: has ? l.pairIds.filter(p => p !== pairId) : [...l.pairIds, pairId],
+          pairIds: has ? l.pairIds.filter(p => p.toLowerCase() !== lower) : [...l.pairIds, pairId],
           updatedAt: new Date().toISOString(),
         }
       })
@@ -116,7 +117,10 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const isWatched = useCallback(
-    (pairId: string) => activeList.pairIds.includes(pairId),
+    (pairId: string) => {
+      const lower = pairId.toLowerCase()
+      return activeList.pairIds.some(p => p.toLowerCase() === lower)
+    },
     [activeList.pairIds]
   )
 

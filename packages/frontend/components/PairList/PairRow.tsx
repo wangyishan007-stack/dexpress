@@ -177,7 +177,7 @@ export function PairRow({ pair, livePrice, flash, rank, showStar = false }: Pair
         {showStar && <WatchToggle address={pair.address} size={14} />}
 
         <span className="text-sub text-[11px] w-[22px] text-right flex-shrink-0">#{rank}</span>
-        <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={28} />
+        <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={28} chain={pairChain} />
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
@@ -243,7 +243,7 @@ export function PairRowFrozen({ pair, rank, flash, showStar = false, compact = f
         // eslint-disable-next-line @next/next/no-img-element
         <img src={chainIcon} alt="" className="w-[18px] h-[18px] rounded-sm flex-shrink-0" />
       )}
-      <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={compact ? 24 : 30} rounded="md" />
+      <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={compact ? 24 : 30} rounded="md" chain={pairChain} />
 
       {!compact && <DexBadge dex={pair.dex} extraPools={extraPools} />}
 

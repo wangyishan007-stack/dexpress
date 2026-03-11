@@ -9,16 +9,18 @@ function toNum(n: unknown): number | null {
 export function fmtUsd(n: unknown, compact = true): string {
   const v = toNum(n)
   if (v === null || v === 0) return '$0'
+  const sign = v < 0 ? '-' : ''
+  const abs = Math.abs(v)
   if (compact) {
-    if (v >= 1e15) return '>$999T'
-    if (v >= 1_000_000_000_000) return `$${(v / 1_000_000_000_000).toFixed(2)}T`
-    if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(2)}B`
-    if (v >= 1_000_000)     return `$${(v / 1_000_000).toFixed(2)}M`
-    if (v >= 1_000)         return `$${(v / 1_000).toFixed(1)}K`
+    if (abs >= 1e15) return `${sign}>$999T`
+    if (abs >= 1_000_000_000_000) return `${sign}$${(abs / 1_000_000_000_000).toFixed(2)}T`
+    if (abs >= 1_000_000_000) return `${sign}$${(abs / 1_000_000_000).toFixed(2)}B`
+    if (abs >= 1_000_000)     return `${sign}$${(abs / 1_000_000).toFixed(2)}M`
+    if (abs >= 1_000)         return `${sign}$${(abs / 1_000).toFixed(1)}K`
   }
-  if (v < 0.0001) return `$${v.toExponential(2)}`
-  if (v < 1)      return `$${v.toPrecision(4)}`
-  return `$${v.toLocaleString('en-US', { maximumFractionDigits: 2 })}`
+  if (abs < 0.0001) return `${sign}$${abs.toExponential(2)}`
+  if (abs < 1)      return `${sign}$${abs.toPrecision(4)}`
+  return `${sign}$${abs.toLocaleString('en-US', { maximumFractionDigits: 2 })}`
 }
 
 /** Format token price with appropriate precision */

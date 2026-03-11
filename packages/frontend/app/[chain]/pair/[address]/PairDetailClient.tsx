@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import useSWR from 'swr'
 import type { Pool } from '@dex/shared'
@@ -147,6 +148,7 @@ function Spinner({ size = 4 }: { size?: number }) {
 
 /* ── Main ─────────────────────────────────────────────────── */
 export function PairDetailClient({ address }: Props) {
+  const router = useRouter()
   const { chain, chainConfig } = useChain()
   const tDetail = useTranslations('pairDetail')
   const tCommon = useTranslations('common')
@@ -236,6 +238,16 @@ export function PairDetailClient({ address }: Props) {
   const [swapHasMore, setSwapHasMore] = useState(false)
   const [newSwapIds,  setNewSwapIds]  = useState<Set<string>>(new Set())
   const swapsInitializedRef = useRef(false)
+
+  // Reset state when address changes (navigating between pairs)
+  useEffect(() => {
+    swapsInitializedRef.current = false
+    setSwaps([])
+    setSwapHasMore(false)
+    setNewSwapIds(new Set())
+    setLivePrice(null)
+    setFlash(null)
+  }, [address])
 
   // Initialize swaps from SWR pair data (trades come bundled with pool data)
   useEffect(() => {
@@ -357,11 +369,24 @@ export function PairDetailClient({ address }: Props) {
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-bg overflow-x-hidden overflow-y-auto md:overflow-hidden scrollbar-hide">
 
+      {/* Go back button */}
+      <div className="px-3 pt-3 md:px-5 md:pt-4 pb-0">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-1.5 text-sub hover:text-text transition-colors text-[13px]"
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+            <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span>go back</span>
+        </button>
+      </div>
+
       {/* ── Two-column layout ─────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row gap-3 md:gap-5 p-3 md:p-5">
+      <div className="flex flex-col md:flex-row gap-3 md:gap-5 px-3 pb-3 pt-2 md:px-5 md:pb-5 md:pt-3">
 
         {/* ── LEFT COLUMN: Chart + Transactions ───────────────── */}
-        <div className="flex flex-col md:flex-1 min-w-0 gap-5 md:h-[calc(100vh_-_40px)] md:overflow-y-auto scrollbar-hide">
+        <div className="flex flex-col md:flex-1 min-w-0 gap-5 md:h-[calc(100vh_-_80px)] md:overflow-y-auto scrollbar-hide">
 
         {/* ── Chart Card ──────────────────────────────────────── */}
         <Card className="flex flex-col overflow-hidden flex-shrink-0">
@@ -371,7 +396,7 @@ export function PairDetailClient({ address }: Props) {
 
           {/* TradingView Chart */}
           <div className="w-full" style={{ height: chartHeight }}>
-            <TradingViewChart pairAddress={address} symbol={`${base.symbol}/${quote.symbol}`} />
+            <TradingViewChart pairAddress={address} symbol={`${base.symbol}/${quote.symbol}`} chain={chain} />
           </div>
 
           {/* Drag handle to resize chart */}
@@ -388,6 +413,7 @@ export function PairDetailClient({ address }: Props) {
 
         {/* ── Tabbed section (Transactions / Top Traders / Holders / Liquidity / Bubblemaps) ── */}
         <PairTabs
+          key={base.address}
           swaps={swaps}
           swapHasMore={swapHasMore}
           swapLoading={swapLoading || loadingMore}
@@ -405,11 +431,11 @@ export function PairDetailClient({ address }: Props) {
         </div>{/* end LEFT COLUMN */}
 
         {/* ── RIGHT COLUMN ────────────────────────────────────── */}
-        <div className="w-full overflow-x-hidden md:w-[340px] flex-shrink-0 flex flex-col gap-4 md:h-[calc(100vh_-_40px)] md:overflow-y-auto scrollbar-hide bg-surface border border-border rounded-xl px-4 py-2">
+        <div className="w-full overflow-x-hidden md:w-[340px] flex-shrink-0 flex flex-col gap-4 md:h-[calc(100vh_-_80px)] md:overflow-y-auto scrollbar-hide bg-surface border border-border rounded-xl px-4 py-2">
 
           {/* ── 1. Token Header ──────────────────────────────────── */}
           <div className="flex items-center gap-4 py-2">
-            <TokenAvatar symbol={base.symbol} logoUrl={baseLogoUrl} address={base.address} size={54} rounded="md" />
+            <TokenAvatar symbol={base.symbol} logoUrl={baseLogoUrl} address={base.address} size={54} rounded="md" chain={chain} />
             <div className="flex flex-col gap-1.5 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-[16px] font-bold text-text">${base.symbol}</span>
@@ -823,7 +849,7 @@ export function PairDetailClient({ address }: Props) {
                 ? (s.owner_address === '0x0000000000000000000000000000000000000000' || s.owner_address === '')
                 : null
 
-              const goPlusRows: { label: string; value: string; status: 'ok' | 'warn' | 'neutral' | 'link' }[] = s ? [
+              const goPlusRows: { label: string; value: string; status: 'ok' | 'warn' | 'neutral' | 'link'; href?: string }[] = s ? [
                 { label: tSec('sellTax'), ...fmtTax(s.sell_tax) },
                 { label: tSec('buyTax'), ...fmtTax(s.buy_tax) },
                 { label: tSec('taxModifiable'), ...flag(s.slippage_modifiable, '0') },
@@ -842,9 +868,9 @@ export function PairDetailClient({ address }: Props) {
                 { label: tSec('hasWhitelist'), ...flag(s.is_whitelisted, '0') },
                 { label: tSec('isAntiWhale'), ...flag(s.is_anti_whale, '0') },
                 { label: tSec('lpHolderCount'), value: s.lp_holder_count || '—', status: 'neutral' },
-                { label: tSec('creatorAddress'), value: s.creator_address ? shortAddr(s.creator_address) : '—', status: s.creator_address ? 'link' : 'neutral' },
+                { label: tSec('creatorAddress'), value: s.creator_address ? shortAddr(s.creator_address) : '—', status: s.creator_address ? 'link' : 'neutral', href: s.creator_address ? explorerLink(chain, 'address', s.creator_address) : undefined },
                 { label: tSec('creatorBalance'), value: s.creator_balance ? `${parseFloat(s.creator_balance).toLocaleString()} (${(parseFloat(s.creator_percent || '0') * 100).toFixed(2)}%)` : '—', status: 'neutral' },
-                { label: tSec('ownerAddress'), value: s.owner_address ? shortAddr(s.owner_address) : '—', status: s.owner_address ? 'link' : 'neutral' },
+                { label: tSec('ownerAddress'), value: s.owner_address ? shortAddr(s.owner_address) : '—', status: s.owner_address ? 'link' : 'neutral', href: s.owner_address ? explorerLink(chain, 'address', s.owner_address) : undefined },
                 { label: tSec('ownerBalance'), value: s.owner_balance ? `${parseFloat(s.owner_balance).toLocaleString()} (${(parseFloat(s.owner_percent || '0') * 100).toFixed(2)}%)` : '—', status: 'neutral' },
               ] : []
 
@@ -912,26 +938,37 @@ export function PairDetailClient({ address }: Props) {
                           </div>
                           {item.expandable && isOpen && item.rows.length > 0 && (
                             <div className="border-t border-border">
-                              {item.rows.map((row, ri) => (
-                                <div key={row.label} className={clsx('flex items-center justify-between px-3 py-2.5', ri < item.rows.length - 1 && 'border-b border-border/50')}>
-                                  <div className="flex items-center gap-1.5">
-                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-sub flex-shrink-0"><circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.2"/><path d="M7 4v3M7 9v1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
-                                    <span className="text-[13px] text-text">{row.label}</span>
+                              {item.rows.map((row, ri) => {
+                                const rowContent = (
+                                  <>
+                                    <div className="flex items-center gap-1.5">
+                                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-sub flex-shrink-0"><circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.2"/><path d="M7 4v3M7 9v1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                                      <span className="text-[13px] text-text">{row.label}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      {row.status === 'link' && (
+                                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="text-sub"><path d="M4 1h7v7M11 1L5 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                      )}
+                                      {row.status === 'ok' && (
+                                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#2fe06b" strokeWidth="1.2"/><path d="M3.5 6l2 2 3-3" stroke="#2fe06b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                      )}
+                                      {row.status === 'warn' && (
+                                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-yellow-400"><path d="M6 1L1 11h10L6 1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/><path d="M6 5v3M6 9.5v.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                                      )}
+                                      <span className={clsx('text-[13px] font-mono tabular', row.status === 'ok' ? 'text-green' : row.status === 'warn' ? 'text-yellow-400' : 'text-text')}>{row.value}</span>
+                                    </div>
+                                  </>
+                                )
+                                return row.href ? (
+                                  <a key={row.label} href={row.href} target="_blank" rel="noopener noreferrer" className={clsx('flex items-center justify-between px-3 py-2.5 hover:bg-white/5 transition-colors cursor-pointer', ri < item.rows.length - 1 && 'border-b border-border/50')}>
+                                    {rowContent}
+                                  </a>
+                                ) : (
+                                  <div key={row.label} className={clsx('flex items-center justify-between px-3 py-2.5', ri < item.rows.length - 1 && 'border-b border-border/50')}>
+                                    {rowContent}
                                   </div>
-                                  <div className="flex items-center gap-1.5">
-                                    {row.status === 'link' && (
-                                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="text-sub"><path d="M4 1h7v7M11 1L5 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                    )}
-                                    {row.status === 'ok' && (
-                                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#2fe06b" strokeWidth="1.2"/><path d="M3.5 6l2 2 3-3" stroke="#2fe06b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                    )}
-                                    {row.status === 'warn' && (
-                                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-yellow-400"><path d="M6 1L1 11h10L6 1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/><path d="M6 5v3M6 9.5v.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
-                                    )}
-                                    <span className={clsx('text-[13px] font-mono tabular', row.status === 'ok' ? 'text-green' : row.status === 'warn' ? 'text-yellow-400' : 'text-text')}>{row.value}</span>
-                                  </div>
-                                </div>
-                              ))}
+                                )
+                              })}
                             </div>
                           )}
                         </div>
@@ -959,7 +996,7 @@ export function PairDetailClient({ address }: Props) {
             {/* ── 11. Token About Card ──────────────────────────────── */}
             <div ref={projectInfoRef} className="flex flex-col gap-4 items-center">
               <div className="flex flex-col gap-[13px] items-center">
-                <TokenAvatar symbol={base.symbol} logoUrl={baseLogoUrl} address={base.address} size={74} rounded="md" />
+                <TokenAvatar symbol={base.symbol} logoUrl={baseLogoUrl} address={base.address} size={74} rounded="md" chain={chain} />
                 <span className="text-[16px] text-text text-center">{base.name || base.symbol}</span>
                 {(() => {
                   const websiteUrl = tokenInfo?.websites?.[0] || null
@@ -1050,12 +1087,12 @@ export function PairDetailClient({ address }: Props) {
                   </div>
                   <textarea
                     readOnly
-                    value={`<iframe src="${typeof window !== 'undefined' ? window.location.origin : ''}/pair/${address}?embed=1" width="100%" height="400" frameborder="0"></iframe>`}
+                    value={`<iframe src="${typeof window !== 'undefined' ? window.location.origin : ''}/${chain}/pair/${address}?embed=1" width="100%" height="400" frameborder="0"></iframe>`}
                     className="w-full h-[72px] rounded-lg border border-border bg-transparent text-[12px] text-sub font-mono p-2 resize-none outline-none focus:border-blue"
                   />
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(`<iframe src="${typeof window !== 'undefined' ? window.location.origin : ''}/pair/${address}?embed=1" width="100%" height="400" frameborder="0"></iframe>`)
+                      navigator.clipboard.writeText(`<iframe src="${typeof window !== 'undefined' ? window.location.origin : ''}/${chain}/pair/${address}?embed=1" width="100%" height="400" frameborder="0"></iframe>`)
                       setEmbedCopied(true)
                       const embedT = setTimeout(() => { setEmbedCopied(false); timersRef.current.delete(embedT) }, 2000)
                       timersRef.current.add(embedT)

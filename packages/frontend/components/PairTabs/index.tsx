@@ -11,8 +11,12 @@ import { BubblemapsEmbed } from './BubblePlaceholder'
 import type { GoPlusResult } from '../../lib/goplus'
 import type { MoralisTrader, MoralisHoldersResult } from '../../lib/moralis'
 import type { LPProvidersResult } from '../../lib/uniswap-subgraph'
+import { useChain } from '@/contexts/ChainContext'
 
 type TabKey = 'transactions' | 'top-traders' | 'holders' | 'liquidity' | 'bubblemaps'
+
+// Tabs only available on EVM chains (Moralis/GoPlus/Subgraph don't support Solana)
+const EVM_ONLY_TABS = new Set<TabKey>(['top-traders', 'holders', 'liquidity'])
 
 /* ── Tab icons ──────────────────────────────────────────── */
 function IconTransactions() {
@@ -102,14 +106,18 @@ interface Props {
 
 export function PairTabs({ swaps, swapHasMore, swapLoading, onLoadMore, tokenAddress, security, tokenPriceUsd, traders, baseTokenSymbol, newSwapIds, holdersData, lpProvidersData }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('transactions')
+  const { chain } = useChain()
   const t = useTranslations('tabs')
+
+  const isSolana = chain === 'solana'
+  const visibleTabs = isSolana ? TAB_KEYS.filter(tab => !EVM_ONLY_TABS.has(tab.key)) : TAB_KEYS
 
   return (
     <div className="flex flex-col gap-4 flex-shrink-0">
       {/* Tab bar */}
       <div className="relative flex items-center justify-between py-3 overflow-x-auto">
         <div className="flex items-center gap-6">
-          {TAB_KEYS.map((tab) => {
+          {visibleTabs.map((tab) => {
             const Icon = TAB_ICONS[tab.key]
             const isActive = activeTab === tab.key
             return (

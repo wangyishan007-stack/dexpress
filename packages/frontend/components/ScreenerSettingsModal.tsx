@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { COLUMN_DEFS, DEFAULT_CONFIG } from '../lib/columnConfig'
 import type { ScreenerConfig } from '../lib/columnConfig'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 function IconClose() {
   return (
@@ -52,6 +53,7 @@ interface Props {
 }
 
 export function ScreenerSettingsModal({ open, onClose, config, onApply }: Props) {
+  useBodyScrollLock(open)
   const [columns, setColumns] = useState<string[]>(config.columns)
   const [visible, setVisible] = useState<Record<string, boolean>>(config.visible)
   const dragItemRef = useRef<number | null>(null)

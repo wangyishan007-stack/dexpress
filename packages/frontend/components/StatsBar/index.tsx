@@ -14,7 +14,6 @@ async function fetchLatestBlock(key: string): Promise<{ block: number; ts: strin
   const chainConfig = getChain(chain as import('@/lib/chains').ChainSlug)
   const rpcUrl = chainConfig.rpcUrl
   try {
-    // Different RPC methods for EVM vs SVM chains
     const body = chainConfig.chainType === 'svm'
       ? JSON.stringify({ jsonrpc: '2.0', method: 'getSlot', params: [{ commitment: 'finalized' }], id: 1 })
       : JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 })
@@ -23,7 +22,9 @@ async function fetchLatestBlock(key: string): Promise<{ block: number; ts: strin
       headers: { 'Content-Type': 'application/json' },
       body,
     })
+    if (!res.ok) return { block: 0, ts: new Date().toISOString() }
     const data = await res.json()
+    if (data.error) return { block: 0, ts: new Date().toISOString() }
     const block = chainConfig.chainType === 'svm'
       ? (typeof data.result === 'number' ? data.result : 0)
       : parseInt(data.result, 16)
@@ -95,7 +96,7 @@ export function StatsBar({ pairs, showBlock = true }: Props) {
         <StatCard
           label={t('latestBlock')}
           value={blockData?.block ? blockData.block.toLocaleString('en-US') : '—'}
-          sub={agoStr}
+          sub={blockData?.block ? agoStr : undefined}
         />
       )}
     </div>

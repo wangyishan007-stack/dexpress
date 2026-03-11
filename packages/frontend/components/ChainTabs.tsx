@@ -68,7 +68,7 @@ export function ChainTabs() {
   }
 
   return (
-    <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+    <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide mb-[-1px]">
       {tabs.map(tab => {
         const isActive = tab.key === active
         return (
@@ -90,7 +90,7 @@ export function ChainTabs() {
             {tab.label}
             {/* Active underline */}
             {isActive && (
-              <span className="absolute bottom-0 left-2 right-2 h-[2px] bg-blue rounded-full" />
+              <span className="absolute -bottom-[1px] left-2 right-2 h-[2px] bg-blue rounded-full" />
             )}
           </Link>
         )

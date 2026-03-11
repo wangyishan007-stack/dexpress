@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import clsx from 'clsx'
 
-/** DexScreener token logo CDN — better coverage than Covalent */
-const DS_LOGO_CDN = 'https://dd.dexscreener.com/ds-data/tokens/base'
+/** DexScreener token logo CDN — chain-aware */
+const DS_LOGO_CDN = 'https://dd.dexscreener.com/ds-data/tokens'
 
 export function addrToHue(address: string): number {
   let h = 0
@@ -14,20 +14,29 @@ export function addrToHue(address: string): number {
   return h % 360
 }
 
+/** Map chain slugs to DexScreener CDN chain names */
+const DS_CHAIN_MAP: Record<string, string> = {
+  base: 'base',
+  bsc: 'bsc',
+  solana: 'solana',
+}
+
 interface TokenAvatarProps {
   symbol: string
   logoUrl: string | null
   address: string
   size?: number
   rounded?: 'full' | 'md'
+  chain?: string
 }
 
-export function TokenAvatar({ symbol, logoUrl, address, size = 22, rounded = 'full' }: TokenAvatarProps) {
+export function TokenAvatar({ symbol, logoUrl, address, size = 22, rounded = 'full', chain = 'base' }: TokenAvatarProps) {
   const hue = addrToHue(address)
   const rCls = rounded === 'md' ? 'rounded-md' : 'rounded-full'
 
-  // Build fallback URL from DexScreener CDN
-  const fallbackUrl = address ? `${DS_LOGO_CDN}/${address.toLowerCase()}.png?size=lg` : null
+  // Build fallback URL from DexScreener CDN (chain-aware)
+  const dsChain = DS_CHAIN_MAP[chain] || 'base'
+  const fallbackUrl = address ? `${DS_LOGO_CDN}/${dsChain}/${address.toLowerCase()}.png?size=lg` : null
 
   // Track which image source to show: 'primary' -> 'fallback' -> 'none'
   const [imgSrc, setImgSrc] = useState<'primary' | 'fallback' | 'none'>(

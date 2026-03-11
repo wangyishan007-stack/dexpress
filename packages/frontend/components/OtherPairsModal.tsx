@@ -8,6 +8,7 @@ import { fetchPoolsByToken } from '../lib/dexscreener-client'
 import { fmtUsd, fmtAge, shortAddr } from '../lib/formatters'
 import { useWatchlist } from '../hooks/useWatchlist'
 import type { Pool } from '@dex/shared'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import { useChain } from '@/contexts/ChainContext'
 import { isQuoteToken, getDexInfo } from '@/lib/chains'
 
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function OtherPairsModal({ open, onClose, currentAddress, tokenAddress }: Props) {
+  useBodyScrollLock(open)
   const { chain, chainConfig } = useChain()
   const tModal = useTranslations('modals')
   const tCommon = useTranslations('common')

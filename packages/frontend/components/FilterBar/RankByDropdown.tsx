@@ -22,11 +22,12 @@ interface Props {
   order:      'asc' | 'desc'
   onSort:     (s: string) => void
   onOrder:    (o: 'asc' | 'desc') => void
+  onFilter?:  (f: string) => void
   rankLabel:  string
   dataWindow: string
 }
 
-export function RankByDropdown({ sort, order, onSort, onOrder, rankLabel, dataWindow }: Props) {
+export function RankByDropdown({ sort, order, onSort, onOrder, onFilter, rankLabel, dataWindow }: Props) {
   const t = useTranslations('filter')
   const dynamicOptions = [
     { value: `txns_${dataWindow}`,   label: t('txns')      },
@@ -65,7 +66,16 @@ export function RankByDropdown({ sort, order, onSort, onOrder, rankLabel, dataWi
         <DropdownItem
           key={opt.value}
           active={sort === opt.value}
-          onClick={() => onSort(opt.value)}
+          onClick={() => {
+            onSort(opt.value)
+            // Auto-sync filter mode with selected sort
+            if (onFilter) {
+              if (opt.value.startsWith('trending_')) onFilter('trending')
+              else if (opt.value.startsWith('change_')) onFilter('gainers')
+              else if (opt.value.startsWith('volume_') || opt.value.startsWith('txns_') || opt.value.startsWith('buys_') || opt.value.startsWith('sells_') || opt.value === 'liquidity_usd' || opt.value === 'mcap_usd') onFilter('top')
+              else if (opt.value === 'created_at') onFilter('new')
+            }
+          }}
         >
           {opt.label}
         </DropdownItem>

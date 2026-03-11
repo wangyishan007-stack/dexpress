@@ -36,8 +36,8 @@ function sortPools(pools: Pool[], sort: string, order: 'asc' | 'desc'): Pool[] {
 // Client-side filtering
 function filterPools(pools: Pool[], filter?: string, sort?: string): Pool[] {
   if (!filter || filter === 'trending' || filter === 'top') return pools
-  const dayAgo = Date.now() - 24 * 3600_000
-  if (filter === 'new') return pools.filter(p => new Date(p.created_at).getTime() > dayAgo)
+  const newThreshold = Date.now() - 72 * 3600_000  // 72h — broader coverage for new pairs
+  if (filter === 'new') return pools.filter(p => new Date(p.created_at).getTime() > newThreshold)
   const changeField = (sort?.startsWith('change_') ? sort : 'change_24h') as keyof Pool
   if (filter === 'gainers') return pools.filter(p => ((p[changeField] as number) ?? 0) > 0)
   if (filter === 'losers')  return pools.filter(p => ((p[changeField] as number) ?? 0) < 0)
@@ -80,8 +80,8 @@ export function usePairs(baseParams: Omit<PairsQuery, 'limit' | 'offset'>, chain
   const hasMore = pairs.length < total
 
   const loadMore = useCallback(() => {
-    if (!isValidating) setSize((s) => s + 1)
-  }, [isValidating])
+    if (!isLoading) setSize((s) => s + 1)
+  }, [isLoading])
 
   // [#14] Return error state + allPairs for stats computation
   return { pairs, allPairs: processedPairs, total, hasMore, isLoading, isValidating, error, loadMore, mutate }

@@ -9,6 +9,7 @@ import { fmtUsd, fmtPrice } from '../lib/formatters'
 import type { Pool } from '@dex/shared'
 import { useChainSlug } from '@/hooks/useChainSlug'
 import { isQuoteToken } from '@/lib/chains'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 function IconSearch() {
   return (
@@ -82,6 +83,7 @@ interface Props {
 }
 
 export function SearchModal({ open, onClose }: Props) {
+  useBodyScrollLock(open)
   const chain = useChainSlug()
   const tSearch = useTranslations('search')
   const [query, setQuery] = useState('')
@@ -249,7 +251,7 @@ export function SearchModal({ open, onClose }: Props) {
                       onClick={() => goToHistory(item)}
                       className="flex items-center gap-1 hover:opacity-80 transition-opacity"
                     >
-                      <TokenAvatar symbol={item.symbol} logoUrl={item.logoUrl} address={item.tokenAddress} size={18} />
+                      <TokenAvatar symbol={item.symbol} logoUrl={item.logoUrl} address={item.tokenAddress} size={18} chain={item.chain || chain} />
                       <span className="text-[14px] text-sub">${item.symbol}</span>
                     </button>
                   ))}
@@ -284,7 +286,7 @@ function TokenCard({ pool, onClick }: { pool: Pool; onClick: () => void }) {
       onClick={onClick}
       className="flex items-center gap-3 p-3 rounded-lg text-left hover:bg-white/5 transition-colors border border-border/50"
     >
-      <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={40} rounded="md" />
+      <TokenAvatar symbol={base.symbol} logoUrl={base.logo_url} address={base.address} size={40} rounded="md" chain={chain} />
       <div className="flex flex-col gap-1 min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="text-[13px] font-bold text-text truncate">${base.symbol}</span>

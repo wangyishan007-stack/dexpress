@@ -357,8 +357,8 @@ const TRENDING_WINDOWS = ['5m', '1h', '6h', '24h'] as const
  * Build GT API URLs. Strategy:
  * - Indexes 0-3: trending per time window (5m, 1h, 6h, 24h) — matches GT website sorting
  * - Index 4: trending (no duration) — fallback for chains where duration params return 0
- * - Index 5: new_pools
- * - Indexes 6-7: pools by volume (broadest coverage)
+ * - Indexes 5-7: new_pools (3 pages — broader coverage for New Pairs page)
+ * - Indexes 8-9: pools by volume (broadest coverage)
  */
 function buildGTUrls(chain: ChainSlug): string[] {
   const network = getChain(chain).geckoTerminalSlug
@@ -368,7 +368,9 @@ function buildGTUrls(chain: ChainSlug): string[] {
     `${GT_BASE}/networks/${network}/trending_pools?duration=6h`,
     `${GT_BASE}/networks/${network}/trending_pools?duration=24h`,
     `${GT_BASE}/networks/${network}/trending_pools`,
-    `${GT_BASE}/networks/${network}/new_pools`,
+    `${GT_BASE}/networks/${network}/new_pools?page=1`,
+    `${GT_BASE}/networks/${network}/new_pools?page=2`,
+    `${GT_BASE}/networks/${network}/new_pools?page=3`,
     `${GT_BASE}/networks/${network}/pools?sort=h24_volume_usd_desc&page=1`,
     `${GT_BASE}/networks/${network}/pools?sort=h24_volume_usd_desc&page=2`,
   ]
