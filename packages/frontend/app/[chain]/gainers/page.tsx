@@ -127,7 +127,7 @@ export default function GainersPage() {
       <div className="mb-3 md:mb-4">
         <div className="flex items-center justify-between border-b border-border">
           <ChainTabs />
-          <LanguageSwitcher />
+          <div className="hidden md:block"><LanguageSwitcher /></div>
         </div>
       </div>
 

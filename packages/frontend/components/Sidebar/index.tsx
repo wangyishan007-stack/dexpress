@@ -13,6 +13,7 @@ import { ChainSelector } from '../ChainSelector'
 import { useTranslations } from 'next-intl'
 import { SUPPORTED_CHAINS, DEFAULT_CHAIN, type ChainSlug } from '@/lib/chains'
 import { loadPageChain } from '../ChainTabs'
+import { LanguageSwitcher } from '../LanguageSwitcher'
 
 /** Extract chain segment from pathname like /base/pair/0x... → 'base', /all → 'all' */
 function getChainFromPath(pathname: string): string {
@@ -200,6 +201,7 @@ export function Sidebar() {
           >
             <IconSearch />
           </button>
+          <LanguageSwitcher iconOnly />
           {ready && authenticated ? (
             <div className="flex items-center h-[36px] rounded-lg bg-border/40 overflow-hidden">
               <span
