@@ -4,6 +4,7 @@ import { Sidebar } from '../components/Sidebar'
 import { Providers } from '../components/Providers'
 import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
+import { Analytics } from '@vercel/analytics/react'
 
 const SITE_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
   ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
@@ -64,6 +65,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </div>
           </Providers>
         </NextIntlClientProvider>
+        <Analytics />
       </body>
     </html>
   )
