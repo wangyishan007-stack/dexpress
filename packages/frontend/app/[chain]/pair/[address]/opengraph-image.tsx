@@ -12,9 +12,9 @@ const GT_BASE = 'https://api.geckoterminal.com/api/v2'
 function ChainBadge({ chain, size = 48 }: { chain: ChainSlug; size?: number }) {
   if (chain === 'base') {
     return (
-      <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-        <rect width="16" height="16" rx="2.67" fill="#0052FF" />
-        <path d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11Zm0-2.25a3.25 3.25 0 1 1 0-6.5 3.24 3.24 0 0 1 2.83 1.66H8v3.18h2.83A3.24 3.24 0 0 1 8 11.25Z" fill="#fff" />
+      <svg width={size} height={size} viewBox="0 0 111 111" fill="none">
+        <rect width="111" height="111" rx="18" fill="#0052FF" />
+        <path d="M54.921 95.16c22.24 0 40.275-17.976 40.275-40.145 0-22.17-18.036-40.145-40.275-40.145-21.11 0-38.42 16.27-40.097 36.97h53.31v6.35h-53.31c1.677 20.7 18.988 36.97 40.097 36.97Z" fill="#fff" />
       </svg>
     )
   }
@@ -26,21 +26,18 @@ function ChainBadge({ chain, size = 48 }: { chain: ChainSlug; size?: number }) {
       </svg>
     )
   }
-  // Solana — purple/green gradient circle with "S"
+  // Solana — official gradient logo
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        background: 'linear-gradient(135deg, #9945FF 0%, #14F195 100%)',
-      }}
-    >
-      <span style={{ fontSize: size * 0.5, fontWeight: 800, color: '#fff' }}>S</span>
-    </div>
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <circle cx="20" cy="20" r="20" fill="url(#sol-grad)" />
+      <path d="M12.12 25.34a.68.68 0 01.48-.2h16.72c.3 0 .46.37.24.58l-3.28 3.28a.68.68 0 01-.48.2H9.08c-.3 0-.46-.37-.24-.58l3.28-3.28zm0-14.54a.7.7 0 01.48-.2h16.72c.3 0 .46.37.24.58l-3.28 3.28a.68.68 0 01-.48.2H9.08c-.3 0-.46-.37-.24-.58l3.28-3.28zm13.68 7.08a.68.68 0 00-.48-.2H8.6c-.3 0-.46.37-.24.58l3.28 3.28c.13.13.3.2.48.2h16.72c.3 0 .46-.37.24-.58l-3.28-3.28z" fill="#fff" />
+      <defs>
+        <linearGradient id="sol-grad" x1="4" y1="36" x2="36" y2="4" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#9945FF" />
+          <stop offset="1" stopColor="#14F195" />
+        </linearGradient>
+      </defs>
+    </svg>
   )
 }
 
@@ -102,7 +99,7 @@ export default async function OGImage({ params }: { params: { chain: string; add
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          backgroundImage: 'radial-gradient(ellipse 90% 90% at 85% 10%, #1a2a80 0%, rgba(30,50,180,0.4) 35%, transparent 65%), radial-gradient(ellipse 80% 80% at 10% 90%, #121a60 0%, rgba(20,40,140,0.3) 35%, transparent 65%), linear-gradient(150deg, #050520 0%, #080830 50%, #050518 100%)',
+          backgroundImage: 'radial-gradient(ellipse 90% 90% at 85% 10%, #0c1440 0%, rgba(12,20,64,0.35) 35%, transparent 65%), radial-gradient(ellipse 80% 80% at 10% 90%, #080e30 0%, rgba(8,14,48,0.25) 35%, transparent 65%), linear-gradient(150deg, #030308 0%, #060614 50%, #030308 100%)',
           fontFamily: 'sans-serif',
           padding: '60px 80px',
         }}
@@ -170,8 +167,8 @@ export default async function OGImage({ params }: { params: { chain: string; add
 
             {/* Price + Change */}
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 24, marginTop: 8 }}>
-              <span style={{ fontSize: 64, fontWeight: 700, color: '#fff' }}>{formattedPrice}</span>
-              <span style={{ fontSize: 44, fontWeight: 700, color: changeColor }}>{changeStr}</span>
+              <span style={{ fontSize: 64, fontWeight: 700, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{formattedPrice}</span>
+              <span style={{ fontSize: 44, fontWeight: 700, color: changeColor, fontVariantNumeric: 'tabular-nums' }}>{changeStr}</span>
             </div>
           </div>
         </div>
@@ -181,10 +178,11 @@ export default async function OGImage({ params }: { params: { chain: string; add
           {[
             { label: '24H Volume', value: volume24h },
             { label: 'Liquidity', value: liquidity },
+            { label: 'Chain', value: chainName },
           ].map((stat) => (
-            <div key={stat.label} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <span style={{ fontSize: 26, color: '#666' }}>{stat.label}</span>
-              <span style={{ fontSize: 32, fontWeight: 700, color: '#ccc' }}>{stat.value}</span>
+            <div key={stat.label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontSize: 22, color: '#555', textTransform: 'uppercase' as const, letterSpacing: 1 }}>{stat.label}</span>
+              <span style={{ fontSize: 32, fontWeight: 700, color: '#ccc', fontVariantNumeric: 'tabular-nums' }}>{stat.value}</span>
             </div>
           ))}
         </div>
