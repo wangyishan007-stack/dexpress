@@ -14,6 +14,8 @@ interface Props {
   pairAddress: string
   symbol: string
   chain?: string
+  /** When GT's base_token is a quote token (WETH/USDC), we need to invert OHLCV prices */
+  reversePrice?: boolean
 }
 
 type Resolution = '1' | '5' | '15' | '60' | '240' | '1D'
@@ -138,8 +140,20 @@ const GT_TIMEFRAME_MAP: Record<string, { timeframe: string; aggregate: string }>
   '1D':  { timeframe: 'day',    aggregate: '1' },
 }
 
+/** Invert OHLCV prices (1/price) — used when GT's base_token is a quote token like WETH */
+function invertBars(bars: any[]): any[] {
+  return bars.map(b => ({
+    time: b.time,
+    open: 1 / b.open,
+    high: 1 / b.low,   // 1/low becomes the new high
+    low: 1 / b.high,   // 1/high becomes the new low
+    close: 1 / b.close,
+    volume: b.volume,
+  }))
+}
+
 /* ── Fetch real candles ─────────────────────────────────────── */
-async function fetchCandles(address: string, resolution: Resolution, chainSlug?: string): Promise<{ bars: any[]; isMock: boolean }> {
+async function fetchCandles(address: string, resolution: Resolution, chainSlug?: string, reversePrice?: boolean): Promise<{ bars: any[]; isMock: boolean }> {
   // 1) Try GeckoTerminal OHLCV (works for all chains)
   try {
     const { getChain } = await import('@/lib/chains')
@@ -153,7 +167,7 @@ async function fetchCandles(address: string, resolution: Resolution, chainSlug?:
       const list = json?.data?.attributes?.ohlcv_list
       if (Array.isArray(list) && list.length > 0) {
         // GT returns [timestamp_sec, open, high, low, close, volume] sorted newest-first
-        const bars = list
+        let bars = list
           .map((c: number[]) => ({
             time: c[0],
             open: c[1],
@@ -163,6 +177,7 @@ async function fetchCandles(address: string, resolution: Resolution, chainSlug?:
             volume: c[5],
           }))
           .sort((a: any, b: any) => a.time - b.time)
+        if (reversePrice) bars = invertBars(bars)
         return { bars, isMock: false }
       }
     }
@@ -325,7 +340,7 @@ function DropdownItem({ active, onClick, children }: { active?: boolean; onClick
 }
 
 /* ── Chart component ───────────────────────────────────────── */
-export function TradingViewChart({ pairAddress, symbol, chain: chainProp }: Props) {
+export function TradingViewChart({ pairAddress, symbol, chain: chainProp, reversePrice }: Props) {
   const t = useTranslations('chart')
   const wrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -379,7 +394,7 @@ export function TradingViewChart({ pairAddress, symbol, chain: chainProp }: Prop
 
   const loadData = useCallback(
     async (res: Resolution, type: ChartType, showMaOverlay: boolean) => {
-      const { bars, isMock } = await fetchCandles(pairAddress, res, chainProp)
+      const { bars, isMock } = await fetchCandles(pairAddress, res, chainProp, reversePrice)
       barsRef.current = bars
       setIsMockData(isMock)
       if (!chartRef.current || bars.length === 0) return
@@ -443,7 +458,7 @@ export function TradingViewChart({ pairAddress, symbol, chain: chainProp }: Prop
 
       chartRef.current?.timeScale().fitContent()
     },
-    [pairAddress, chainProp, applyMA]
+    [pairAddress, chainProp, reversePrice, applyMA]
   )
 
   // Create chart

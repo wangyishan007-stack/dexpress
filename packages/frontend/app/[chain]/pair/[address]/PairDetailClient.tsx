@@ -405,7 +405,7 @@ export function PairDetailClient({ address }: Props) {
 
           {/* TradingView Chart */}
           <div className="w-full" style={{ height: chartHeight }}>
-            <TradingViewChart pairAddress={address} symbol={`${base.symbol}/${quote.symbol}`} chain={chain} />
+            <TradingViewChart pairAddress={address} symbol={`${base.symbol}/${quote.symbol}`} chain={chain} reversePrice={t0IsQuote && !t1IsQuote} />
           </div>
 
           {/* Drag handle to resize chart */}
