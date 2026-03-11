@@ -14,6 +14,7 @@ import { loadConfig, saveConfig, DEFAULT_CONFIG }  from '@/lib/columnConfig'
 import type { ScreenerConfig }     from '@/lib/columnConfig'
 import { useChain } from '@/contexts/ChainContext'
 import { ChainTabs } from '@/components/ChainTabs'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 
 export default function NewPairsPage() {
   const { chain, isAllChains } = useChain()
@@ -89,8 +90,9 @@ export default function NewPairsPage() {
   return (
     <div className="flex flex-col flex-1 min-h-0 px-3 pt-3 md:px-5 md:pt-4 pb-0">
       <div className="mb-3 md:mb-4">
-        <div className="flex items-center border-b border-border">
+        <div className="flex items-center justify-between border-b border-border">
           <ChainTabs />
+          <LanguageSwitcher />
         </div>
       </div>
 

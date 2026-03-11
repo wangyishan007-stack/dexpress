@@ -9,7 +9,6 @@ import { WatchlistPanel } from './WatchlistPanel'
 import { SearchModal } from '../SearchModal'
 import { useAuth } from '../../hooks/useAuth'
 import { shortAddr } from '../../lib/formatters'
-import { LanguageSwitcher } from '../LanguageSwitcher'
 import { ChainSelector } from '../ChainSelector'
 import { useTranslations } from 'next-intl'
 import { SUPPORTED_CHAINS, DEFAULT_CHAIN, type ChainSlug } from '@/lib/chains'
@@ -197,7 +196,6 @@ export function Sidebar() {
           >
             <IconSearch />
           </button>
-          <LanguageSwitcher />
           {ready && authenticated ? (
             <div className="flex items-center h-[36px] rounded-lg bg-border/40 overflow-hidden">
               <span
@@ -384,10 +382,7 @@ export function Sidebar() {
               )
             )}
 
-            {/* Language switcher — grouped with account */}
-            <div className={collapsed ? 'flex justify-center' : ''}>
-              <LanguageSwitcher iconOnly={collapsed} />
-            </div>
+            {/* Language switcher moved to ChainTabs row in page content */}
 
           </div>
         </div>
