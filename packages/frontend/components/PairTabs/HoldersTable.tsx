@@ -4,7 +4,17 @@ import { useTranslations } from 'next-intl'
 import { fmtUsd, fmtNum, shortAddr } from '../../lib/formatters'
 import type { MoralisHoldersResult } from '../../lib/moralis'
 import { useChain } from '@/contexts/ChainContext'
-import { explorerLink } from '@/lib/chains'
+import { explorerLink, getChain } from '@/lib/chains'
+
+const EVM_NULL_ADDRESS = '0x0000000000000000000000000000000000000000'
+
+function isNullAddress(addr: string, chainSlug: string): boolean {
+  if (!addr || addr === '') return true
+  if (getChain(chainSlug as any).chainType === 'evm') {
+    return addr === EVM_NULL_ADDRESS
+  }
+  return false
+}
 
 interface Props {
   holdersData?: MoralisHoldersResult
@@ -52,7 +62,7 @@ export function HoldersTable({ holdersData }: Props) {
         const pct = h.percentage_relative_to_total_supply
         const balance = parseFloat(h.balance_formatted)
         const value = parseFloat(h.usd_value)
-        const isNullAddr = h.owner_address === '0x0000000000000000000000000000000000000000'
+        const isNullAddr = isNullAddress(h.owner_address, chain)
 
         return (
           <div

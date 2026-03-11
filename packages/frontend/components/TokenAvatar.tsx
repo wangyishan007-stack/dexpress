@@ -35,8 +35,10 @@ export function TokenAvatar({ symbol, logoUrl, address, size = 22, rounded = 'fu
   const rCls = rounded === 'md' ? 'rounded-md' : 'rounded-full'
 
   // Build fallback URL from DexScreener CDN (chain-aware)
+  // Solana addresses are case-sensitive (base58) — only lowercase EVM addresses
   const dsChain = DS_CHAIN_MAP[chain] || 'base'
-  const fallbackUrl = address ? `${DS_LOGO_CDN}/${dsChain}/${address.toLowerCase()}.png?size=lg` : null
+  const addrKey = chain === 'solana' ? address : address.toLowerCase()
+  const fallbackUrl = address ? `${DS_LOGO_CDN}/${dsChain}/${addrKey}.png?size=lg` : null
 
   // Track which image source to show: 'primary' -> 'fallback' -> 'none'
   const [imgSrc, setImgSrc] = useState<'primary' | 'fallback' | 'none'>(

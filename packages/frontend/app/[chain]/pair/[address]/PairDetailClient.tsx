@@ -21,7 +21,16 @@ import { TokenAvatar, addrToHue } from '@/components/TokenAvatar'
 import { PairWatchlistDropdown } from '@/components/PairWatchlistDropdown'
 import { OtherPairsModal } from '@/components/OtherPairsModal'
 import { useChain } from '@/contexts/ChainContext'
-import { isQuoteToken, explorerLink, getDexInfo } from '@/lib/chains'
+import { isQuoteToken, explorerLink, getDexInfo, getChain } from '@/lib/chains'
+
+const EVM_NULL_ADDRESS = '0x0000000000000000000000000000000000000000'
+function isRenouncedOwner(ownerAddress: string, chainSlug: string): boolean {
+  if (!ownerAddress || ownerAddress === '') return true
+  if (getChain(chainSlug as any).chainType === 'evm') {
+    return ownerAddress === EVM_NULL_ADDRESS
+  }
+  return false
+}
 
 interface RecentSwap {
   id:         string
@@ -563,7 +572,7 @@ export function PairDetailClient({ address }: Props) {
             const isVerified = s ? s.is_open_source === '1' : null
 
             // Renounced (owner is null address)
-            const isRenounced = s ? (s.owner_address === '0x0000000000000000000000000000000000000000' || s.owner_address === '') : null
+            const isRenounced = s ? isRenouncedOwner(s.owner_address, chain) : null
 
             // Locked liquidity
             const lockedPct = s?.lp_holders
@@ -846,7 +855,7 @@ export function PairDetailClient({ address }: Props) {
                   : { value: goodVal === '0' ? tSec('yes') : tSec('no'), status: 'warn' as const }
               }
               const isRenounced = s
-                ? (s.owner_address === '0x0000000000000000000000000000000000000000' || s.owner_address === '')
+                ? isRenouncedOwner(s.owner_address, chain)
                 : null
 
               const goPlusRows: { label: string; value: string; status: 'ok' | 'warn' | 'neutral' | 'link'; href?: string }[] = s ? [
@@ -887,7 +896,7 @@ export function PairDetailClient({ address }: Props) {
                 const sellTax = parseFloat(s.sell_tax || '0') * 100
                 const buyTax = parseFloat(s.buy_tax || '0') * 100
                 const mintable = s.is_mintable === '1'
-                const ownerNotRenounced = s.owner_address !== '0x0000000000000000000000000000000000000000' && s.owner_address !== ''
+                const ownerNotRenounced = !isRenouncedOwner(s.owner_address, chain)
                 const taxModifiable = s.slippage_modifiable === '1'
                 const pausable = s.transfer_pausable === '1'
                 const canChangeBalance = s.owner_change_balance === '1'

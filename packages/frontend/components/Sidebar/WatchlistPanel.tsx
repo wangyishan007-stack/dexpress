@@ -30,7 +30,13 @@ export function WatchlistPanel() {
   // Merge all pairIds from all watchlists, deduplicated
   const allPairIds = [...new Set(lists.flatMap(l => l.pairIds))]
   const watchedPools = allPairIds
-    .map(addr => allPools.find(p => p.address.toLowerCase() === addr.toLowerCase()))
+    .map(addr => allPools.find(p => {
+      // Solana addresses are case-sensitive (base58), EVM are not
+      const poolChain = ((p as any)._chain as ChainSlug) || chain
+      return poolChain === 'solana'
+        ? p.address === addr
+        : p.address.toLowerCase() === addr.toLowerCase()
+    }))
     .filter(Boolean) as typeof allPools
 
   const visiblePools = expanded ? watchedPools : watchedPools.slice(0, COLLAPSED_COUNT)
