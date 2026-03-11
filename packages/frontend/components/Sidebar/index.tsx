@@ -77,6 +77,8 @@ const NAV_KEYS: { path: string; key: NavKey; pageKey: string; Icon: React.Compon
 /** Build nav items with per-page chain from localStorage */
 function buildNavItems(urlChain: string, perPage: boolean) {
   return NAV_KEYS.map(item => {
+    // Watchlist is a top-level route (not chain-prefixed)
+    if (item.key === 'watchlist') return { ...item, href: '/watchlist' }
     const chain = perPage ? loadPageChain(item.pageKey) : urlChain
     return {
       ...item,
@@ -97,9 +99,11 @@ function MobileTabNav() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-bg">
       {navItems.map(({ href, path, key, Icon }) => {
-        const active = path === ''
-          ? pathname === `/${chain}`
-          : pathname === `/${chain}${path}` || pathname.startsWith(`/${chain}${path}/`)
+        const active = key === 'watchlist'
+          ? pathname === '/watchlist'
+          : path === ''
+            ? pathname === `/${chain}`
+            : pathname === `/${chain}${path}` || pathname.startsWith(`/${chain}${path}/`)
         return (
           <Link
             key={key}
@@ -298,9 +302,11 @@ export function Sidebar() {
             <nav className={clsx('flex flex-col', collapsed ? 'gap-[8px] items-center' : 'gap-[16px]')}>
               {navItems.map(({ href, path, key, Icon }) => {
                 // Active detection always uses URL chain, not per-page href
-                const active = path === ''
-                  ? pathname === `/${chain}`
-                  : pathname === `/${chain}${path}` || pathname.startsWith(`/${chain}${path}/`)
+                const active = key === 'watchlist'
+                  ? pathname === '/watchlist'
+                  : path === ''
+                    ? pathname === `/${chain}`
+                    : pathname === `/${chain}${path}` || pathname.startsWith(`/${chain}${path}/`)
                 const label = tNav(key)
                 return (
                   <Link

@@ -40,7 +40,7 @@ export function WatchlistPanel() {
     <div className="border-t border-border flex flex-col">
       {/* Header row — always show expand/collapse toggle */}
       <div className="flex items-center justify-between px-[24px] pt-[16px] pb-[8px]">
-        <Link href={`/${chain}/watchlist`} className="flex items-center gap-1 group">
+        <Link href="/watchlist" className="flex items-center gap-1 group">
           <span className="text-[14px] text-text font-medium">Watchlist</span>
         </Link>
         <button
