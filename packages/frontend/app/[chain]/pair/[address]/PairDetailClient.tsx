@@ -69,7 +69,7 @@ function Tooltip({ children, content }: { children: React.ReactNode; content: Re
     <div className="relative group">
       {children}
       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 pointer-events-none">
-        <div className="bg-[#111] border border-border rounded-lg px-4 py-3 shadow-xl text-center whitespace-nowrap">
+        <div className="bg-[#111] border border-border rounded-lg px-4 py-3 shadow-xl text-center max-w-[260px]">
           {content}
         </div>
       </div>
