@@ -68,7 +68,7 @@ export function ChainTabs() {
   }
 
   return (
-    <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide mb-[-1px]">
+    <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
       {tabs.map(tab => {
         const isActive = tab.key === active
         return (
@@ -77,9 +77,9 @@ export function ChainTabs() {
             href={buildPath(tab.key, pathname)}
             onClick={() => handleChainClick(tab.key)}
             className={clsx(
-              'relative flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium whitespace-nowrap transition-colors',
+              'flex items-center gap-1.5 px-3 pb-2.5 pt-2 text-[13px] font-medium whitespace-nowrap transition-colors',
               isActive
-                ? 'text-text'
+                ? 'text-text border-b-2 border-blue'
                 : 'text-sub hover:text-text'
             )}
           >
@@ -88,10 +88,6 @@ export function ChainTabs() {
               <img src={tab.icon} alt={tab.label} className={tab.key === 'base' ? 'w-4 h-4' : 'w-5 h-5'} />
             )}
             {tab.label}
-            {/* Active underline */}
-            {isActive && (
-              <span className="absolute -bottom-[1px] left-2 right-2 h-[2px] bg-blue rounded-full" />
-            )}
           </Link>
         )
       })}
