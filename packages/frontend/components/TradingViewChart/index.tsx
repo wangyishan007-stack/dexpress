@@ -152,10 +152,10 @@ async function fetchCandles(address: string, resolution: Resolution, chainSlug?:
       const json = await res.json()
       const list = json?.data?.attributes?.ohlcv_list
       if (Array.isArray(list) && list.length > 0) {
-        // GT returns [timestamp_ms, open, high, low, close, volume] sorted newest-first
+        // GT returns [timestamp_sec, open, high, low, close, volume] sorted newest-first
         const bars = list
           .map((c: number[]) => ({
-            time: Math.floor(c[0] / 1000),
+            time: c[0],
             open: c[1],
             high: c[2],
             low: c[3],
