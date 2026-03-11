@@ -8,10 +8,47 @@ export const contentType = 'image/png'
 
 const GT_BASE = 'https://api.geckoterminal.com/api/v2'
 
+/** Inline chain icon for OG image (Satori can't read local files) */
+function ChainBadge({ chain, size = 48 }: { chain: ChainSlug; size?: number }) {
+  if (chain === 'base') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+        <rect width="16" height="16" rx="2.67" fill="#0052FF" />
+        <path d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11Zm0-2.25a3.25 3.25 0 1 1 0-6.5 3.24 3.24 0 0 1 2.83 1.66H8v3.18h2.83A3.24 3.24 0 0 1 8 11.25Z" fill="#fff" />
+      </svg>
+    )
+  }
+  if (chain === 'bsc') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+        <circle cx="10" cy="10" r="10" fill="#1E1E1E" />
+        <path d="M6.615 5.827L10 3.984l3.385 1.843-1.244.681L10 5.346 7.86 6.508l-1.244-.681Zm6.77 2.324-1.244-.681L10 8.633 7.86 7.47l-1.244.681v1.362l2.14 1.162v2.324L10 13.68l1.244-.681v-2.324l2.141-1.162V8.151Zm0 3.686-1.244.681v1.361l1.244-.68v-1.362Zm.884.481-2.141 1.162v1.362l3.385-1.843V9.313l-1.244.681v2.324Zm1.507-5.329-1.245.681v1.362l1.245-.681V6.989Zm-6.02 6.984v1.362l1.244.68 1.245-.68v-1.362L10 14.654l-1.245-.681Zm-3.14-2.136 1.244.681v-1.362l-1.244-.68v1.361Zm2.14-4.848 1.245.681 1.245-.68L10 6.308 8.756 6.99Zm-3.024.68 1.244-.68-1.244-.682-1.245.681v1.362l1.245.681V7.67Zm0 2.324-1.244-.681v3.686l3.385 1.843v-1.362l-2.14-1.162V9.994Z" fill="#F1B90C" />
+      </svg>
+    )
+  }
+  // Solana — purple/green gradient circle with "S"
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        background: 'linear-gradient(135deg, #9945FF 0%, #14F195 100%)',
+      }}
+    >
+      <span style={{ fontSize: size * 0.5, fontWeight: 800, color: '#fff' }}>S</span>
+    </div>
+  )
+}
+
 export default async function OGImage({ params }: { params: { chain: string; address: string } }) {
   const { chain: chainParam, address } = params
   const chain: ChainSlug = SUPPORTED_CHAINS.includes(chainParam as ChainSlug) ? chainParam as ChainSlug : DEFAULT_CHAIN
   const gtNetwork = getChain(chain).geckoTerminalSlug
+  const chainName = getChain(chain).shortName
 
   // Fetch pool data from GeckoTerminal
   let symbol = '???'
@@ -80,29 +117,44 @@ export default async function OGImage({ params }: { params: { chain: string; add
 
         {/* Main content */}
         <div style={{ display: 'flex', flex: 1, alignItems: 'center', gap: 56 }}>
-          {/* Token logo */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 180,
-              height: 180,
-              borderRadius: 28,
-              background: logoUrl ? 'transparent' : '#1a1a2e',
-              border: '3px solid #333',
-              flexShrink: 0,
-              overflow: 'hidden',
-            }}
-          >
-            {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} width={180} height={180} alt="" style={{ objectFit: 'cover' }} />
-            ) : (
-              <span style={{ fontSize: 72, fontWeight: 800, color: '#2744FF' }}>
-                {symbol.slice(0, 2).toUpperCase()}
-              </span>
-            )}
+          {/* Token logo + chain badge */}
+          <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 180,
+                height: 180,
+                borderRadius: 28,
+                background: logoUrl ? 'transparent' : '#1a1a2e',
+                border: '3px solid #333',
+                overflow: 'hidden',
+              }}
+            >
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} width={180} height={180} alt="" style={{ objectFit: 'cover' }} />
+              ) : (
+                <span style={{ fontSize: 72, fontWeight: 800, color: '#2744FF' }}>
+                  {symbol.slice(0, 2).toUpperCase()}
+                </span>
+              )}
+            </div>
+            {/* Chain icon badge */}
+            <div
+              style={{
+                position: 'absolute',
+                bottom: -6,
+                right: -6,
+                display: 'flex',
+                borderRadius: 12,
+                border: '3px solid #0a0a1a',
+                overflow: 'hidden',
+              }}
+            >
+              <ChainBadge chain={chain} size={44} />
+            </div>
           </div>
 
           {/* Token info */}
