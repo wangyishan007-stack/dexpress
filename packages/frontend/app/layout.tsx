@@ -5,8 +5,12 @@ import { Providers } from '../components/Providers'
 import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
 
+const SITE_URL = process.env.VERCEL_URL
+  ? `https://${process.env.VERCEL_URL}`
+  : 'https://base-dex-screener.vercel.app'
+
 export const metadata: Metadata = {
-  metadataBase: new URL('https://base-dex-screener.vercel.app'),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: 'dex.express — Multi-Chain DEX Screener',
     template: '%s | dex.express',
