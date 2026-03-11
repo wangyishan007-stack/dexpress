@@ -5,9 +5,9 @@ import { Providers } from '../components/Providers'
 import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
 
-const SITE_URL = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : 'https://base-dex-screener.vercel.app'
+const SITE_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
+  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  : 'https://dex.express'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
