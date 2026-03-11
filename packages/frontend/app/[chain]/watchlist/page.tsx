@@ -104,7 +104,7 @@ function WatchlistHeader({ lists, activeListId, onSwitch, onManage }: {
             <button
               key={list.id}
               onClick={() => onSwitch(list.id)}
-              className={`hidden md:block pb-2.5 text-[14px] md:text-[16px] font-bold whitespace-nowrap transition-colors ${
+              className={`hidden md:block pb-2.5 text-[13px] font-medium whitespace-nowrap transition-colors ${
                 list.id === activeListId
                   ? 'text-text border-b-2 border-blue'
                   : 'text-sub hover:text-text'
