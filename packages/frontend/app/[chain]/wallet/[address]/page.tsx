@@ -195,26 +195,30 @@ function buildDailyPnl(profitability: WalletTokenPnl[], swaps: DetectedSwap[]): 
   const totalPnl = profitability.reduce((s, t) => s + Number(t.realized_profit_usd), 0)
   if (totalPnl === 0) return dayPnl
 
-  // Strategy 1: use swap timestamps to distribute PnL proportionally
+  // Strategy 1: use swap timestamps in current month to distribute PnL
+  const now = new Date()
+  const curY = now.getFullYear()
+  const curM = now.getMonth()
+  const curPrefix = `${curY}-${String(curM + 1).padStart(2, '0')}-`
   if (swaps.length > 0) {
     const swapsPerDay = new Map<string, number>()
     for (const swap of swaps) {
-      const day = swap.timestamp.slice(0, 10) // YYYY-MM-DD
-      swapsPerDay.set(day, (swapsPerDay.get(day) ?? 0) + 1)
+      const day = swap.timestamp.slice(0, 10)
+      if (day.startsWith(curPrefix)) {
+        swapsPerDay.set(day, (swapsPerDay.get(day) ?? 0) + 1)
+      }
     }
-    const totalSwaps = swaps.length
-    for (const [day, count] of swapsPerDay) {
-      dayPnl.set(day, totalPnl * (count / totalSwaps))
+    if (swapsPerDay.size > 0) {
+      const monthSwaps = [...swapsPerDay.values()].reduce((a, b) => a + b, 0)
+      for (const [day, count] of swapsPerDay) {
+        dayPnl.set(day, totalPnl * (count / monthSwaps))
+      }
+      return dayPnl
     }
-    if ([...dayPnl.values()].some(v => v !== 0)) return dayPnl
-    dayPnl.clear()
   }
 
   // Strategy 2: spread PnL across current month using deterministic seed
-  const now = new Date()
   const today = now.getDate()
-  const y = now.getFullYear()
-  const m = now.getMonth()
   const totalTrades = profitability.reduce((s, t) => s + t.count_of_trades, 0)
   if (totalTrades > 0) {
     for (const token of profitability) {
@@ -229,7 +233,7 @@ function buildDailyPnl(profitability: WalletTokenPnl[], swaps: DetectedSwap[]): 
       for (let t = 0; t < token.count_of_trades; t++) {
         seed = (seed * 16807) % 2147483647
         const day = (seed % today) + 1
-        const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+        const key = `${curY}-${String(curM + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
         dayPnl.set(key, (dayPnl.get(key) ?? 0) + pnlPerTrade)
       }
     }
