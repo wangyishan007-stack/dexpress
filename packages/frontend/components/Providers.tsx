@@ -2,6 +2,7 @@
 
 import { PrivyProvider } from '@privy-io/react-auth'
 import { WatchlistProvider } from '../hooks/useWatchlist'
+import { FollowedWalletsProvider } from '../hooks/useFollowedWallets'
 import { ToastProvider } from './Toast'
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID
@@ -21,7 +22,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   if (!PRIVY_APP_ID) {
     return (
       <ToastProvider>
-        <WatchlistProvider>{children}</WatchlistProvider>
+        <FollowedWalletsProvider><WatchlistProvider>{children}</WatchlistProvider></FollowedWalletsProvider>
       </ToastProvider>
     )
   }
@@ -47,9 +48,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }}
     >
       <ToastProvider>
-        <WatchlistProvider>
-          {children}
-        </WatchlistProvider>
+        <FollowedWalletsProvider>
+          <WatchlistProvider>
+            {children}
+          </WatchlistProvider>
+        </FollowedWalletsProvider>
       </ToastProvider>
     </PrivyProvider>
   )

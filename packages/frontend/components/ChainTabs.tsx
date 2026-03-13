@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import clsx from 'clsx'
 import { SUPPORTED_CHAINS, CHAINS, DEFAULT_CHAIN, type ChainSlug } from '@/lib/chains'
 
@@ -40,8 +40,9 @@ function buildPath(target: string, pathname: string): string {
   return `/${target}${rest}`
 }
 
-export function ChainTabs() {
+export function ChainTabs({ only }: { only?: ChainSlug[] } = {}) {
   const pathname = usePathname()
+  const router = useRouter()
   const active = getActiveChain(pathname)
 
   // Persist current chain on mount/navigation so sidebar nav links stay in sync
@@ -52,9 +53,19 @@ export function ChainTabs() {
     }
   }, [pathname, active])
 
+  // Prefetch all chain routes on mount to avoid first-click flash
+  useEffect(() => {
+    for (const slug of SUPPORTED_CHAINS) {
+      if (slug !== active) {
+        router.prefetch(buildPath(slug, pathname))
+      }
+    }
+  }, [pathname, active, router])
+
+  const chains = only ?? SUPPORTED_CHAINS
   const tabs = [
     // { key: 'all', label: 'All Chains', icon: null }, // hidden until more chains added
-    ...SUPPORTED_CHAINS.map(slug => ({
+    ...chains.map(slug => ({
       key: slug,
       label: CHAINS[slug].shortName,
       icon: CHAINS[slug].icon,

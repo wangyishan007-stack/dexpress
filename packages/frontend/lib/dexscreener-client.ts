@@ -171,10 +171,17 @@ function buildSparklineFromChanges(
 ): number[] {
   if (!price) return []
   // Derive historical prices: price_ago = price / (1 + change/100)
-  const p24 = price / (1 + c24h / 100) || price
-  const p6  = price / (1 + c6h / 100)  || price
-  const p1  = price / (1 + c1h / 100)  || price
-  const p5m = price / (1 + c5m / 100)  || price
+  // Guard against division by zero (change = -100%) and Infinity
+  const safeDiv = (p: number, c: number) => {
+    const d = 1 + c / 100
+    if (d === 0 || !isFinite(d)) return p
+    const r = p / d
+    return isFinite(r) ? r : p
+  }
+  const p24 = safeDiv(price, c24h)
+  const p6  = safeDiv(price, c6h)
+  const p1  = safeDiv(price, c1h)
+  const p5m = safeDiv(price, c5m)
   // 5 anchor points at relative time positions within 24h
   const anchors = [
     { t: 0,    p: p24 },  // 24h ago
@@ -522,6 +529,64 @@ export interface PoolExtended {
   fdv_usd: number
 }
 
+// ─── Batch token logo lookup (GT) ─────────────────────────────
+
+const _tokenLogoCache = new Map<string, string | null>()
+
+/** Fetch logos for multiple tokens in one batch call via GT /tokens/{addr}/info */
+export async function fetchTokenLogos(
+  tokenAddresses: string[],
+  chain: ChainSlug = DEFAULT_CHAIN,
+): Promise<Map<string, string>> {
+  const network = getChain(chain).geckoTerminalSlug
+  const isEvm = getChain(chain).chainType === 'evm'
+  const result = new Map<string, string>()
+
+  // Filter out already-cached and deduplicate
+  const toFetch: string[] = []
+  for (const addr of tokenAddresses) {
+    if (!addr) continue
+    const key = `${chain}:${isEvm ? addr.toLowerCase() : addr}`
+    const cached = _tokenLogoCache.get(key)
+    if (cached !== undefined) {
+      if (cached) result.set(addr, cached)
+      continue
+    }
+    toFetch.push(addr)
+  }
+
+  if (toFetch.length === 0) return result
+
+  // Batch via /api/gt/batch — max ~6 at a time to avoid GT rate limits
+  const urls = toFetch.slice(0, 6).map(addr =>
+    `${GT_BASE}/networks/${network}/tokens/${addr}/info`
+  )
+
+  try {
+    const batchRes = await fetch('/api/gt/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls }),
+      signal: AbortSignal.timeout(15_000),
+    })
+    if (!batchRes.ok) return result
+    const { results } = await batchRes.json() as { results: { status: number; data: any }[] }
+
+    for (let i = 0; i < toFetch.length && i < results.length; i++) {
+      const addr = toFetch[i]
+      const key = `${chain}:${isEvm ? addr.toLowerCase() : addr}`
+      const r = results[i]
+      const imgUrl = r?.status === 200 ? (r.data?.data?.attributes?.image_url || null) : null
+      _tokenLogoCache.set(key, imgUrl)
+      if (imgUrl) result.set(addr, imgUrl)
+    }
+  } catch (e) {
+    console.error('[fetchTokenLogos] error:', e)
+  }
+
+  return result
+}
+
 // ─── Token info (social links, description) ──────────────
 
 export interface TokenInfo {
@@ -596,19 +661,31 @@ export async function fetchPoolTrades(address: string, chain: ChainSlug = DEFAUL
     if (beforeTimestamp) {
       url += `&before_timestamp=${encodeURIComponent(beforeTimestamp)}`
     }
-    // Use batch proxy for better 429 handling + server-side cache
-    const batchRes = await fetch('/api/gt/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ urls: [url] }),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT),
-    })
-    if (!batchRes.ok) return []
-    const { results } = await batchRes.json() as { results: { status: number; data: any }[] }
-    const r = results?.[0]
-    if (!r || r.status !== 200) return []
 
-    const data = r.data
+    // Try direct GT API first (fast, no server proxy), fallback to batch proxy
+    let data: any = null
+    try {
+      const directRes = await fetch(url, {
+        headers: { Accept: 'application/json;version=20230302' },
+        signal: AbortSignal.timeout(5_000),
+      })
+      if (directRes.ok) data = await directRes.json()
+    } catch {}
+
+    if (!data) {
+      const batchRes = await fetch('/api/gt/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: [url] }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT),
+      })
+      if (!batchRes.ok) return []
+      const { results } = await batchRes.json() as { results: { status: number; data: any }[] }
+      const r = results?.[0]
+      if (!r || r.status !== 200) return []
+      data = r.data
+    }
+
     if (!Array.isArray(data?.data)) return []
 
     return data.data.map((t: any) => {
@@ -679,6 +756,19 @@ export function getCachedPools(chain: string = DEFAULT_CHAIN): Pool[] {
   return _getCache(chain as ChainSlug).pools
 }
 
+// ─── Token logo lookup from GT cache (consistent with pair page) ──
+
+export function getTokenLogoFromCache(tokenAddress: string, chain: ChainSlug = DEFAULT_CHAIN): string | null {
+  if (!tokenAddress) return null
+  const addrLower = tokenAddress.toLowerCase()
+  const pools = _getCache(chain).pools
+  for (const p of pools) {
+    if (p.token0.address.toLowerCase() === addrLower && p.token0.logo_url) return p.token0.logo_url
+    if (p.token1.address.toLowerCase() === addrLower && p.token1.logo_url) return p.token1.logo_url
+  }
+  return null
+}
+
 // ─── Instant detail lookup from list/detail cache (no network) ──
 
 export function getPoolFromCache(address: string, chain: ChainSlug = DEFAULT_CHAIN): (Pool & PoolExtended & { recent_swaps: GTTrade[] }) | null {
@@ -694,6 +784,25 @@ export function getPoolFromCache(address: string, chain: ChainSlug = DEFAULT_CHA
 // Avoids redundant GT API calls when revisiting detail pages
 const _detailCache = new Map<string, { data: Pool & PoolExtended & { recent_swaps: GTTrade[] }; ts: number }>()
 const DETAIL_CACHE_TTL = 60_000 // 60s
+
+/** Seed the detail cache with a Pool from fetchPoolsByToken — avoids a redundant GT call */
+export function seedDetailCache(pool: Pool, chain: ChainSlug = DEFAULT_CHAIN): void {
+  const isEvm = getChain(chain).chainType === 'evm'
+  const addrKey = isEvm ? pool.address.toLowerCase() : pool.address
+  const cacheKey = `${chain}:${addrKey}`
+  if (_detailCache.has(cacheKey)) return // don't overwrite richer data
+  _detailCache.set(cacheKey, {
+    data: {
+      ...pool,
+      base_token_price_native: 0,
+      quote_token_price_usd: 0,
+      locked_liquidity_pct: null as number | null,
+      fdv_usd: pool.mcap_usd,
+      recent_swaps: [] as never[],
+    },
+    ts: Date.now(),
+  })
+}
 
 // ─── Single pair lookup ───────────────────────────────────────
 
@@ -728,6 +837,15 @@ export async function fetchPairByAddress(
   // 2. Fetch from GT API (always await — ensures extended fields like native price are real)
   const result = await _fetchAndCacheDetail(address, cacheKey, chain)
   if (result) return result
+
+  // 3. Not a pool address — try as token address (find its top pool)
+  const tokenPools = await fetchPoolsByToken(address, chain)
+  if (tokenPools.length > 0) {
+    const topPoolAddr = tokenPools[0].address
+    const topCacheKey = `${chain}:${isEvm ? topPoolAddr.toLowerCase() : topPoolAddr}`
+    const tokenResult = await _fetchAndCacheDetail(topPoolAddr, topCacheKey, chain)
+    if (tokenResult) return tokenResult
+  }
 
   // 4. API failed — use list cache as fallback (extended fields will be 0)
   // Kick off background fetch so the detail cache is populated for next SWR refresh

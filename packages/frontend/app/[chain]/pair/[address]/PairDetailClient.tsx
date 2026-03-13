@@ -298,7 +298,8 @@ export function PairDetailClient({ address }: Props) {
       } catch {}
     }
 
-    // Start polling after 10s — initial data comes from SWR pair fetch
+    // Fetch immediately on mount, then poll every 10s
+    poll()
     const timer = setInterval(poll, 10_000)
     return () => { cancelled = true; clearInterval(timer) }
   }, [address, chain])
@@ -346,20 +347,30 @@ export function PairDetailClient({ address }: Props) {
     }
   }, [address, swaps, loadingMore])
 
-  /* ── Loading / error ─────────────────────────────────────── */
-  if (isLoading) {
+  /* ── Error (no data at all after loading) ────────────────── */
+  if (!isLoading && (error || !pair)) {
     return (
-      <div className="flex items-center justify-center h-48 gap-2 text-sub text-sm">
-        <Spinner /> {tDetail('loadingPair')}
+      <div className="flex flex-col items-center justify-center h-48 gap-2">
+        <p className="text-sub text-sm">{tDetail('failedToLoad')}</p>
+        {error && <p className="text-sub text-xs font-mono">{String(error?.message ?? error)}</p>}
+        <a href={`/${chain}`} className="text-blue text-xs hover:underline mt-2">{tDetail('backToAllCoins')}</a>
       </div>
     )
   }
-  if (error || !pair) {
+
+  /* ── Loading: 图表先渲染，其余骨架 ─────────────────────── */
+  if (!pair) {
     return (
-      <div className="flex flex-col items-center justify-center h-48 gap-2">
-        <p className="text-sub text-sm">{isLoading ? tDetail('loadingPair') : tDetail('failedToLoad')}</p>
-        {error && <p className="text-sub text-xs font-mono">{String(error?.message ?? error)}</p>}
-        <a href={`/${chain}`} className="text-blue text-xs hover:underline mt-2">{tDetail('backToAllCoins')}</a>
+      <div className="flex flex-col flex-1 gap-3 px-3 pt-3 md:px-5 md:pt-4">
+        <TrendingTicker />
+        <Card className="flex flex-col overflow-hidden flex-shrink-0">
+          <div className="w-full" style={{ height: 440 }}>
+            <TradingViewChart pairAddress={address} symbol="..." chain={chain} />
+          </div>
+        </Card>
+        <div className="flex items-center justify-center h-32 gap-2 text-sub text-sm">
+          <Spinner /> {tDetail('loadingPair')}
+        </div>
       </div>
     )
   }
@@ -405,7 +416,7 @@ export function PairDetailClient({ address }: Props) {
 
           {/* TradingView Chart */}
           <div className="w-full" style={{ height: chartHeight }}>
-            <TradingViewChart pairAddress={address} symbol={`${base.symbol}/${quote.symbol}`} chain={chain} reversePrice={t0IsQuote && !t1IsQuote} />
+            <TradingViewChart pairAddress={address} symbol={`${base.symbol}/${quote.symbol}`} chain={chain} />
           </div>
 
           {/* Drag handle to resize chart */}

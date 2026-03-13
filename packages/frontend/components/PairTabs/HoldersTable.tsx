@@ -67,7 +67,7 @@ export function HoldersTable({ holdersData }: Props) {
         return (
           <div
             key={h.owner_address}
-            className="grid grid-cols-[40px_1fr_70px_200px_90px_40px] gap-x-3 px-3 md:px-5 py-2 text-[14px] border-b border-muted hover:bg-border/20 transition-colors"
+            className="grid grid-cols-[40px_1fr_70px_200px_90px_40px] gap-x-3 px-3 md:px-5 py-2 text-[14px] border-b border-border hover:bg-border/20 transition-colors"
             style={{ minWidth: 560 }}
           >
             <span className="text-sub tabular">{i + 1}</span>

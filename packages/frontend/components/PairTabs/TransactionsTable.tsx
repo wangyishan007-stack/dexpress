@@ -2,11 +2,13 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
+import Link from 'next/link'
 import clsx from 'clsx'
 import { fmtUsd, fmtPrice, fmtEth, fmtNum, shortAddr } from '../../lib/formatters'
 import { useChain } from '@/contexts/ChainContext'
 import { explorerLink } from '@/lib/chains'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
+import type { MoralisTrader } from '../../lib/moralis'
 
 interface RecentSwap {
   id: string
@@ -27,6 +29,8 @@ interface Props {
   onLoadMore: () => void
   baseTokenSymbol?: string
   newSwapIds?: Set<string>
+  traders?: MoralisTrader[]
+  tokenAddress?: string
 }
 
 type TypeFilterValue = 'all' | 'buy_sell' | 'buy' | 'sell'
@@ -369,11 +373,21 @@ function MakerFilter({ value, onChange }: { value: string; onChange: (v: string)
 
 /* ── Main component ─────────────────────────────────────── */
 
-export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore, baseTokenSymbol, newSwapIds }: Props) {
+export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore, baseTokenSymbol, newSwapIds, traders, tokenAddress }: Props) {
   const { chain } = useChain()
   const tTx = useTranslations('txFilters')
   const tTable = useTranslations('txTable')
   const tCommon = useTranslations('common')
+
+  // Build address→trader lookup for win rate badge
+  const traderMap = useMemo(() => {
+    const map = new Map<string, MoralisTrader>()
+    if (!traders) return map
+    for (const t of traders) {
+      map.set(t.address.toLowerCase(), t)
+    }
+    return map
+  }, [traders])
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS)
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null)
@@ -495,7 +509,7 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
         <div
           key={s.id}
           className={clsx(
-            'grid grid-cols-[96px_56px_1fr_1fr_1fr_96px_40px] gap-x-3 px-3 md:px-5 py-2 text-[14px] border-b border-muted',
+            'grid grid-cols-[96px_56px_1fr_1fr_1fr_96px_40px] gap-x-3 px-3 md:px-5 py-2 text-[14px] border-b border-border',
             s.is_buy ? 'hover:bg-green/5' : 'hover:bg-red/5',
             newSwapIds?.has(s.id) && (s.is_buy ? 'animate-flash-green' : 'animate-flash-red')
           )}
@@ -516,8 +530,31 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
           <span className="tabular text-right text-sub font-mono">
             {priceInUsd ? fmtPrice(s.price_usd) : (s.amount0 !== 0 ? fmtEth(s.amount1 / s.amount0) : '—')}
           </span>
-          <span className="font-mono text-right text-sub truncate">
-            {shortAddr(s.sender ?? '')}
+          <span className="flex items-center justify-end gap-1 min-w-0">
+            {(() => {
+              const trader = s.sender ? traderMap.get(s.sender.toLowerCase()) : undefined
+              const winRate = trader && trader.realized_profit_percentage > 0 ? trader.realized_profit_percentage : null
+              const addr = s.sender ?? ''
+              return (
+                <>
+                  {winRate !== null && (
+                    <span className="text-[10px] bg-green/15 text-green rounded px-1 font-medium flex-shrink-0">
+                      {winRate.toFixed(0)}%
+                    </span>
+                  )}
+                  {addr ? (
+                    <Link
+                      href={`/${chain}/wallet/${addr}${tokenAddress ? `?token=${tokenAddress}` : ''}`}
+                      className="font-mono text-sub hover:text-blue truncate transition-colors"
+                    >
+                      {shortAddr(addr)}
+                    </Link>
+                  ) : (
+                    <span className="font-mono text-sub truncate">—</span>
+                  )}
+                </>
+              )
+            })()}
           </span>
           <a
             href={explorerLink(chain, 'tx', s.tx_hash)}

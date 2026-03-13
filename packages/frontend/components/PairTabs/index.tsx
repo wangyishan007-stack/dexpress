@@ -153,6 +153,8 @@ export function PairTabs({ swaps, swapHasMore, swapLoading, onLoadMore, tokenAdd
             onLoadMore={onLoadMore}
             baseTokenSymbol={baseTokenSymbol}
             newSwapIds={newSwapIds}
+            traders={traders}
+            tokenAddress={tokenAddress}
           />
         </div>
         <div style={{ display: activeTab === 'top-traders' ? 'block' : 'none' }}>

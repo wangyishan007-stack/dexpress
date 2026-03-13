@@ -52,6 +52,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     if (search) {
       const q = search.toLowerCase()
       pools = pools.filter(p =>
+        p.token0.symbol.toLowerCase().includes(q) ||
+        p.token0.name.toLowerCase().includes(q)   ||
         p.token1.symbol.toLowerCase().includes(q) ||
         p.token1.name.toLowerCase().includes(q)   ||
         p.address.toLowerCase().includes(q)
