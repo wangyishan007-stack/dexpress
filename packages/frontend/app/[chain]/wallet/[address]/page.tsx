@@ -190,54 +190,47 @@ interface DayPnl { day: number; pnl: number }
 
 function buildDailyPnl(profitability: WalletTokenPnl[], swaps: DetectedSwap[]): Map<string, number> {
   const dayPnl = new Map<string, number>()
+  if (profitability.length === 0) return dayPnl
 
+  const totalPnl = profitability.reduce((s, t) => s + Number(t.realized_profit_usd), 0)
+  if (totalPnl === 0) return dayPnl
+
+  // Strategy 1: use swap timestamps to distribute PnL proportionally
   if (swaps.length > 0) {
-    // Use real swap timestamps
-    const tokenPnlPerTrade = new Map<string, number>()
-    for (const t of profitability) {
-      if (t.count_of_trades > 0) {
-        tokenPnlPerTrade.set(
-          t.token_address.toLowerCase(),
-          Number(t.realized_profit_usd) / t.count_of_trades
-        )
-      }
-    }
+    const swapsPerDay = new Map<string, number>()
     for (const swap of swaps) {
       const day = swap.timestamp.slice(0, 10) // YYYY-MM-DD
-      const bought = swap.tokenBought.address.toLowerCase()
-      const sold = swap.tokenSold.address.toLowerCase()
-      const pnl = tokenPnlPerTrade.get(bought) ?? tokenPnlPerTrade.get(sold) ?? 0
-      dayPnl.set(day, (dayPnl.get(day) ?? 0) + pnl)
+      swapsPerDay.set(day, (swapsPerDay.get(day) ?? 0) + 1)
     }
+    const totalSwaps = swaps.length
+    for (const [day, count] of swapsPerDay) {
+      dayPnl.set(day, totalPnl * (count / totalSwaps))
+    }
+    if ([...dayPnl.values()].some(v => v !== 0)) return dayPnl
+    dayPnl.clear()
   }
 
-  // Fallback if no swaps matched or all matched pnl is zero
-  const hasNonZero = [...dayPnl.values()].some(v => v !== 0)
-  if (!hasNonZero && profitability.length > 0) {
-    dayPnl.clear()
-    // No swap timestamps — spread PnL across current month days up to today
-    const now = new Date()
-    const today = now.getDate()
-    const y = now.getFullYear()
-    const m = now.getMonth()
-    const totalTrades = profitability.reduce((s, t) => s + t.count_of_trades, 0)
-    if (totalTrades > 0) {
-      for (const token of profitability) {
-        const pnl = Number(token.realized_profit_usd)
-        if (pnl === 0 || token.count_of_trades === 0) continue
-        const pnlPerTrade = pnl / token.count_of_trades
-        // Deterministic seed from token address
-        let seed = 0
-        for (let i = 0; i < token.token_address.length; i++) {
-          seed = (seed * 31 + token.token_address.charCodeAt(i)) & 0x7fffffff
-        }
-        if (seed === 0) seed = 1
-        for (let t = 0; t < token.count_of_trades; t++) {
-          seed = (seed * 16807) % 2147483647
-          const day = (seed % today) + 1 // 1..today (always in current month)
-          const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-          dayPnl.set(key, (dayPnl.get(key) ?? 0) + pnlPerTrade)
-        }
+  // Strategy 2: spread PnL across current month using deterministic seed
+  const now = new Date()
+  const today = now.getDate()
+  const y = now.getFullYear()
+  const m = now.getMonth()
+  const totalTrades = profitability.reduce((s, t) => s + t.count_of_trades, 0)
+  if (totalTrades > 0) {
+    for (const token of profitability) {
+      const pnl = Number(token.realized_profit_usd)
+      if (pnl === 0 || token.count_of_trades === 0) continue
+      const pnlPerTrade = pnl / token.count_of_trades
+      let seed = 0
+      for (let i = 0; i < token.token_address.length; i++) {
+        seed = (seed * 31 + token.token_address.charCodeAt(i)) & 0x7fffffff
+      }
+      if (seed === 0) seed = 1
+      for (let t = 0; t < token.count_of_trades; t++) {
+        seed = (seed * 16807) % 2147483647
+        const day = (seed % today) + 1
+        const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+        dayPnl.set(key, (dayPnl.get(key) ?? 0) + pnlPerTrade)
       }
     }
   }
