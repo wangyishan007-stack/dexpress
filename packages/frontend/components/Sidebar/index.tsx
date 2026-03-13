@@ -43,7 +43,7 @@ function IconGainers({ active }: { active?: boolean }) {
 function IconSmartMoney({ active }: { active?: boolean }) {
   const c = active ? '#2744FF' : '#999'
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none">
       <path
         d="M13 2L4.5 13.5H12L11 22L19.5 10.5H12L13 2Z"
         fill={c}

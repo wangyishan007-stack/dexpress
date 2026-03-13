@@ -163,7 +163,7 @@ function FollowWalletButton({ address, chain }: { address: string; chain: string
       disabled={!following && isFull}
       className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-medium transition-colors ${
         following
-          ? 'bg-blue/15 text-blue border border-blue/30 hover:bg-red/15 hover:text-red hover:border-red/30'
+          ? 'bg-blue/15 text-blue border border-blue/30 hover:bg-blue/25'
           : isFull
             ? 'border border-border text-sub opacity-50 cursor-not-allowed'
             : 'border border-border text-sub hover:text-blue hover:border-blue/30'
@@ -679,11 +679,11 @@ function PnlTab({ data, chain, onTokenClick, gtLogos }: { data: WalletTokenPnl[]
 
   return (
     <div className="overflow-x-auto">
-      <div className="grid gap-x-2 px-4 py-3 text-[12px] text-header font-medium bg-surface border-b border-border sticky top-0 z-10"
+      <div className="grid gap-x-2 px-4 py-3 text-[11px] md:text-[12px] text-header font-medium bg-surface border-b border-border sticky top-0 z-10 whitespace-nowrap"
         style={{ gridTemplateColumns: gridCols, minWidth: 680 }}>
         <span>Token</span>
         <button onClick={() => handleSort('pnl')} className="flex items-center gap-0.5 hover:text-text text-right justify-end">
-          Realized PnL <SortArrow active={sortKey === 'pnl'} asc={sortAsc} />
+          PnL <SortArrow active={sortKey === 'pnl'} asc={sortAsc} />
         </button>
         <button onClick={() => handleSort('invested')} className="flex items-center gap-0.5 hover:text-text text-right justify-end">
           Invested <SortArrow active={sortKey === 'invested'} asc={sortAsc} />
@@ -1031,12 +1031,12 @@ export default function WalletPage({ params }: { params: { address: string } }) 
 
         {/* ── Bottom Tabs ────────────────────────────────── */}
         <div className="rounded-lg border border-border flex flex-col min-h-0">
-          <div className="flex border-b border-border bg-surface rounded-t-lg">
+          <div className="flex border-b border-border bg-surface rounded-t-lg overflow-x-auto scrollbar-hide">
             {tabs.map(t => (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                className={`flex items-center gap-1.5 px-4 py-3 text-[13px] font-medium transition-colors border-b-2 -mb-px ${
+                className={`flex items-center gap-1.5 px-3 md:px-4 py-3 text-[12px] md:text-[13px] font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
                   tab === t.key
                     ? 'text-text border-blue'
                     : 'text-sub border-transparent hover:text-text'
@@ -1044,7 +1044,7 @@ export default function WalletPage({ params }: { params: { address: string } }) 
               >
                 {t.label}
                 {t.count !== undefined && t.count > 0 && (
-                  <span className="text-[11px] text-sub bg-border/40 px-1.5 py-0.5 rounded-md">{t.count}</span>
+                  <span className="text-[10px] md:text-[11px] text-sub bg-border/40 px-1.5 py-0.5 rounded-md">{t.count}</span>
                 )}
               </button>
             ))}
