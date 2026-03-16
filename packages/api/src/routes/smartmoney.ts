@@ -17,6 +17,22 @@ export async function smartMoneyRoutes(app: FastifyInstance) {
     }
   })
 
+  // GET /api/admin/stats — 查数据库状态
+  app.get('/api/admin/stats', async (_req, reply) => {
+    const r1 = await query('SELECT COUNT(*) as n FROM swaps')
+    const r2 = await query('SELECT COUNT(*) as n FROM pools')
+    const r3 = await query('SELECT COUNT(*) as n FROM wallet_pnl')
+    const r4 = await query("SELECT COUNT(*) as n FROM swaps WHERE timestamp > NOW() - INTERVAL '2 hours'")
+    const r5 = await query("SELECT COUNT(*) as n FROM swaps WHERE timestamp > NOW() - INTERVAL '24 hours'")
+    return reply.send({
+      total_swaps:   r1[0].n,
+      pools:         r2[0].n,
+      wallet_pnl:    r3[0].n,
+      swaps_2h:      r4[0].n,
+      swaps_24h:     r5[0].n,
+    })
+  })
+
   // GET /api/smart-money?chain=base&period=7d&limit=100
   app.get('/api/smart-money', async (req, reply) => {
     const { chain = 'base', period = '7d', limit = '100' } = req.query as Record<string, string>
