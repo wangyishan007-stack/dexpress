@@ -87,6 +87,18 @@ async function runMigration() {
   }
 }
 
+async function startSmartMoneyWorker() {
+  try {
+    // Lazy import to avoid circular deps
+    const { SmartMoneyWorker } = await import('./smartMoneyWorker')
+    const worker = new SmartMoneyWorker()
+    await worker.start()
+    console.log('[API] SmartMoneyWorker started')
+  } catch (e) {
+    console.warn('[API] SmartMoneyWorker failed to start:', e)
+  }
+}
+
 async function start() {
   // Run DB migrations on startup
   await runMigration()
@@ -99,6 +111,9 @@ async function start() {
 
   await server.listen({ port, host: '0.0.0.0' })
   console.log(`[API] Listening on port ${port}`)
+
+  // Start background workers after server is up
+  startSmartMoneyWorker()
 }
 
 start().catch((err) => {
