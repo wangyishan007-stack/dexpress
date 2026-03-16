@@ -5,6 +5,18 @@ const CACHE_TTL_MS = 3_600_000 // 1 hour
 const cache = new Map<string, { data: unknown; ts: number }>()
 
 export async function smartMoneyRoutes(app: FastifyInstance) {
+  // POST /api/admin/recalc — 手动触发 SmartMoneyWorker 计算（管理员用）
+  app.post('/api/admin/recalc', async (_req, reply) => {
+    try {
+      const { SmartMoneyWorker } = await import('../smartMoneyWorker')
+      const worker = new SmartMoneyWorker()
+      worker.calculateNow().catch(console.error) // 后台运行
+      return reply.send({ ok: true, message: 'Recalculation started' })
+    } catch (e) {
+      return reply.status(500).send({ error: String(e) })
+    }
+  })
+
   // GET /api/smart-money?chain=base&period=7d&limit=100
   app.get('/api/smart-money', async (req, reply) => {
     const { chain = 'base', period = '7d', limit = '100' } = req.query as Record<string, string>
