@@ -47,6 +47,7 @@ async function build() {
   await app.register(searchRoutes, { prefix: '/api' })
   await app.register(candlesRoutes, { prefix: '/api' })
   await app.register(statsRoutes,  { prefix: '/api' })
+  await app.register(smartMoneyRoutes)
 
   // ── WebSocket ──────────────────────────────────────────────
   await setupPairsWs(app, redisSub)
