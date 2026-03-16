@@ -81,11 +81,13 @@ function LogoMark({ className }: { className?: string }) {
 
 /* ── Nav items config ────────────────────────────────────── */
 type NavKey = 'allCoins' | 'newPairs' | 'gainers' | 'smartMoney' | 'watchlist'
+const SHOW_SMART_MONEY = process.env.NEXT_PUBLIC_SHOW_SMART_MONEY === 'true'
+
 const NAV_KEYS: { path: string; key: NavKey; pageKey: string; Icon: React.ComponentType<{ active?: boolean }> }[] = [
   { path: '',             key: 'allCoins',    pageKey: 'allcoins',    Icon: IconAllCoins    },
   { path: '/new-pairs',   key: 'newPairs',    pageKey: 'new-pairs',   Icon: IconNewPairs    },
   { path: '/gainers',     key: 'gainers',     pageKey: 'gainers',     Icon: IconGainers     },
-  { path: '/smart-money', key: 'smartMoney',  pageKey: 'smart-money', Icon: IconSmartMoney  },
+  ...(SHOW_SMART_MONEY ? [{ path: '/smart-money', key: 'smartMoney' as NavKey, pageKey: 'smart-money', Icon: IconSmartMoney }] : []),
   { path: '/watchlist',   key: 'watchlist',   pageKey: 'watchlist',   Icon: IconWatchlist   },
 ]
 
