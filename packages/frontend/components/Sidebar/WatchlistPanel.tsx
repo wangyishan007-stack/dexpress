@@ -47,9 +47,9 @@ export function WatchlistPanel() {
       {/* Header row — always show expand/collapse toggle */}
       <div className="flex items-center justify-between px-[24px] pt-[16px] pb-[8px]">
         <Link href="/watchlist" className="flex items-center gap-1 group">
-          <span className="text-[14px] text-text font-medium">Watchlist</span>
+          <span className="text-[14px] text-text font-medium">{t('title')}</span>
         </Link>
-        <button
+        {canExpand && <button
           onClick={() => setExpanded(e => !e)}
           className="flex items-center justify-center w-[24px] h-[24px] text-sub hover:text-text transition-colors"
         >
@@ -62,7 +62,7 @@ export function WatchlistPanel() {
           >
             <path d="M2 8L6 4L10 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-        </button>
+        </button>}
       </div>
 
       {/* Pool list */}
@@ -71,7 +71,7 @@ export function WatchlistPanel() {
           <p className="text-[12px] text-sub/60">{t('emptyList')}</p>
         ) : (
           <div className={clsx('flex flex-col gap-1', expanded ? 'overflow-y-auto max-h-[168px]' : '')}>
-            {(expanded ? watchedPools : watchedPools.slice(0, 2)).map(pool => {
+            {visiblePools.map(pool => {
               const poolChain = ((pool as any)._chain as ChainSlug) || chain
               const t0IsQuote = isQuoteToken(poolChain, pool.token0.address)
               const base = t0IsQuote ? pool.token1 : pool.token0

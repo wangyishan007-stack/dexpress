@@ -10,6 +10,17 @@ import type { ScreenerConfig, ColumnDef } from '../../lib/columnConfig'
 import { useChain } from '@/contexts/ChainContext'
 import { isQuoteToken, getDexInfo, CHAINS, type ChainSlug } from '@/lib/chains'
 
+
+/* ─── OHLCV prefetch on hover ─────────────────────────────── */
+const prefetchedPools = new Set<string>()
+function prefetchOhlcv(network: string, pool: string) {
+  if (prefetchedPools.has(pool)) return
+  prefetchedPools.add(pool)
+  const to = Math.floor(Date.now() / 1000)
+  const params = new URLSearchParams({ network, pool, timeframe: 'minute', aggregate: '5', before: String(to), limit: '300' })
+  fetch(`/api/gt/ohlcv?${params}`).catch(() => {})
+}
+
 /* ─── helpers ─────────────────────────────────────────────── */
 function fmtPctValue(v: number): string {
   const abs = Math.abs(v)
@@ -172,6 +183,7 @@ export function PairRow({ pair, livePrice, flash, rank, showStar = false }: Pair
         flash === 'up'   && 'animate-flash-green',
         flash === 'down' && 'animate-flash-red'
       )}
+      onMouseEnter={() => prefetchOhlcv(pairChain, pair.address)}
     >
       <div className="flex items-center gap-2.5 px-3 h-[64px] border-b border-border">
         {showStar && <WatchToggle address={pair.address} size={14} />}

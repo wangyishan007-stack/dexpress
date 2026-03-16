@@ -17,6 +17,7 @@ dotenv.config({ path: path.resolve(__dirname, '..', '..', '..', '.env') })
 import { IndexerWorker }       from './IndexerWorker'
 import { AggregatorWorker }    from './AggregatorWorker'
 import { PairDiscoveryWorker } from './PairDiscoveryWorker'
+import { SmartMoneyWorker }    from './SmartMoneyWorker'
 
 async function main() {
   console.log('[Workers] Starting Base DEX Screener workers…')
@@ -25,6 +26,7 @@ async function main() {
 
   const indexer    = new IndexerWorker()
   const aggregator = new AggregatorWorker()
+  const smartMoney = new SmartMoneyWorker()
   const discovery  = new PairDiscoveryWorker({
     onNewPool: (address) => indexer.addPool(address),
   })
@@ -34,6 +36,7 @@ async function main() {
     indexer.stop()
     aggregator.stop()
     discovery.stop()
+    smartMoney.stop()
     process.exit(0)
   }
 
@@ -51,6 +54,9 @@ async function main() {
 
   // 3. Aggregator: Indexer ready 后启动
   aggregator.start()
+
+  // 4. SmartMoneyWorker: 每小时计算钱包 PnL 排行
+  smartMoney.start().catch((e) => console.error('[Workers] SmartMoney error:', e))
 
   console.log('[Workers] All workers running ✓')
 }

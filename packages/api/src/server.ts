@@ -12,6 +12,7 @@ import { tokensRoutes } from './routes/tokens'
 import { searchRoutes } from './routes/search'
 import { candlesRoutes } from './routes/candles'
 import { statsRoutes }  from './routes/stats'
+import { smartMoneyRoutes } from './routes/smartmoney'
 import { setupPairsWs }  from './ws/pairsWs'
 import { startTokenEnrichment } from './tokenEnrichment'
 
@@ -53,7 +54,43 @@ async function build() {
   return app
 }
 
+async function runMigration() {
+  try {
+    const { db } = await import('@dex/database')
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS wallet_pnl (
+        wallet_address     VARCHAR(42)    NOT NULL,
+        chain              VARCHAR(20)    NOT NULL DEFAULT 'base',
+        period             VARCHAR(5)     NOT NULL,
+        realized_pnl_usd   NUMERIC(30,6)  NOT NULL DEFAULT 0,
+        unrealized_pnl_usd NUMERIC(30,6)  NOT NULL DEFAULT 0,
+        total_bought_usd   NUMERIC(30,6)  NOT NULL DEFAULT 0,
+        total_sold_usd     NUMERIC(30,6)  NOT NULL DEFAULT 0,
+        win_trades         INTEGER        NOT NULL DEFAULT 0,
+        loss_trades        INTEGER        NOT NULL DEFAULT 0,
+        total_trades       INTEGER        NOT NULL DEFAULT 0,
+        best_token_address VARCHAR(42),
+        best_token_symbol  VARCHAR(50),
+        best_token_pnl_usd NUMERIC(30,6)  NOT NULL DEFAULT 0,
+        pnl_percentage     NUMERIC(15,4)  NOT NULL DEFAULT 0,
+        calculated_at      TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (wallet_address, chain, period)
+      );
+      CREATE INDEX IF NOT EXISTS idx_wallet_pnl_chain_period
+        ON wallet_pnl(chain, period, realized_pnl_usd DESC);
+      CREATE INDEX IF NOT EXISTS idx_wallet_pnl_calculated
+        ON wallet_pnl(calculated_at DESC);
+    `)
+    console.log('[API] wallet_pnl migration OK')
+  } catch (e: unknown) {
+    console.warn('[API] Migration warning:', e instanceof Error ? e.message : e)
+  }
+}
+
 async function start() {
+  // Run DB migrations on startup
+  await runMigration()
+
   // Load token metadata before accepting requests
   await startTokenEnrichment()
 

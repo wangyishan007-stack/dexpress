@@ -3,7 +3,8 @@
 import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import clsx from 'clsx'
 import { WatchlistPanel } from './WatchlistPanel'
 import { SearchModal } from '../SearchModal'
@@ -39,6 +40,18 @@ function IconGainers({ active }: { active?: boolean }) {
   return <img src={src} className="h-6 w-6" alt="" />
 }
 
+function IconSmartMoney({ active }: { active?: boolean }) {
+  const c = active ? '#2744FF' : '#999'
+  return (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M13 2L4.5 13.5H12L11 22L19.5 10.5H12L13 2Z"
+        fill={c}
+      />
+    </svg>
+  )
+}
+
 function IconWatchlist({ active }: { active?: boolean }) {
   const src = active ? '/branding/nav/watchlist-active.svg' : '/branding/nav/watchlist.svg'
   return <img src={src} className="h-6 w-6" alt="" />
@@ -67,12 +80,13 @@ function LogoMark({ className }: { className?: string }) {
 }
 
 /* ── Nav items config ────────────────────────────────────── */
-type NavKey = 'allCoins' | 'newPairs' | 'gainers' | 'watchlist'
+type NavKey = 'allCoins' | 'newPairs' | 'gainers' | 'smartMoney' | 'watchlist'
 const NAV_KEYS: { path: string; key: NavKey; pageKey: string; Icon: React.ComponentType<{ active?: boolean }> }[] = [
-  { path: '',          key: 'allCoins',  pageKey: 'allcoins',  Icon: IconAllCoins  },
-  { path: '/new-pairs', key: 'newPairs',  pageKey: 'new-pairs', Icon: IconNewPairs  },
-  { path: '/gainers',   key: 'gainers',   pageKey: 'gainers',   Icon: IconGainers   },
-  { path: '/watchlist', key: 'watchlist', pageKey: 'watchlist', Icon: IconWatchlist },
+  { path: '',             key: 'allCoins',    pageKey: 'allcoins',    Icon: IconAllCoins    },
+  { path: '/new-pairs',   key: 'newPairs',    pageKey: 'new-pairs',   Icon: IconNewPairs    },
+  { path: '/gainers',     key: 'gainers',     pageKey: 'gainers',     Icon: IconGainers     },
+  { path: '/smart-money', key: 'smartMoney',  pageKey: 'smart-money', Icon: IconSmartMoney  },
+  { path: '/watchlist',   key: 'watchlist',   pageKey: 'watchlist',   Icon: IconWatchlist   },
 ]
 
 /** Build nav items with per-page chain from localStorage */
@@ -91,24 +105,35 @@ function buildNavItems(urlChain: string, perPage: boolean) {
 /* ── Mobile bottom tab bar ───────────────────────────────── */
 function MobileTabNav() {
   const pathname = usePathname()
+  const router = useRouter()
   const t = useTranslations('nav')
   const chain = getChainFromPath(pathname)
   const [mounted, setMounted] = useState(false)
+  const [pendingHref, setPendingHref] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
   useEffect(() => { setMounted(true) }, [])
+  useEffect(() => { if (!isPending) setPendingHref(null) }, [isPending])
   const navItems = buildNavItems(chain, mounted)
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-bg">
       {navItems.map(({ href, path, key, Icon }) => {
-        const active = key === 'watchlist'
+        const realActive = key === 'watchlist'
           ? pathname === '/watchlist'
           : path === ''
             ? pathname === `/${chain}`
             : pathname === `/${chain}${path}` || pathname.startsWith(`/${chain}${path}/`)
+        const active = pendingHref ? pendingHref === href : realActive
         return (
-          <Link
+          <a
             key={key}
             href={href}
+            onClick={(e) => {
+              e.preventDefault()
+              if (realActive) return
+              setPendingHref(href)
+              startTransition(() => { router.push(href) })
+            }}
             className={clsx(
               'flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] transition-colors',
               active ? 'text-blue font-bold' : 'text-sub'
@@ -116,7 +141,7 @@ function MobileTabNav() {
           >
             <Icon active={active} />
             {t(key)}
-          </Link>
+          </a>
         )
       })}
     </nav>
@@ -156,14 +181,30 @@ const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed'
 export function Sidebar() {
   const pathname = usePathname()
   const chain = getChainFromPath(pathname)
+  const router = useRouter()
   const [searchOpen, setSearchOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
+  const [pendingHref, setPendingHref] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
   const { ready, authenticated, user, login, logout } = useAuth()
   const tNav = useTranslations('nav')
 
+  // Clear pending state when navigation completes
+  useEffect(() => {
+    if (!isPending) setPendingHref(null)
+  }, [isPending])
+
   // Per-page chain nav: after hydration, each nav link uses its own stored chain
   const navItems = buildNavItems(chain, hydrated)
+
+  // Prefetch all nav routes on mount to avoid first-click flash
+  useEffect(() => {
+    if (!hydrated) return
+    for (const item of navItems) {
+      if (item.href) router.prefetch(item.href)
+    }
+  }, [hydrated]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hydrate collapsed state from localStorage
   useEffect(() => {
@@ -242,7 +283,7 @@ export function Sidebar() {
       >
 
         {/* ── Top section ─────────────────────────────────── */}
-        <div className={clsx('flex flex-col gap-[16px]', collapsed ? 'px-[8px]' : 'px-[24px]')}>
+        <div className={clsx('flex flex-col gap-[12px]', collapsed ? 'px-[8px]' : 'px-[24px]')}>
 
           {/* Logo + toggle */}
           {collapsed ? (
@@ -301,22 +342,29 @@ export function Sidebar() {
           <div className={clsx('flex flex-col', collapsed ? 'gap-[12px]' : 'gap-[20px]')}>
 
             {/* Nav items */}
-            <nav className={clsx('flex flex-col', collapsed ? 'gap-[8px] items-center' : 'gap-[16px]')}>
+            <nav className={clsx('flex flex-col', collapsed ? 'gap-[8px] items-center' : 'gap-[12px]')}>
               {navItems.map(({ href, path, key, Icon }) => {
-                // Active detection always uses URL chain, not per-page href
-                const active = key === 'watchlist'
+                // Active: check pending (optimistic) first, then real pathname
+                const realActive = key === 'watchlist'
                   ? pathname === '/watchlist'
                   : path === ''
                     ? pathname === `/${chain}`
                     : pathname === `/${chain}${path}` || pathname.startsWith(`/${chain}${path}/`)
+                const active = pendingHref ? pendingHref === href : realActive
                 const label = tNav(key)
                 return (
-                  <Link
+                  <a
                     key={key}
                     href={href}
                     title={collapsed ? label : undefined}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      if (realActive) return
+                      setPendingHref(href)
+                      startTransition(() => { router.push(href) })
+                    }}
                     className={clsx(
-                      'flex items-center transition-colors',
+                      'flex items-center transition-colors cursor-pointer',
                       collapsed
                         ? 'h-[44px] w-[44px] justify-center rounded-lg'
                         : 'h-[44px] gap-[16px] rounded-[12px] px-[8px] py-[12px] text-[16px] whitespace-nowrap',
@@ -325,7 +373,7 @@ export function Sidebar() {
                   >
                     <Icon active={active} />
                     {!collapsed && label}
-                  </Link>
+                  </a>
                 )
               })}
             </nav>

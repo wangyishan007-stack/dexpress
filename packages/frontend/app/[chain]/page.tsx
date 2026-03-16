@@ -42,6 +42,7 @@ export default function HomePage() {
   const [screenerConfig, setScreenerConfig] = useState<ScreenerConfig>(DEFAULT_CONFIG)
   useEffect(() => { setScreenerConfig(loadConfig('allcoins')) }, [])
 
+
   const handleScreenerConfigChange = useCallback((config: ScreenerConfig) => {
     setScreenerConfig(config)
     saveConfig(config, 'allcoins')

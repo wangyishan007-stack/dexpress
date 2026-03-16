@@ -15,7 +15,7 @@ export function SkeletonRow({ showStar = false, columnConfig }: Props) {
   return (
     <>
       {/* Mobile skeleton */}
-      <div className="flex md:hidden items-center gap-2.5 px-3 h-[56px] border-b border-muted animate-pulse">
+      <div className="flex md:hidden items-center gap-2.5 px-3 h-[56px] border-b border-border animate-pulse">
         <div className="w-[22px] h-3 bg-border/40 rounded" />
         <div className="w-7 h-7 bg-border/40 rounded-full flex-shrink-0" />
         <div className="flex-1 min-w-0 space-y-1.5">
@@ -29,7 +29,7 @@ export function SkeletonRow({ showStar = false, columnConfig }: Props) {
       </div>
 
       {/* Desktop skeleton — matches actual data column widths */}
-      <div className="hidden md:flex h-[70px] border-b border-muted animate-pulse">
+      <div className="hidden md:flex h-[70px] border-b border-border animate-pulse">
         {/* Frozen column placeholder */}
         <div
           className="flex-shrink-0 flex items-center gap-2 px-4 border-r border-border"

@@ -109,34 +109,34 @@ export function TopTradersTable({ traders }: Props) {
         <span className="text-center">{t('exp')}</span>
       </div>
 
-      {rows.map((t, i) => (
+      {rows.map((row, i) => (
         <div
-          key={t.address}
-          className="grid grid-cols-[40px_1fr_100px_100px_100px_60px_40px] gap-x-3 px-3 md:px-5 py-2 text-[14px] border-b border-muted hover:bg-border/20 transition-colors"
+          key={row.address}
+          className="grid grid-cols-[40px_1fr_100px_100px_100px_60px_40px] gap-x-3 px-3 md:px-5 py-2 text-[14px] border-b border-border hover:bg-border/20 transition-colors"
           style={{ minWidth: 580 }}
         >
           <span className="text-sub tabular">{i + 1}</span>
           <a
-            href={explorerLink(chain, 'address', t.address)}
+            href={explorerLink(chain, 'address', row.address)}
             target="_blank"
-            rel="noopener"
+            rel="noopener noreferrer"
             className="font-mono text-sub hover:text-blue truncate transition-colors"
           >
-            {shortAddr(t.address)}
+            {shortAddr(row.address)}
           </a>
-          <span className="tabular text-right text-green font-mono truncate">{fmtUsd(t.bought)}</span>
-          <span className="tabular text-right text-red font-mono truncate">{fmtUsd(t.sold)}</span>
+          <span className="tabular text-right text-green font-mono truncate">{fmtUsd(row.bought)}</span>
+          <span className="tabular text-right text-red font-mono truncate">{fmtUsd(row.sold)}</span>
           <span className={clsx(
             'tabular text-right font-mono truncate',
-            t.pnl >= 0 ? 'text-green' : 'text-red'
+            row.pnl >= 0 ? 'text-green' : 'text-red'
           )}>
-            {t.pnl >= 0 ? '+' : ''}{fmtUsd(t.pnl)}
+            {row.pnl >= 0 ? '+' : ''}{fmtUsd(row.pnl)}
           </span>
-          <span className="tabular text-right text-sub">{t.trades}</span>
+          <span className="tabular text-right text-sub">{row.trades}</span>
           <a
-            href={explorerLink(chain, 'address', t.address)}
+            href={explorerLink(chain, 'address', row.address)}
             target="_blank"
-            rel="noopener"
+            rel="noopener noreferrer"
             className="flex items-center justify-center text-sub hover:text-blue transition-colors"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">

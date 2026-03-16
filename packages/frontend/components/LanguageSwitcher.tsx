@@ -55,14 +55,14 @@ export function LanguageSwitcher({ iconOnly }: Props) {
       setDropdownStyle({
         position: 'fixed',
         bottom: window.innerHeight - rect.top + 4,
-        left: rect.left,
+        right: window.innerWidth - rect.right,
         zIndex: 9999,
       })
     } else {
       setDropdownStyle({
         position: 'fixed',
         top: rect.bottom + 4,
-        left: rect.left,
+        right: window.innerWidth - rect.right,
         zIndex: 9999,
       })
     }

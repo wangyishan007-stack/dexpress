@@ -28,12 +28,14 @@ import {
 import {
   UNIV3_SWAP_EVENT,
   AERODROME_SWAP_EVENT,
+  UNIV4_SWAP_EVENT,
   ERC20_ABI,
   ADDRESSES,
   STABLECOINS,
   WETH_LOWER,
   type UniV3SwapEvent,
   type AerodromeSwapEvent,
+  type UniV4SwapEvent,
 } from '@dex/shared'
 import {
   sqrtPriceX96ToPrice,
@@ -199,7 +201,21 @@ export class IndexerWorker {
       onError: (err) => console.error('[Indexer] Aero watch error:', err.message),
     })
 
-    this.unsubscribeFns.push(unsubV3, unsubAero)
+    // ── Uniswap V4 Swaps (PoolManager) ──────────────────────
+    const unsubV4 = this.wsClient.watchEvent({
+      address: ADDRESSES.UNISWAP_V4_POOL_MANAGER as `0x${string}`,
+      event: UNIV4_SWAP_EVENT as any,
+      onLogs: (logs) => {
+        for (const log of logs) {
+          this.handleUniV4Swap(log as unknown as UniV4SwapEvent).catch(
+            (e) => console.error('[Indexer] V4 swap error:', e)
+          )
+        }
+      },
+      onError: (err) => console.error('[Indexer] V4 watch error:', err.message),
+    })
+
+    this.unsubscribeFns.push(unsubV3, unsubAero, unsubV4)
   }
 
   // ─── Uniswap V3 swap handler ─────────────────────────────────
@@ -297,6 +313,52 @@ export class IndexerWorker {
 
     await this.updatePoolPrice(log.address, priceUsd, amountUsd)
     await this.publishSwapEvent(log.address, priceUsd, amountUsd, isBuy)
+  }
+
+
+  // ─── Uniswap V4 swap handler ─────────────────────────────────
+  // V4 emits from PoolManager; pool is identified by `id` (bytes32 hash of pool key)
+  // We look up the pool by matching id → pool address in our registry
+  private async handleUniV4Swap(log: UniV4SwapEvent) {
+    const { id, sender, amount0, amount1, sqrtPriceX96 } = log.args
+
+    // V4 pools are stored with their computed id as address (prefixed with v4:)
+    const poolKey = `v4:${id.toLowerCase()}`
+    const meta = this.pools.get(poolKey)
+    if (!meta) return // pool not tracked yet
+
+    const priceToken0InToken1 = sqrtPriceX96ToPrice(sqrtPriceX96, meta.decimals0, meta.decimals1)
+    const { token0Usd, token1Usd } = routeToUsd(
+      meta.token0, meta.token1, priceToken0InToken1, this.ethUsdPrice
+    )
+
+    const norm0 = Number(amount0) / Math.pow(10, meta.decimals0)
+    const norm1 = Number(amount1) / Math.pow(10, meta.decimals1)
+
+    const isBuy = amount0 < 0n // negative = token0 out of pool → user bought token0
+    const amountUsd = calcAmountUsd(norm0, norm1, token0Usd, token1Usd)
+    const priceUsd = this.derivePriceUsd(meta.token0, meta.token1, token0Usd, token1Usd, isBuy)
+
+    const blockTs = await this.getBlockTimestamp(log.blockNumber)
+    if (!blockTs) return
+
+    await insertSwap({
+      pool_address: poolKey,
+      block_number: Number(log.blockNumber),
+      tx_hash:      log.transactionHash,
+      log_index:    log.logIndex ?? 0,
+      timestamp:    blockTs,
+      sender:       sender,
+      recipient:    sender,
+      amount0:      norm0,
+      amount1:      norm1,
+      amount_usd:   amountUsd,
+      price_usd:    priceUsd,
+      is_buy:       isBuy,
+    })
+
+    await this.updatePoolPrice(poolKey, priceUsd, amountUsd)
+    await this.publishSwapEvent(poolKey, priceUsd, amountUsd, isBuy)
   }
 
   // ─── Helpers ─────────────────────────────────────────────────

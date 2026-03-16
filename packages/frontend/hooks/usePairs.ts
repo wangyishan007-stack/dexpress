@@ -61,7 +61,6 @@ export function usePairs(baseParams: Omit<PairsQuery, 'limit' | 'offset'>, chain
       revalidateOnFocus: false,
       dedupingInterval: 10_000,
       refreshInterval: 45_000,  // Refresh every 45s to keep trending data fresh
-      keepPreviousData: true,   // Show stale data while revalidating
     }
   )
 

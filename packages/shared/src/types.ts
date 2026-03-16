@@ -233,3 +233,22 @@ export interface TokenInfo {
   decimals:     number
   total_supply: bigint
 }
+
+// ── Uniswap V4 ───────────────────────────────────────────────
+export interface UniV4SwapEvent {
+  address: `0x${string}`
+  args: {
+    id: `0x${string}`
+    sender: `0x${string}`
+    amount0: bigint
+    amount1: bigint
+    sqrtPriceX96: bigint
+    liquidity: bigint
+    tick: number
+    fee: number
+  }
+  blockNumber: bigint
+  transactionHash: `0x${string}`
+  logIndex: number
+  blockHash: `0x${string}`
+}

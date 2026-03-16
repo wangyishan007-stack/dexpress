@@ -2,6 +2,7 @@
 
 import { PrivyProvider } from '@privy-io/react-auth'
 import { WatchlistProvider } from '../hooks/useWatchlist'
+import { FollowedWalletsProvider } from '../hooks/useFollowedWallets'
 import { ToastProvider } from './Toast'
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID
@@ -16,12 +17,22 @@ const BASE_CHAIN = {
   },
 }
 
+const BSC_CHAIN = {
+  id: 56,
+  name: 'BNB Smart Chain',
+  network: 'bsc',
+  nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+  rpcUrls: {
+    default: { http: ['https://bsc-dataseed.binance.org'] },
+  },
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   // Skip PrivyProvider when App ID is not configured
   if (!PRIVY_APP_ID) {
     return (
       <ToastProvider>
-        <WatchlistProvider>{children}</WatchlistProvider>
+        <FollowedWalletsProvider><WatchlistProvider>{children}</WatchlistProvider></FollowedWalletsProvider>
       </ToastProvider>
     )
   }
@@ -38,18 +49,23 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
         loginMethods: ['wallet', 'email'],
         defaultChain: BASE_CHAIN as any,
-        supportedChains: [BASE_CHAIN as any],
+        supportedChains: [BASE_CHAIN as any, BSC_CHAIN as any],
         embeddedWallets: {
           ethereum: {
+            createOnLogin: 'users-without-wallets',
+          },
+          solana: {
             createOnLogin: 'users-without-wallets',
           },
         },
       }}
     >
       <ToastProvider>
-        <WatchlistProvider>
-          {children}
-        </WatchlistProvider>
+        <FollowedWalletsProvider>
+          <WatchlistProvider>
+            {children}
+          </WatchlistProvider>
+        </FollowedWalletsProvider>
       </ToastProvider>
     </PrivyProvider>
   )

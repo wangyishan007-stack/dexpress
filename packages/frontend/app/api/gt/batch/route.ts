@@ -1,40 +1,97 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient, RedisClientType } from 'redis'
 
 const ALLOWED_HOST = 'api.geckoterminal.com'
 const GT_HEADERS = { Accept: 'application/json;version=20230302' }
-const DELAY_MS = 400            // Delay between concurrent batches (proxy mode)
-const PROXY_CONCURRENCY = 3     // Parallel requests even with proxy
 
-// ─── Server-side per-URL cache ────────────────────────────────
-const urlCache = new Map<string, { data: any; ts: number }>()
-const FRESH_TTL  = 45_000       // 45s — data considered fresh
-const FALLBACK_TTL = 300_000    // 5min — stale fallback on fetch failure only
+// ─── Standard Redis cache ────────────────────────────────────
+const REDIS_TTL_SEC = 55
 
-function getCached(url: string): any | null {
+let redisClient: RedisClientType | null = null
+let redisReady = false
+
+function getRedisClient(): RedisClientType | null {
+  const url = process.env.REDIS_URL
+  if (!url) return null
+  if (redisClient) return redisClient
+  try {
+    const client = createClient({
+      url,
+      socket: {
+        connectTimeout: 3_000,
+        reconnectStrategy: (retries: number) => {
+          if (retries > 3) return false
+          return Math.min(retries * 500, 2_000)
+        },
+      },
+    }) as RedisClientType
+    client.on('ready', () => { redisReady = true })
+    client.on('error', () => { redisReady = false })
+    client.connect().catch(() => { redisReady = false })
+    redisClient = client
+    return client
+  } catch {
+    return null
+  }
+}
+
+async function redisGet(key: string): Promise<unknown | null> {
+  const client = getRedisClient()
+  if (!client || !redisReady) return null
+  try {
+    const val = await Promise.race([
+      client.get(key),
+      new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 1_500)),
+    ])
+    return val ? JSON.parse(val as string) : null
+  } catch { return null }
+}
+
+async function redisSet(key: string, value: unknown): Promise<void> {
+  const client = getRedisClient()
+  if (!client || !redisReady) return
+  try {
+    await Promise.race([
+      client.set(key, JSON.stringify(value), { EX: REDIS_TTL_SEC }),
+      new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 1_500)),
+    ])
+  } catch {}
+}
+
+const DELAY_MS = 400
+const PROXY_CONCURRENCY = 3
+
+// ─── Server-side per-URL in-memory cache ─────────────────────
+const urlCache = new Map<string, { data: unknown; ts: number }>()
+
+function setLocalCache(url: string, data: unknown) {
+  urlCache.set(url, { data, ts: Date.now() })
+}
+const FRESH_TTL    = 45_000
+const FALLBACK_TTL = 300_000
+
+function getCached(url: string): unknown | null {
   const entry = urlCache.get(url)
   if (entry && Date.now() - entry.ts < FRESH_TTL) return entry.data
   return null
 }
 
-function getFallback(url: string): any | null {
+function getFallback(url: string): unknown | null {
   const entry = urlCache.get(url)
   if (entry && Date.now() - entry.ts < FALLBACK_TTL) return entry.data
   return null
 }
 
-/** Only cache responses that contain valid pool data */
-function setCache(url: string, data: any) {
-  // Validate: must have data array (GT pool responses) or be a valid object
+function setCache(url: string, data: unknown) {
   if (data && typeof data === 'object') {
-    // Skip caching if GT returned an error body with 200 status
-    if (data.status?.error_code) return
-    // Skip caching empty pool responses for trending/pool endpoints
-    if (Array.isArray(data.data) && data.data.length === 0) return
+    const d = data as Record<string, unknown>
+    if (d.status && (d.status as Record<string, unknown>)?.error_code) return
+    if (Array.isArray(d.data) && (d.data as unknown[]).length === 0) return
   }
   urlCache.set(url, { data, ts: Date.now() })
+  redisSet('gt:' + url, data).catch(() => {})
 }
 
-// Coalesce simultaneous batch requests
 let pendingBatch: Promise<NextResponse> | null = null
 
 export async function POST(req: NextRequest) {
@@ -60,77 +117,74 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // All fresh — return instantly
   const allFresh = urls.every(url => getCached(url) !== null)
   if (allFresh) {
-    const results = urls.map(url => ({ status: 200, data: getCached(url)! }))
-    return NextResponse.json({ results })
+    return NextResponse.json({ results: urls.map(url => ({ status: 200, data: getCached(url)! })) })
   }
 
-  // Coalesce: if another batch is already in-flight, wait for it then check cache
   if (pendingBatch) {
     await pendingBatch
     const allCached = urls.every(url => (getCached(url) ?? getFallback(url)) !== null)
     if (allCached) {
-      const results = urls.map(url => ({ status: 200, data: (getCached(url) ?? getFallback(url))! }))
-      return NextResponse.json({ results })
+      return NextResponse.json({ results: urls.map(url => ({ status: 200, data: (getCached(url) ?? getFallback(url))! })) })
     }
-    // Cache miss for some URLs — fall through to fetch them
   }
 
-  // Not all fresh — fetch uncached URLs (block and wait)
   const promise = fetchBatch(urls)
   pendingBatch = promise
   try {
-    const response = await promise
-    return response
+    return await promise
   } finally {
     pendingBatch = null
   }
 }
 
-async function fetchOne(url: string, proxyUrl?: string): Promise<{ status: number; data: any }> {
+async function fetchOne(url: string, proxyUrl?: string): Promise<{ status: number; data: unknown }> {
+  const redisData = await redisGet('gt:' + url)
+  if (redisData !== null) {
+    setLocalCache(url, redisData)
+    return { status: 200, data: redisData }
+  }
+
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      let res: any
+      let res: Response
       if (proxyUrl) {
         const { ProxyAgent, fetch: uFetch } = await import('undici')
         const agent = new ProxyAgent(proxyUrl)
         res = await uFetch(url, {
           dispatcher: agent,
           headers: GT_HEADERS,
-          signal: AbortSignal.timeout(8_000),
-        })
+          signal: AbortSignal.timeout(4_000),
+        }) as unknown as Response
       } else {
         res = await fetch(url, {
           headers: GT_HEADERS,
-          signal: AbortSignal.timeout(8_000),
+          signal: AbortSignal.timeout(4_000),
         })
       }
 
       if (res.status === 429 && attempt < 1) {
-        await new Promise(r => setTimeout(r, 2000))
+        await new Promise(r => setTimeout(r, 500))
         continue
       }
 
       const data = await res.json()
       if (res.status === 200) setCache(url, data)
 
-      // On non-200, try returning stale fallback instead
       if (res.status !== 200) {
         const fallback = getFallback(url)
         if (fallback) return { status: 200, data: fallback }
       }
       return { status: res.status, data }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (attempt < 1) {
-        await new Promise(r => setTimeout(r, 1000))
+        await new Promise(r => setTimeout(r, 300))
         continue
       }
-      // On error, return stale fallback if available
       const fallback = getFallback(url)
       if (fallback) return { status: 200, data: fallback }
-      return { status: 502, data: { error: err.message } }
+      return { status: 502, data: { error: err instanceof Error ? err.message : 'unknown' } }
     }
   }
   return { status: 502, data: { error: 'unreachable' } }
@@ -138,9 +192,8 @@ async function fetchOne(url: string, proxyUrl?: string): Promise<{ status: numbe
 
 async function fetchBatch(urls: string[]): Promise<NextResponse> {
   const proxyUrl = process.env.PROXY_URL
-  const results: { status: number; data: any }[] = new Array(urls.length)
+  const results: { status: number; data: unknown }[] = new Array(urls.length)
 
-  // Split into cached and uncached
   const uncachedIndexes: number[] = []
   for (let i = 0; i < urls.length; i++) {
     const cached = getCached(urls[i])
@@ -152,25 +205,13 @@ async function fetchBatch(urls: string[]): Promise<NextResponse> {
   }
 
   if (proxyUrl) {
-    // With proxy: parallel in small batches to balance speed vs 429 avoidance
     for (let start = 0; start < uncachedIndexes.length; start += PROXY_CONCURRENCY) {
       if (start > 0) await new Promise(r => setTimeout(r, DELAY_MS))
       const chunk = uncachedIndexes.slice(start, start + PROXY_CONCURRENCY)
-      const promises = chunk.map(i =>
-        fetchOne(urls[i], proxyUrl).then(r => { results[i] = r })
-      )
-      await Promise.all(promises)
+      await Promise.all(chunk.map(i => fetchOne(urls[i], proxyUrl).then(r => { results[i] = r })))
     }
   } else {
-    // No proxy: stagger requests to avoid GT rate limiting (30 req/min)
-    for (let start = 0; start < uncachedIndexes.length; start += 2) {
-      if (start > 0) await new Promise(r => setTimeout(r, 500))
-      const chunk = uncachedIndexes.slice(start, start + 2)
-      const promises = chunk.map(i =>
-        fetchOne(urls[i]).then(r => { results[i] = r })
-      )
-      await Promise.all(promises)
-    }
+    await Promise.all(uncachedIndexes.map(i => fetchOne(urls[i]).then(r => { results[i] = r })))
   }
 
   return NextResponse.json({ results })
