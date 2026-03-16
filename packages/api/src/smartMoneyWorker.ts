@@ -6,6 +6,7 @@
  *  2. 计算 realized PnL（sold - bought）
  *  3. 写入 wallet_pnl 表（1d / 7d / 30d 三个周期）
  *  4. 为 /api/smart-money 接口提供本地数据
+ *  5. 支持多链：Base + BSC（通过 pools.chain 区分）
  */
 
 import { query } from '@dex/database'
@@ -15,13 +16,23 @@ const MIN_VOLUME_USD   = 100             // 过滤交易量太低的钱包
 const MIN_TRADES       = 2              // 至少 2 笔交易
 const MAX_WALLETS      = 200            // 每个周期保留 Top 200
 
-// Base 链的稳定币 + WETH（过滤掉，只保留"目标 token"那一侧）
-const BASE_QUOTE_TOKENS = new Set([
-  '0x4200000000000000000000000000000000000006', // WETH
-  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC
-  '0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca', // USDbC
-  '0x50c5725949a6f0c72e6c4a641f24049a917db0cb', // DAI
-])
+// 各链的 Quote Tokens（用来识别"买入/卖出"方向）
+const CHAIN_QUOTE_TOKENS: Record<string, string[]> = {
+  base: [
+    '0x4200000000000000000000000000000000000006', // WETH
+    '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC
+    '0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca', // USDbC
+    '0x50c5725949a6f0c72e6c4a641f24049a917db0cb', // DAI
+  ],
+  bsc: [
+    '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c', // WBNB
+    '0x55d398326f99059ff775485246999027b3197955', // USDT
+    '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', // USDC
+    '0xe9e7cea3dedca5984780bafc599bd69add087d56', // BUSD
+  ],
+}
+
+const SUPPORTED_CHAINS = ['base', 'bsc']
 
 type Period = '1d' | '7d' | '30d'
 const PERIOD_HOURS: Record<Period, number> = { '1d': 24, '7d': 168, '30d': 720 }
@@ -50,8 +61,10 @@ export class SmartMoneyWorker {
     this.isRunning = true
     const t0 = Date.now()
     try {
-      for (const period of ['1d', '7d', '30d'] as Period[]) {
-        await this.calcPeriod(period)
+      for (const chain of SUPPORTED_CHAINS) {
+        for (const period of ['1d', '7d', '30d'] as Period[]) {
+          await this.calcPeriod(chain, period)
+        }
       }
       console.log(`[SmartMoney] Done in ${Date.now() - t0}ms`)
     } catch (e) {
@@ -61,11 +74,12 @@ export class SmartMoneyWorker {
     }
   }
 
-  private async calcPeriod(period: Period) {
+  private async calcPeriod(chain: string, period: Period) {
     const hours = PERIOD_HOURS[period]
     const since = new Date(Date.now() - hours * 3_600_000).toISOString()
+    const quoteTokens = CHAIN_QUOTE_TOKENS[chain] ?? CHAIN_QUOTE_TOKENS.base
 
-    // 聚合：钱包 × token 的买卖金额
+    // 聚合：钱包 × token 的买卖金额（只看该链的 pool）
     const rows = await query<{
       wallet:       string
       token_addr:   string
@@ -93,14 +107,15 @@ export class SmartMoneyWorker {
           ELSE p.token0
         END
       WHERE s.timestamp >= $1
+        AND p.chain = $3
         AND s.amount_usd > 0
         AND s.sender IS NOT NULL
         AND length(COALESCE(s.sender,'')) = 42
       GROUP BY 1, 2, 3
-    `, [since, Array.from(BASE_QUOTE_TOKENS)])
+    `, [since, quoteTokens, chain])
 
     if (!rows.length) {
-      console.log(`[SmartMoney] ${period}: no swaps data yet`)
+      console.log(`[SmartMoney] ${chain}/${period}: no swaps data yet`)
       return
     }
 
@@ -154,7 +169,7 @@ export class SmartMoneyWorker {
       .slice(0, MAX_WALLETS)
 
     if (!ranked.length) {
-      console.log(`[SmartMoney] ${period}: no profitable wallets found`)
+      console.log(`[SmartMoney] ${chain}/${period}: no profitable wallets found`)
       return
     }
 
@@ -184,13 +199,13 @@ export class SmartMoneyWorker {
           pnl_percentage     = EXCLUDED.pnl_percentage,
           calculated_at      = EXCLUDED.calculated_at
       `, [
-        wallet, 'base', period,
+        wallet, chain, period,
         w.realizedPnl, w.totalBought, w.totalSold,
         w.winTrades, w.lossTrades, w.totalTrades,
         w.bestToken, w.bestSymbol, w.bestPnl, pnlPct, now,
       ])
     }
 
-    console.log(`[SmartMoney] ${period}: saved top ${ranked.length} wallets (best PnL: $${ranked[0][1].realizedPnl.toFixed(0)})`)
+    console.log(`[SmartMoney] ${chain}/${period}: saved top ${ranked.length} wallets (best PnL: $${ranked[0][1].realizedPnl.toFixed(0)})`)
   }
 }

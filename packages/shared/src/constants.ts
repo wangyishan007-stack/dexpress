@@ -15,7 +15,18 @@ export const BSC_ADDRESSES = {
   USDT:                '0x55d398326f99059fF775485246999027B3197955',
   USDC:                '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
   BUSD:                '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56',
+  // Chainlink BNB/USD price feed on BSC
+  CHAINLINK_BNB_USD:   '0x0567F2323251f0Aab15c8dFb1967E4e8A7D42aeE',
 }
+
+// BSC quote tokens (lowercase) for USD price routing
+export const BSC_STABLECOINS = new Set([
+  BSC_ADDRESSES.USDT.toLowerCase(),
+  BSC_ADDRESSES.USDC.toLowerCase(),
+  BSC_ADDRESSES.BUSD.toLowerCase(),
+])
+
+export const WBNB_LOWER = BSC_ADDRESSES.WBNB.toLowerCase()
 
 // PancakeSwap V3 Swap event (same as Uniswap V3)
 export const PANCAKE_V3_SWAP_EVENT = {

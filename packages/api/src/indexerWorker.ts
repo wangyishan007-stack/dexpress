@@ -36,6 +36,8 @@ import {
   ADDRESSES,
   STABLECOINS,
   WETH_LOWER,
+  BSC_STABLECOINS,
+  WBNB_LOWER,
   type UniV3SwapEvent,
   type AerodromeSwapEvent,
   type UniV4SwapEvent,
@@ -44,8 +46,10 @@ import {
   sqrtPriceX96ToPrice,
   aerodromeSwapToPrice,
   routeToUsd,
+  routeToUsdBsc,
   calcAmountUsd,
   getEthUsdPrice,
+  getBnbUsdPrice,
 } from './utils/price'
 
 interface PoolMeta {
@@ -60,9 +64,11 @@ export class IndexerWorker {
   private wsClient!: PublicClient
   private bscWsClient?: PublicClient
   private httpClient: PublicClient
+  private bscHttpClient?: PublicClient
   private pools: Map<string, PoolMeta> = new Map()
   private tokenDecimals: Map<string, number> = new Map()
   private ethUsdPrice = 0
+  private bnbUsdPrice = 0
   private unsubscribeFns: (() => void)[] = []
   private bscUnsubscribeFns: (() => void)[] = []
   private running = false
@@ -75,7 +81,9 @@ export class IndexerWorker {
     })
     this.initWsClient()
     this.initBscWsClient()
+    this.initBscHttpClient()
   }
+
 
   private initWsClient() {
     this.wsClient = createPublicClient({
@@ -112,6 +120,15 @@ export class IndexerWorker {
     })
   }
 
+  private initBscHttpClient() {
+    const bscHttpUrl = process.env.BSC_HTTP_URL || process.env.BSC_WS_URL?.replace('wss://', 'https://').replace('ws://', 'http://')
+    if (!bscHttpUrl) return
+    this.bscHttpClient = createPublicClient({
+      chain: bsc,
+      transport: http(bscHttpUrl),
+    })
+  }
+
   // ─── Lifecycle ──────────────────────────────────────────────
 
   async start() {
@@ -120,7 +137,8 @@ export class IndexerWorker {
 
     await this.loadPools()
     await this.refreshEthPrice()
-    this.startEthPricePoll()
+    await this.refreshBnbPrice()
+    this.startPricePoll()
     this.subscribeToSwaps()
     this.subscribeToBscSwaps()
 
@@ -189,8 +207,17 @@ export class IndexerWorker {
     console.log(`[Indexer] ETH/USD = $${this.ethUsdPrice.toFixed(2)}`)
   }
 
-  private startEthPricePoll() {
-    setInterval(() => this.refreshEthPrice(), 30_000)
+  private async refreshBnbPrice() {
+    if (!this.bscHttpClient) return
+    this.bnbUsdPrice = await getBnbUsdPrice(this.bscHttpClient, true)
+    console.log(`[Indexer] BNB/USD = $${this.bnbUsdPrice.toFixed(2)}`)
+  }
+
+  private startPricePoll() {
+    setInterval(() => {
+      this.refreshEthPrice()
+      this.refreshBnbPrice()
+    }, 30_000)
   }
 
   // ─── Swap subscriptions ──────────────────────────────────────
@@ -433,26 +460,19 @@ export class IndexerWorker {
 
   private async handleBscSwap(log: UniV3SwapEvent, meta: PoolMeta) {
     const { sender, recipient, amount0, amount1, sqrtPriceX96 } = log.args
-    const BSC_QUOTE = new Set([
-      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c', // WBNB
-      '0x55d398326f99059ff775485246999027b3197955', // USDT
-      '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', // USDC
-      '0xe9e7cea3dedca5984780bafc599bd69add087d56', // BUSD
-    ])
+
     const priceToken0InToken1 = sqrtPriceX96ToPrice(sqrtPriceX96, meta.decimals0, meta.decimals1)
-    const t0 = meta.token0.toLowerCase()
-    const t1 = meta.token1.toLowerCase()
-    const isBscQuote0 = BSC_QUOTE.has(t0)
-    const token0Usd = isBscQuote0 ? priceToken0InToken1 * this.ethUsdPrice : priceToken0InToken1
-    const token1Usd = isBscQuote0 ? this.ethUsdPrice : priceToken0InToken1 > 0 ? 1 / priceToken0InToken1 : 0
+    const { token0Usd, token1Usd } = routeToUsdBsc(
+      meta.token0, meta.token1, priceToken0InToken1, this.bnbUsdPrice
+    )
 
     const norm0 = Number(amount0) / Math.pow(10, meta.decimals0)
     const norm1 = Number(amount1) / Math.pow(10, meta.decimals1)
     const isBuy = amount0 < 0n
-    const amountUsd = Math.max(Math.abs(norm0 * token0Usd), Math.abs(norm1 * token1Usd))
-    const priceUsd = BSC_QUOTE.has(t1) ? token0Usd : token1Usd
+    const amountUsd = calcAmountUsd(norm0, norm1, token0Usd, token1Usd)
+    const priceUsd = this.derivePriceUsdBsc(meta.token0, meta.token1, token0Usd, token1Usd)
 
-    const blockTs = await this.getBlockTimestamp(log.blockNumber)
+    const blockTs = await this.getBlockTimestamp(log.blockNumber, 'bsc')
     if (!blockTs) return
 
     await insertSwap({
@@ -474,15 +494,17 @@ export class IndexerWorker {
     await this.publishSwapEvent(log.address, priceUsd, amountUsd, isBuy)
   }
 
-
   private async handleBscV2Swap(log: AerodromeSwapEvent, meta: PoolMeta) {
     const { sender, to, amount0In, amount1In, amount0Out, amount1Out } = log.args
-    const BSC_QUOTE = new Set([
-      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
-      '0x55d398326f99059ff775485246999027b3197955',
-      '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
-      '0xe9e7cea3dedca5984780bafc599bd69add087d56',
-    ])
+
+    const priceToken0InToken1 = aerodromeSwapToPrice(
+      amount0In, amount1In, amount0Out, amount1Out,
+      meta.decimals0, meta.decimals1
+    )
+    const { token0Usd, token1Usd } = routeToUsdBsc(
+      meta.token0, meta.token1, priceToken0InToken1, this.bnbUsdPrice
+    )
+
     const norm0In  = Number(amount0In)  / Math.pow(10, meta.decimals0)
     const norm1In  = Number(amount1In)  / Math.pow(10, meta.decimals1)
     const norm0Out = Number(amount0Out) / Math.pow(10, meta.decimals0)
@@ -491,18 +513,14 @@ export class IndexerWorker {
     const isBuy = norm1In > 0 // token1 in → buying token0
     const norm0 = isBuy ? norm0Out : -norm0In
     const norm1 = isBuy ? -norm1In : norm1Out
-
-    const t1 = meta.token1.toLowerCase()
-    const isT1Quote = BSC_QUOTE.has(t1)
-    const priceToken0InToken1 = norm0 !== 0 ? Math.abs(norm1 / norm0) : 0
-    const token0Usd = isT1Quote ? priceToken0InToken1 : 0
-    const amountUsd = Math.max(
-      Math.abs(norm0) * token0Usd,
-      Math.abs(norm1) * (isT1Quote ? 1 : 0)
+    const amountUsd = calcAmountUsd(
+      Math.abs(norm0In > 0 ? norm0In : norm0Out),
+      Math.abs(norm1In > 0 ? norm1In : norm1Out),
+      token0Usd, token1Usd
     )
-    const priceUsd = token0Usd
+    const priceUsd = this.derivePriceUsdBsc(meta.token0, meta.token1, token0Usd, token1Usd)
 
-    const blockTs = await this.getBlockTimestamp(log.blockNumber)
+    const blockTs = await this.getBlockTimestamp(log.blockNumber, 'bsc')
     if (!blockTs) return
 
     await insertSwap({
@@ -542,21 +560,36 @@ export class IndexerWorker {
     return token0Usd
   }
 
-  private blockTsCache = new Map<bigint, Date>()
+  /** BSC 版本：用 BSC 稳定币 + WBNB 判断 */
+  private derivePriceUsdBsc(
+    token0: string, token1: string,
+    token0Usd: number, token1Usd: number,
+  ): number {
+    const t0 = token0.toLowerCase()
+    const t1 = token1.toLowerCase()
 
-  private async getBlockTimestamp(blockNumber: bigint): Promise<Date> {
-    if (this.blockTsCache.has(blockNumber)) {
-      return this.blockTsCache.get(blockNumber)!
+    if (BSC_STABLECOINS.has(t1) || t1 === WBNB_LOWER) return token0Usd
+    if (BSC_STABLECOINS.has(t0) || t0 === WBNB_LOWER) return token1Usd
+    return token0Usd
+  }
+
+  private blockTsCache = new Map<string, Date>()
+
+  private async getBlockTimestamp(blockNumber: bigint, chain: 'base' | 'bsc' = 'base'): Promise<Date> {
+    const cacheKey = `${chain}:${blockNumber}`
+    if (this.blockTsCache.has(cacheKey)) {
+      return this.blockTsCache.get(cacheKey)!
     }
     try {
-      const block = await this.httpClient.getBlock({ blockNumber })
+      const client = chain === 'bsc' && this.bscHttpClient ? this.bscHttpClient : this.httpClient
+      const block = await client.getBlock({ blockNumber })
       const ts = new Date(Number(block.timestamp) * 1000)
-      // 只缓存最近 100 个区块
-      if (this.blockTsCache.size > 100) {
+      // 只缓存最近 200 个区块
+      if (this.blockTsCache.size > 200) {
         const oldest = this.blockTsCache.keys().next().value
-        this.blockTsCache.delete(oldest)
+        if (oldest) this.blockTsCache.delete(oldest)
       }
-      this.blockTsCache.set(blockNumber, ts)
+      this.blockTsCache.set(cacheKey, ts)
       return ts
     } catch {
       return new Date()

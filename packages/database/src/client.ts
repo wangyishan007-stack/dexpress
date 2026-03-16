@@ -88,10 +88,11 @@ export async function upsertPool(pool: {
   dex: string
   fee_tier?: number
   tick_spacing?: number
+  chain?: string
 }) {
   await db.query(
-    `INSERT INTO pools (address, token0, token1, dex, fee_tier, tick_spacing)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO pools (address, token0, token1, dex, fee_tier, tick_spacing, chain)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (address) DO NOTHING`,
     [
       pool.address.toLowerCase(),
@@ -100,6 +101,7 @@ export async function upsertPool(pool: {
       pool.dex,
       pool.fee_tier ?? null,
       pool.tick_spacing ?? null,
+      pool.chain ?? 'base',
     ]
   )
 }

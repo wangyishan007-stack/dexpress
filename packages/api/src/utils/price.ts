@@ -1,5 +1,5 @@
 import type { PublicClient } from 'viem'
-import { ADDRESSES, CHAINLINK_ABI, STABLECOINS, WETH_LOWER } from '@dex/shared'
+import { ADDRESSES, BSC_ADDRESSES, CHAINLINK_ABI, STABLECOINS, WETH_LOWER, BSC_STABLECOINS, WBNB_LOWER } from '@dex/shared'
 
 // ─── sqrtPriceX96 → token0/token1 price ───────────────────────
 
@@ -130,6 +130,37 @@ export function calcAmountUsd(
   return 0
 }
 
+// ─── USD price routing for BSC ──────────────────────────────────
+
+export function routeToUsdBsc(
+  token0Addr: string,
+  token1Addr: string,
+  priceToken0InToken1: number,
+  bnbUsdPrice: number
+): { token0Usd: number; token1Usd: number } {
+  const t0 = token0Addr.toLowerCase()
+  const t1 = token1Addr.toLowerCase()
+
+  let token0Usd = 0
+  let token1Usd = 0
+
+  if (BSC_STABLECOINS.has(t1)) {
+    token0Usd = priceToken0InToken1
+    token1Usd = 1
+  } else if (t1 === WBNB_LOWER) {
+    token0Usd = priceToken0InToken1 * bnbUsdPrice
+    token1Usd = bnbUsdPrice
+  } else if (BSC_STABLECOINS.has(t0)) {
+    token0Usd = 1
+    token1Usd = priceToken0InToken1 > 0 ? 1 / priceToken0InToken1 : 0
+  } else if (t0 === WBNB_LOWER) {
+    token0Usd = bnbUsdPrice
+    token1Usd = priceToken0InToken1 > 0 ? bnbUsdPrice / priceToken0InToken1 : 0
+  }
+
+  return { token0Usd, token1Usd }
+}
+
 // ─── Chainlink ETH/USD ────────────────────────────────────────
 
 let cachedEthPrice = 0
@@ -140,7 +171,6 @@ export async function getEthUsdPrice(
   forceRefresh = false
 ): Promise<number> {
   const now = Date.now()
-  // 缓存 60 秒
   if (!forceRefresh && cachedEthPrice > 0 && now - lastPriceFetch < 60_000) {
     return cachedEthPrice
   }
@@ -165,5 +195,42 @@ export async function getEthUsdPrice(
   } catch (err) {
     console.error('[price] Failed to fetch ETH/USD from Chainlink:', err)
     return cachedEthPrice || 2000 // fallback
+  }
+}
+
+// ─── Chainlink BNB/USD (BSC) ──────────────────────────────────
+
+let cachedBnbPrice = 0
+let lastBnbPriceFetch = 0
+
+export async function getBnbUsdPrice(
+  bscClient: PublicClient,
+  forceRefresh = false
+): Promise<number> {
+  const now = Date.now()
+  if (!forceRefresh && cachedBnbPrice > 0 && now - lastBnbPriceFetch < 60_000) {
+    return cachedBnbPrice
+  }
+
+  try {
+    const result = await bscClient.readContract({
+      address: BSC_ADDRESSES.CHAINLINK_BNB_USD as `0x${string}`,
+      abi: CHAINLINK_ABI,
+      functionName: 'latestRoundData',
+    }) as [bigint, bigint, bigint, bigint, bigint]
+
+    const decimalsResult = await bscClient.readContract({
+      address: BSC_ADDRESSES.CHAINLINK_BNB_USD as `0x${string}`,
+      abi: CHAINLINK_ABI,
+      functionName: 'decimals',
+    }) as number
+
+    const price = Number(result[1]) / 10 ** decimalsResult
+    cachedBnbPrice = price
+    lastBnbPriceFetch = now
+    return price
+  } catch (err) {
+    console.error('[price] Failed to fetch BNB/USD from Chainlink:', err)
+    return cachedBnbPrice || 600 // fallback
   }
 }
