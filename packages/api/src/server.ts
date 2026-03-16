@@ -83,6 +83,28 @@ async function runMigration() {
         ON wallet_pnl(calculated_at DESC);
     `)
     console.log('[API] wallet_pnl migration OK')
+
+    // Insert BSC seed tokens + pools if not exist
+    await db.query(`
+      INSERT INTO tokens (address, symbol, name, decimals) VALUES
+        ('0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c','WBNB','Wrapped BNB',18),
+        ('0x55d398326f99059ff775485246999027b3197955','USDT','Tether USD',18),
+        ('0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d','USDC','USD Coin',18),
+        ('0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82','CAKE','PancakeSwap Token',18),
+        ('0x2170ed0880ac9a755fd29b2688956bd959f933f8','ETH','Ethereum Token',18),
+        ('0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c','BTCB','Binance-Peg BTCB',18)
+      ON CONFLICT DO NOTHING
+    `)
+    await db.query(`
+      INSERT INTO pools (address, token0, token1, dex, fee_tier) VALUES
+        ('0x172fcd41e0913e95784454622d1c3724f546f849','0x55d398326f99059ff775485246999027b3197955','0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c','pancakeswap_v3',500),
+        ('0x36696169c63e42cd08ce11f5deebbcebae652050','0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d','0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c','pancakeswap_v3',500),
+        ('0x7f51c8aaa6b0599abd16674e2b17fec7a9f674a1','0x2170ed0880ac9a755fd29b2688956bd959f933f8','0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c','pancakeswap_v3',500),
+        ('0x85fcd7dd0a1e1a9fcd5fd886ed522de8221c3ee5','0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c','0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c','pancakeswap_v3',500),
+        ('0x678d8a424bebe1b5ee13dc4c4fef13ef83d8e31b','0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82','0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c','pancakeswap_v3',2500)
+      ON CONFLICT DO NOTHING
+    `)
+    console.log('[API] BSC seed data OK')
   } catch (e: unknown) {
     console.warn('[API] Migration warning:', e instanceof Error ? e.message : e)
   }
