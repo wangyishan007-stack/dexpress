@@ -30,6 +30,7 @@ import {
   AERODROME_SWAP_EVENT,
   UNIV4_SWAP_EVENT,
   PANCAKE_V3_SWAP_EVENT,
+  PANCAKE_V2_SWAP_EVENT,
   BSC_ADDRESSES,
   ERC20_ABI,
   ADDRESSES,
@@ -410,8 +411,24 @@ export class IndexerWorker {
       onError: (err) => console.error('[Indexer] BSC watch error:', err.message),
     })
 
-    this.bscUnsubscribeFns.push(unsubBsc)
-    console.log('[Indexer] BSC PancakeSwap V3 subscribed')
+    // ── PancakeSwap V2 Swaps ────────────────────────────────
+    const unsubBscV2 = this.bscWsClient.watchEvent({
+      event: PANCAKE_V2_SWAP_EVENT as any,
+      onLogs: (logs) => {
+        for (const log of logs) {
+          const meta = this.pools.get((log.address as string).toLowerCase())
+          if (meta?.dex === 'pancakeswap_v2') {
+            this.handleBscV2Swap(log as unknown as AerodromeSwapEvent, meta).catch(
+              (e) => console.error('[Indexer] BSC V2 swap error:', e)
+            )
+          }
+        }
+      },
+      onError: (err) => console.error('[Indexer] BSC V2 watch error:', err.message),
+    })
+
+    this.bscUnsubscribeFns.push(unsubBsc, unsubBscV2)
+    console.log('[Indexer] BSC PancakeSwap V2 + V3 subscribed')
   }
 
   private async handleBscSwap(log: UniV3SwapEvent, meta: PoolMeta) {
@@ -446,6 +463,56 @@ export class IndexerWorker {
       timestamp:    blockTs,
       sender:       sender,
       recipient:    recipient,
+      amount0:      norm0,
+      amount1:      norm1,
+      amount_usd:   amountUsd,
+      price_usd:    priceUsd,
+      is_buy:       isBuy,
+    })
+
+    await this.updatePoolPrice(log.address, priceUsd, amountUsd)
+    await this.publishSwapEvent(log.address, priceUsd, amountUsd, isBuy)
+  }
+
+
+  private async handleBscV2Swap(log: AerodromeSwapEvent, meta: PoolMeta) {
+    const { sender, to, amount0In, amount1In, amount0Out, amount1Out } = log.args
+    const BSC_QUOTE = new Set([
+      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
+      '0x55d398326f99059ff775485246999027b3197955',
+      '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
+      '0xe9e7cea3dedca5984780bafc599bd69add087d56',
+    ])
+    const norm0In  = Number(amount0In)  / Math.pow(10, meta.decimals0)
+    const norm1In  = Number(amount1In)  / Math.pow(10, meta.decimals1)
+    const norm0Out = Number(amount0Out) / Math.pow(10, meta.decimals0)
+    const norm1Out = Number(amount1Out) / Math.pow(10, meta.decimals1)
+
+    const isBuy = norm1In > 0 // token1 in → buying token0
+    const norm0 = isBuy ? norm0Out : -norm0In
+    const norm1 = isBuy ? -norm1In : norm1Out
+
+    const t1 = meta.token1.toLowerCase()
+    const isT1Quote = BSC_QUOTE.has(t1)
+    const priceToken0InToken1 = norm0 !== 0 ? Math.abs(norm1 / norm0) : 0
+    const token0Usd = isT1Quote ? priceToken0InToken1 : 0
+    const amountUsd = Math.max(
+      Math.abs(norm0) * token0Usd,
+      Math.abs(norm1) * (isT1Quote ? 1 : 0)
+    )
+    const priceUsd = token0Usd
+
+    const blockTs = await this.getBlockTimestamp(log.blockNumber)
+    if (!blockTs) return
+
+    await insertSwap({
+      pool_address: log.address,
+      block_number: Number(log.blockNumber),
+      tx_hash:      log.transactionHash,
+      log_index:    log.logIndex ?? 0,
+      timestamp:    blockTs,
+      sender:       sender,
+      recipient:    to,
       amount0:      norm0,
       amount1:      norm1,
       amount_usd:   amountUsd,

@@ -8,6 +8,7 @@ export const BASE_CHAIN_ID = 8453
 
 // ── BSC chain constants ─────────────────────────────────────
 export const BSC_ADDRESSES = {
+  PANCAKE_V2_FACTORY:  '0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73',
   PANCAKE_V3_FACTORY:  '0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865',
   PANCAKE_V3_ROUTER:   '0x13f4EA83D0bd40E75C8222255bc855a974568Dd4',
   WBNB:                '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
@@ -30,6 +31,21 @@ export const PANCAKE_V3_SWAP_EVENT = {
     { name: 'tick',         type: 'int24',   indexed: false },
   ],
 } as const
+
+// PancakeSwap V2 Swap event (same as Uniswap V2 / Aerodrome V2)
+export const PANCAKE_V2_SWAP_EVENT = {
+  type: 'event',
+  name: 'Swap',
+  inputs: [
+    { name: 'sender',     type: 'address', indexed: true  },
+    { name: 'amount0In',  type: 'uint256', indexed: false },
+    { name: 'amount1In',  type: 'uint256', indexed: false },
+    { name: 'amount0Out', type: 'uint256', indexed: false },
+    { name: 'amount1Out', type: 'uint256', indexed: false },
+    { name: 'to',         type: 'address', indexed: true  },
+  ],
+} as const
+
 
 export const ADDRESSES = {
   WETH:  '0x4200000000000000000000000000000000000006',
