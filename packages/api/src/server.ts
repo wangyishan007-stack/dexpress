@@ -13,6 +13,7 @@ import { searchRoutes } from './routes/search'
 import { candlesRoutes } from './routes/candles'
 import { statsRoutes }  from './routes/stats'
 import { smartMoneyRoutes } from './routes/smartmoney'
+import { walletsRoutes }    from './routes/wallets'
 import { setupPairsWs }  from './ws/pairsWs'
 import { startTokenEnrichment } from './tokenEnrichment'
 
@@ -48,6 +49,7 @@ async function build() {
   await app.register(candlesRoutes, { prefix: '/api' })
   await app.register(statsRoutes,  { prefix: '/api' })
   await app.register(smartMoneyRoutes)
+  await app.register(walletsRoutes, { prefix: '/api' })
 
   // ── WebSocket ──────────────────────────────────────────────
   await setupPairsWs(app, redisSub)
@@ -122,6 +124,16 @@ async function runMigration() {
       ON CONFLICT DO NOTHING
     `)
     console.log('[API] BSC seed data OK')
+
+    // Add chain column to pools if not exists
+    await db.query(`
+      ALTER TABLE pools ADD COLUMN IF NOT EXISTS chain VARCHAR(20) NOT NULL DEFAULT 'base'
+    `)
+    // Update BSC seed pools
+    await db.query(`
+      UPDATE pools SET chain = 'bsc' WHERE dex IN ('pancakeswap_v3', 'pancakeswap_v2')
+    `)
+    console.log('[API] pools.chain migration OK')
   } catch (e: unknown) {
     console.warn('[API] Migration warning:', e instanceof Error ? e.message : e)
   }

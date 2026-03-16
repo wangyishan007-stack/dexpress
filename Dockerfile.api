@@ -2,26 +2,23 @@ FROM node:20-slim
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 WORKDIR /app
 
-# Install dependencies (api + workers + all their deps)
+# Install dependencies (api + shared + database)
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/shared/package.json   packages/shared/
 COPY packages/database/package.json packages/database/
 COPY packages/api/package.json      packages/api/
-COPY packages/workers/package.json  packages/workers/
-RUN pnpm install --frozen-lockfile --filter=@dex/api... --filter=@dex/workers...
+RUN pnpm install --frozen-lockfile --filter=@dex/api...
 
 # Copy source
 COPY packages/shared/   packages/shared/
 COPY packages/database/ packages/database/
 COPY packages/api/      packages/api/
-COPY packages/workers/  packages/workers/
 
-# Build both packages
-RUN pnpm --filter=@dex/workers build
+# Build (api uses tsx so tsc is optional)
 RUN pnpm --filter=@dex/api build 2>/dev/null || true
 
 ENV NODE_ENV=production
 EXPOSE 3001
 
-# Start both API and Workers concurrently
-CMD ["sh", "-c", "node packages/workers/dist/index.js & pnpm --filter=@dex/api start"]
+# API server starts all workers internally (see server.ts startWorkers())
+CMD ["pnpm", "--filter=@dex/api", "start"]

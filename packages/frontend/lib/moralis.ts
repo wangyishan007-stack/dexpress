@@ -13,6 +13,9 @@ import {
   fetchSolanaWalletProfitability,
 } from './birdeye'
 
+// 自建后端 API URL（Railway）
+const INDEXER_API = process.env.NEXT_PUBLIC_API_URL || ''
+
 export interface MoralisTrader {
   address: string
   avg_buy_price_usd: string
@@ -102,18 +105,29 @@ export async function fetchWalletStats(walletAddress: string, chain: ChainSlug =
   const cached = _walletStatsCache.get(`${chain}:${addrLower}`)
   if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data
 
+  // 优先从自建数据库获取
+  if (INDEXER_API) {
+    try {
+      const r = await fetch(`${INDEXER_API}/api/wallet/${addrLower}/stats?chain=${chain}`, { signal: AbortSignal.timeout(8_000) })
+      if (r.ok) {
+        const data = await r.json()
+        if (data && data.total_count_of_trades > 0) {
+          _walletStatsCache.set(`${chain}:${addrLower}`, { data, ts: Date.now() })
+          return data as MoralisWalletStats
+        }
+      }
+    } catch { /* fall through to Moralis */ }
+  }
+
   try {
     const res = await fetch(
       `/api/moralis?type=wallet_stats&address=${walletAddress}&chain=${moralisChain}`,
       { signal: AbortSignal.timeout(15_000) }
     )
     if (!res.ok) {
-      // Moralis profitability API doesn't support all chains (e.g. BSC).
-      // Fall back to synthesizing stats from swaps data.
       return synthesizeStatsFromSwaps(walletAddress, chain)
     }
     const data = await res.json()
-    // Moralis may return avg_holding_time or avg_holding_time_days
     const holdSec = data.avg_holding_time ?? (data.avg_holding_time_days != null ? data.avg_holding_time_days * 86400 : undefined)
     const result: MoralisWalletStats = {
       total_count_of_trades: data.total_count_of_trades ?? 0,
@@ -222,9 +236,24 @@ export async function fetchWalletSwaps(
 ): Promise<DetectedSwap[]> {
   if (getChain(chain).chainType !== 'evm') return fetchSolanaWalletSwaps(address, limit)
   const moralisChain = getChain(chain).moralisChain
-  const key = `swaps:${chain}:${address.toLowerCase()}`
+  const addrLower = address.toLowerCase()
+  const key = `swaps:${chain}:${addrLower}`
   const cached = _swapsCache.get(key)
   if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data
+
+  // 优先从自建数据库获取
+  if (INDEXER_API) {
+    try {
+      const r = await fetch(`${INDEXER_API}/api/wallet/${addrLower}/swaps?chain=${chain}&limit=${limit}`, { signal: AbortSignal.timeout(8_000) })
+      if (r.ok) {
+        const data = await r.json()
+        if (Array.isArray(data) && data.length > 0) {
+          _swapsCache.set(key, { data, ts: Date.now() })
+          return data as DetectedSwap[]
+        }
+      }
+    } catch { /* fall through to Moralis */ }
+  }
 
   try {
     const res = await fetch(
@@ -297,13 +326,26 @@ export async function fetchWalletProfitability(walletAddress: string, chain: Cha
   const cached = _profitabilityCache.get(key)
   if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data
 
+  // 优先从自建数据库获取
+  if (INDEXER_API) {
+    try {
+      const r = await fetch(`${INDEXER_API}/api/wallet/${addrLower}/profitability?chain=${chain}&period=30d`, { signal: AbortSignal.timeout(8_000) })
+      if (r.ok) {
+        const data = await r.json()
+        if (Array.isArray(data) && data.length > 0) {
+          _profitabilityCache.set(key, { data, ts: Date.now() })
+          return data as WalletTokenPnl[]
+        }
+      }
+    } catch { /* fall through to Moralis */ }
+  }
+
   try {
     const res = await fetch(
       `/api/moralis?type=wallet_profitability&address=${walletAddress}&chain=${moralisChain}`,
       { signal: AbortSignal.timeout(15_000) }
     )
     if (!res.ok) {
-      // Moralis profitability API doesn't support all chains — synthesize from holdings
       return synthesizeProfitabilityFromHoldings(walletAddress, chain)
     }
     const data = await res.json()
