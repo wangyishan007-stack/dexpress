@@ -275,8 +275,8 @@ function LeaderboardTab() {
   const filtered = (() => {
     switch (filter) {
       case 'smart':
-        // Profitable + experienced trader
-        return wallets.filter(w => w.realized_profit_percentage > 0 && w.count_of_trades >= 5)
+        // Profitable + at least a few trades
+        return wallets.filter(w => w.realized_profit_percentage > 0 && w.count_of_trades >= 2)
       case 'freshWallet':
         // New wallets: few trades (< 10) — likely just started
         return wallets.filter(w => w.count_of_trades < 10)
@@ -307,9 +307,10 @@ function LeaderboardTab() {
   if (isLoading) return <div className="flex items-center justify-center flex-1 text-sub"><Spinner /></div>
   if (unsupported) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 gap-2 text-sub">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" opacity="0.3"/><path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-        <span className="text-[14px]">{t('evmOnly')}</span>
+      <div className="flex flex-col items-center justify-center flex-1 gap-3 text-center px-6">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" className="text-sub/40"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5"/><path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+        <span className="text-text text-[15px] font-medium">Coming Soon</span>
+        <span className="text-sub text-[13px]">Smart Money data for {chainConfig.shortName} is coming soon.</span>
       </div>
     )
   }
@@ -468,31 +469,17 @@ export default function SmartMoneyPage() {
   const t = useTranslations('smartMoney')
   const { chain } = useChain()
 
-  const chainConfig = getChain(chain)
-  const unsupported = chainConfig.chainType !== 'evm'
-
   return (
     <div className="flex-1 flex flex-col overflow-auto min-h-0">
       {/* Top bar */}
       <div className="px-3 pt-3 md:px-5 md:pt-4 flex-shrink-0">
         <div className="flex items-center justify-between border-b border-border">
-          <ChainTabs only={['base']} />
+          <ChainTabs />
           <div className="hidden md:block"><LanguageSwitcher /></div>
         </div>
       </div>
 
-      {unsupported ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" className="text-sub/40">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5"/>
-            <path d="M12 7v6M12 17h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-          <p className="text-text text-[15px] font-medium">{t('evmOnly')}</p>
-          <p className="text-sub text-[13px] max-w-[280px]">{t('evmOnlyDesc')}</p>
-        </div>
-      ) : (
-        <LeaderboardTab />
-      )}
+      <LeaderboardTab />
     </div>
   )
 }

@@ -58,6 +58,36 @@ type TabKey = 'pnl' | 'holdings' | 'trades'
 
 /* ── Small components ─────────────────────────────────── */
 
+function NativeTokenIcon({ chain, size = 24 }: { chain: ChainSlug; size?: number }) {
+  const s = size
+  const inner = Math.round(s * 0.58)
+  if (chain === 'solana') {
+    return (
+      <div className="rounded-full flex items-center justify-center flex-shrink-0" style={{ width: s, height: s, background: 'linear-gradient(135deg, #9945FF, #14F195)' }}>
+        <svg width={inner} height={inner} viewBox="0 0 400 400" fill="none"><path d="M64.6 296.7a13.2 13.2 0 019.3-3.9h296.4c5.8 0 8.8 7.1 4.6 11.3l-59 59a13.2 13.2 0 01-9.3 3.9H10.2c-5.8 0-8.8-7.1-4.6-11.3l59-59zM64.6 37a13.6 13.6 0 019.3-3.9h296.4c5.8 0 8.8 7.1 4.6 11.3l-59 59a13.2 13.2 0 01-9.3 3.9H10.2c-5.8 0-8.8-7.1-4.6-11.3l59-59zm310.7 131.2a13.2 13.2 0 00-9.3-3.9H69.6c-5.8 0-8.8 7.1-4.6 11.3l59 59a13.2 13.2 0 009.3 3.9h296.4c5.8 0 8.8-7.1 4.6-11.3l-59-59z" fill="#fff"/></svg>
+      </div>
+    )
+  }
+  if (chain === 'bsc') {
+    return (
+      <div className="rounded-full flex items-center justify-center flex-shrink-0" style={{ width: s, height: s, background: '#F3BA2F' }}>
+        <span className="text-black font-bold" style={{ fontSize: inner * 0.9 }}>B</span>
+      </div>
+    )
+  }
+  // Default: ETH icon (Base/Ethereum)
+  return (
+    <div className="rounded-full flex items-center justify-center flex-shrink-0" style={{ width: s, height: s, background: '#627EEA' }}>
+      <svg width={inner} height={inner} viewBox="0 0 256 417" fill="none">
+        <path d="M127.961 0l-2.795 9.5v275.668l2.795 2.79 127.962-75.638z" fill="#fff" opacity="0.6"/>
+        <path d="M127.962 0L0 212.32l127.962 75.639V154.158z" fill="#fff"/>
+        <path d="M127.961 312.187l-1.575 1.92V414.25l1.575 4.6L256 236.587z" fill="#fff" opacity="0.6"/>
+        <path d="M127.962 418.85v-106.66L0 236.585z" fill="#fff"/>
+      </svg>
+    </div>
+  )
+}
+
 function Skeleton({ className = '' }: { className?: string }) {
   return <div className={`animate-pulse bg-border/30 rounded ${className}`} />
 }
@@ -757,14 +787,7 @@ function HoldingsTab({ holdings, nativeBalanceWei, chain, onTokenClick, gtLogos 
         <div className="grid gap-x-2 px-4 py-2.5 border-b border-border hover:bg-surface/50 transition-colors items-center text-[12px]"
           style={{ gridTemplateColumns: gridCols, minWidth: 520 }}>
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-[24px] h-[24px] rounded-full bg-[#627EEA] flex items-center justify-center flex-shrink-0">
-              <svg width="14" height="14" viewBox="0 0 256 417" fill="none">
-                <path d="M127.961 0l-2.795 9.5v275.668l2.795 2.79 127.962-75.638z" fill="#fff" opacity="0.6"/>
-                <path d="M127.962 0L0 212.32l127.962 75.639V154.158z" fill="#fff"/>
-                <path d="M127.961 312.187l-1.575 1.92V414.25l1.575 4.6L256 236.587z" fill="#fff" opacity="0.6"/>
-                <path d="M127.962 418.85v-106.66L0 236.585z" fill="#fff"/>
-              </svg>
-            </div>
+            <NativeTokenIcon chain={chain} size={24} />
             <span className="text-text font-medium">{chainConfig.nativeCurrency.symbol}</span>
           </div>
           <div className="text-right tabular text-text">{parseFloat(ethBalance).toFixed(4)}</div>
@@ -853,31 +876,6 @@ function TradesTab({ swaps, chain, gtLogos, onCopy }: { swaps: DetectedSwap[]; c
   )
 }
 
-/* ── Solana Coming Soon ──────────────────────────────── */
-
-function SolanaComingSoon() {
-  return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <div className="flex flex-col items-center gap-3 text-center">
-        <div className="w-16 h-16 rounded-full bg-purple-500/10 flex items-center justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/branding/solana-icon.svg" alt="Solana" width={32} height={32} />
-        </div>
-        <h2 className="text-[16px] font-bold text-text">Solana Wallet Analysis</h2>
-        <p className="text-[13px] text-sub max-w-[300px]">
-          Wallet profitability analysis for Solana is coming soon. Currently available for EVM chains (Base, BNB).
-        </p>
-        <button
-          onClick={() => window.history.back()}
-          className="mt-2 px-4 py-2 rounded-lg border border-border text-[13px] text-sub hover:text-text hover:border-blue/30 transition-colors"
-        >
-          Go Back
-        </button>
-      </div>
-    </div>
-  )
-}
-
 /* ══════════════════════════════════════════════════════
    Main Page
    ══════════════════════════════════════════════════════ */
@@ -894,7 +892,7 @@ export default function WalletPage({ params }: { params: { address: string } }) 
 
   const {
     stats, profitability, holdings, nativeBalanceWei, swaps, isLoading
-  } = useWalletDetail(isSolana ? undefined : walletAddress, chainSlug)
+  } = useWalletDetail(walletAddress, chainSlug)
 
   // Batch-fetch GT logos for all tokens on this page
   const allTokenAddrs = useMemo(() => {
@@ -921,17 +919,15 @@ export default function WalletPage({ params }: { params: { address: string } }) 
       '0x0000000000000000000000000000000000000000',
       '0x4200000000000000000000000000000000000006', // WETH Base
       '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC Base
+      'So11111111111111111111111111111111111111112', // SOL
+      'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC Solana
     ])
-    const buyToken = NATIVE_ADDRS.has(swap.tokenBought.address.toLowerCase())
+    const boughtAddr = swap.tokenBought.address
+    const buyToken = (NATIVE_ADDRS.has(boughtAddr) || NATIVE_ADDRS.has(boughtAddr.toLowerCase()))
       ? swap.tokenSold
       : swap.tokenBought
     setCopyModalToken({ address: buyToken.address, symbol: buyToken.symbol, decimals: 18 })
   }, [])
-
-  // Solana: show coming soon
-  if (isSolana) {
-    return <SolanaComingSoon />
-  }
 
   // Compute summary stats
   const pnl = stats ? Number(stats.total_realized_profit_usd) : null
@@ -987,7 +983,7 @@ export default function WalletPage({ params }: { params: { address: string } }) 
         </div>
 
         {/* ── Empty state when no data from Moralis ───── */}
-        {!isLoading && !stats && profitability.length === 0 && holdings.length === 0 && (
+        {!isLoading && !stats && profitability.length === 0 && holdings.length === 0 && swaps.length === 0 && nativeBalanceWei === '0' && (
           <div className="rounded-lg border border-border bg-surface/50 px-5 py-8 flex flex-col items-center gap-2 text-center">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" className="text-sub/40">
               <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5"/>

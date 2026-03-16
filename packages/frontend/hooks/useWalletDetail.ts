@@ -23,18 +23,13 @@ interface WalletDetailData {
 const DEDUP = 300_000 // 5min
 
 async function fetchAll(address: string, chain: ChainSlug): Promise<WalletDetailData> {
-  // Fetch in two batches to avoid Moralis rate limits
-  // Batch 1: stats + profitability (most important)
-  const [stats, profitability] = await Promise.all([
-    fetchWalletStats(address, chain),
-    fetchWalletProfitability(address, chain),
-  ])
-
-  // Batch 2: holdings + balance + swaps (decoded by Moralis)
-  const [holdings, nativeBalanceWei, swaps] = await Promise.all([
-    fetchWalletHoldings(address, chain),
-    fetchNativeBalance(address, chain),
-    fetchWalletSwaps(address, chain, 30),
+  // Each fetch is independent — catch individually so partial data still shows
+  const [stats, profitability, holdings, nativeBalanceWei, swaps] = await Promise.all([
+    fetchWalletStats(address, chain).catch((e) => { console.warn('[useWalletDetail] stats failed:', e?.message); return null }),
+    fetchWalletProfitability(address, chain).catch((e) => { console.warn('[useWalletDetail] profitability failed:', e?.message); return [] as WalletTokenPnl[] }),
+    fetchWalletHoldings(address, chain).catch((e) => { console.warn('[useWalletDetail] holdings failed:', e?.message); return [] as WalletHolding[] }),
+    fetchNativeBalance(address, chain).catch(() => '0'),
+    fetchWalletSwaps(address, chain, 30).catch((e) => { console.warn('[useWalletDetail] swaps failed:', e?.message); return [] as DetectedSwap[] }),
   ])
 
   return { stats, profitability, holdings, nativeBalanceWei, swaps }
@@ -42,7 +37,7 @@ async function fetchAll(address: string, chain: ChainSlug): Promise<WalletDetail
 
 export function useWalletDetail(address: string | undefined, chain: ChainSlug) {
   const { data, isLoading, error } = useSWR<WalletDetailData>(
-    address ? `wallet-detail-${chain}:${address.toLowerCase()}` : null,
+    address ? `wallet-detail-${chain}:${address}` : null,
     () => fetchAll(address!, chain),
     { dedupingInterval: DEDUP, revalidateOnFocus: false }
   )
@@ -57,4 +52,3 @@ export function useWalletDetail(address: string | undefined, chain: ChainSlug) {
     error,
   }
 }
-

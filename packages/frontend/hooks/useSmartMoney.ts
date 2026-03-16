@@ -1,6 +1,6 @@
 import useSWR from 'swr'
 import type { SmartWallet } from '../app/api/smart-money/route'
-import { getChain, type ChainSlug } from '../lib/chains'
+import type { ChainSlug } from '../lib/chains'
 import { getCachedPools } from '../lib/dexscreener-client'
 
 interface SmartMoneyResult {
@@ -31,15 +31,12 @@ function getTopTokensFromCache(chain: ChainSlug, limit = 5): string {
 }
 
 async function fetchSmartMoney(chain: ChainSlug, period: SmartMoneyPeriod): Promise<SmartMoneyResult> {
-  const chainConfig = getChain(chain)
-  if (chainConfig.chainType !== 'evm') return { wallets: [], unsupported: true }
-
   // Pass client-cached tokens so API can skip server-side GT call
   const tokens = getTopTokensFromCache(chain)
   const params = new URLSearchParams({ chain, period })
   if (tokens) params.set('tokens', tokens)
 
-  const res = await fetch(`/api/smart-money?${params}`, { signal: AbortSignal.timeout(30_000) })
+  const res = await fetch(`/api/smart-money?${params}`, { signal: AbortSignal.timeout(60_000) })
   if (!res.ok) throw new Error(`Smart money API error: ${res.status}`)
   const data = await res.json()
   return {

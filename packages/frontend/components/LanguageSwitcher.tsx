@@ -55,14 +55,14 @@ export function LanguageSwitcher({ iconOnly }: Props) {
       setDropdownStyle({
         position: 'fixed',
         bottom: window.innerHeight - rect.top + 4,
-        left: rect.left,
+        right: window.innerWidth - rect.right,
         zIndex: 9999,
       })
     } else {
       setDropdownStyle({
         position: 'fixed',
         top: rect.bottom + 4,
-        left: rect.left,
+        right: window.innerWidth - rect.right,
         zIndex: 9999,
       })
     }
@@ -111,7 +111,6 @@ export function LanguageSwitcher({ iconOnly }: Props) {
             lang.locale === locale ? 'text-blue font-medium' : 'text-text'
           }`}
         >
-          <span>{lang.flag}</span>
           <span>{lang.label}</span>
           {lang.locale === locale && (
             <svg className="ml-auto" width="12" height="12" viewBox="0 0 12 12" fill="none">

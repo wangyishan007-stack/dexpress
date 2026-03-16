@@ -54,10 +54,19 @@ async function cacheSet(key: string, value: string): Promise<void> {
   try { memCache.set(key, { data: JSON.parse(value), ts: Date.now() }) } catch { /* ignore */ }
 }
 
-/** Proxy-aware fetch */
+/** Race proxy vs direct — Moralis works direct from most networks */
 async function proxyFetch(url: string, headers: Record<string, string>): Promise<Response> {
   const proxyUrl = process.env.PROXY_URL
-  if (proxyUrl) {
+  if (!proxyUrl) {
+    return fetch(url, { headers, signal: AbortSignal.timeout(15_000) })
+  }
+
+  const directPromise = fetch(url, {
+    headers,
+    signal: AbortSignal.timeout(15_000),
+  })
+
+  const proxyPromise = (async () => {
     const { ProxyAgent, fetch: uFetch } = await import('undici')
     const agent = new ProxyAgent(proxyUrl)
     return await uFetch(url, {
@@ -65,8 +74,10 @@ async function proxyFetch(url: string, headers: Record<string, string>): Promise
       headers,
       signal: AbortSignal.timeout(15_000),
     }) as unknown as Response
-  }
-  return await fetch(url, { headers, signal: AbortSignal.timeout(15_000) })
+  })()
+
+  // Return whichever responds first (even non-OK responses are valid)
+  return Promise.race([directPromise, proxyPromise])
 }
 
 export async function GET(req: NextRequest) {
@@ -97,7 +108,7 @@ export async function GET(req: NextRequest) {
   } else if (type === 'wallet_profitability') {
     upstreamUrl = `${MORALIS_BASE}/wallets/${address}/profitability?chain=${chain}`
   } else if (type === 'wallet_tokens') {
-    upstreamUrl = `${MORALIS_BASE}/wallets/${address}/tokens?chain=${chain}&exclude_spam=true`
+    upstreamUrl = `${MORALIS_BASE}/wallets/${address}/tokens?chain=${chain}&exclude_spam=true&exclude_unverified_contracts=true`
   } else if (type === 'native_balance') {
     upstreamUrl = `${MORALIS_BASE}/${address}/balance?chain=${chain}`
   } else if (type === 'wallet_swaps') {
@@ -127,7 +138,9 @@ export async function GET(req: NextRequest) {
       }
 
       if (!res.ok) {
-        return NextResponse.json({ error: 'Moralis API error' }, { status: res.status })
+        const errBody = await res.text().catch(() => '')
+        console.error(`[/api/moralis] ${type} chain=${chain} HTTP ${res.status}:`, errBody.slice(0, 500))
+        return NextResponse.json({ error: 'Moralis API error', detail: errBody.slice(0, 200) }, { status: res.status })
       }
 
       const data = await res.json()

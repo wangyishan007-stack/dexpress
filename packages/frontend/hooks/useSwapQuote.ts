@@ -29,10 +29,10 @@ export function useSwapQuote(
     return () => clearTimeout(t)
   }, [sellAmountUsd])
 
-  const shouldFetch = !!buyToken && debouncedAmount > 0 && !!takerAddress
+  const shouldFetch = !!buyToken && debouncedAmount > 0
 
   const key = shouldFetch
-    ? `/api/swap/quote?chain=${chain}&buyToken=${buyToken}&buySymbol=${encodeURIComponent(buySymbol)}&buyDecimals=${buyDecimals}&sellAmountUsd=${debouncedAmount}&taker=${takerAddress}`
+    ? `/api/swap/quote?chain=${chain}&buyToken=${buyToken}&buySymbol=${encodeURIComponent(buySymbol)}&buyDecimals=${buyDecimals}&sellAmountUsd=${debouncedAmount}${takerAddress ? `&taker=${takerAddress}` : ''}`
     : null
 
   const { data, isLoading, error } = useSWR<SwapQuote>(key, fetcher, {

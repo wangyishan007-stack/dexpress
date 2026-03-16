@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useSwapQuote } from '@/hooks/useSwapQuote'
 import { useExecuteSwap } from '@/hooks/useExecuteSwap'
 import { useFollowedWallets } from '@/hooks/useFollowedWallets'
 import { fmtUsd, shortAddr } from '@/lib/formatters'
 import { explorerLink, getChain, type ChainSlug } from '@/lib/chains'
+import { useWallets as useSolanaWallets, useSignAndSendTransaction } from '@privy-io/react-auth/solana'
 
 /* ── Types ────────────────────────────────────────────── */
 
@@ -73,6 +74,21 @@ export function CopyTradeModal({
 
   const chainConfig = getChain(chain)
   const nativeSymbol = chainConfig.nativeCurrency.symbol
+  const isSolana = chainConfig.chainType === 'svm'
+
+  // Solana wallet hooks (always called — hooks can't be conditional)
+  const { wallets: solanaWallets } = useSolanaWallets()
+  const { signAndSendTransaction } = useSignAndSendTransaction()
+
+  // Solana signer — wraps Privy hook for useExecuteSwap
+  const solanaSigner = useCallback(async (tx: Uint8Array): Promise<string> => {
+    const wallet = solanaWallets[0]
+    if (!wallet) throw new Error('No Solana wallet found. Please connect a Solana wallet.')
+    const { signature } = await signAndSendTransaction({ transaction: tx, wallet })
+    // Convert Uint8Array signature to base58 for explorer links
+    const bs58 = await import('bs58')
+    return bs58.default.encode(signature)
+  }, [solanaWallets, signAndSendTransaction])
 
   // State
   const [selectedAmount, setSelectedAmount] = useState<number>(100)
@@ -82,18 +98,27 @@ export function CopyTradeModal({
 
   const sellAmountUsd = customAmount ? Number(customAmount) || 0 : selectedAmount
 
-  // Get user's EVM address from Privy
-  const takerAddress = user?.wallet?.address ?? undefined
+  // Get user's wallet address
+  const solanaAddr = solanaWallets[0]?.address
+  const takerAddress = isSolana
+    ? solanaAddr ?? undefined
+    : user?.wallet?.address ?? undefined
 
   // Fetch quote
   const { quote, isLoading: quoteLoading, error: quoteError } = useSwapQuote(
     chain, tokenAddress, tokenSymbol, tokenDecimals ?? 18, sellAmountUsd, takerAddress,
   )
 
-  // Execute
-  const { execute, status, txHash, error: execError, reset } = useExecuteSwap(chain)
+  // Execute — pass Solana signer for SVM chains
+  const { execute, status, txHash, error: execError, reset } = useExecuteSwap(
+    chain, isSolana ? solanaSigner : undefined,
+  )
 
-  const noRoute = quote && (Number(quote.buyAmount) <= 0 || !quote.transaction.to || !quote.transaction.data)
+  // Check for no route — only check buyAmount (Solana may lack serializedTransaction when no wallet connected)
+  const noRoute = quote && (
+    Number(quote.buyAmount) <= 0 ||
+    (!isSolana && !quote.transaction.to && !quote.transaction.data)
+  )
 
   if (!isOpen) return null
 
@@ -103,6 +128,19 @@ export function CopyTradeModal({
       return
     }
     if (!quote) return
+
+    // Solana: need serializedTransaction to execute — re-fetch with taker if missing
+    if (isSolana && !quote.transaction.serializedTransaction) {
+      if (!solanaAddr) {
+        // User has no Solana wallet — prompt login to create one
+        login()
+        return
+      }
+      // Refetch quote with taker to get serializedTransaction
+      // For now, show error
+      reset()
+      return
+    }
 
     const success = await execute(quote)
 
@@ -214,7 +252,7 @@ export function CopyTradeModal({
               </div>
               <div className="flex justify-between">
                 <span>Platform fee</span>
-                <span className="text-text">0.25% ({fmtUsd(quote.platformFee)})</span>
+                <span className="text-text">1% ({fmtUsd(quote.platformFee)})</span>
               </div>
               <div className="flex justify-between">
                 <span>Est. gas</span>

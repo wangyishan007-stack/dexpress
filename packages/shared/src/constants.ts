@@ -87,6 +87,38 @@ export const AERODROME_SWAP_EVENT = {
   ],
 } as const
 
+// Uniswap V4 PoolManager — Swap event
+export const UNIV4_SWAP_EVENT = {
+  type: 'event',
+  name: 'Swap',
+  inputs: [
+    { name: 'id',            type: 'bytes32', indexed: true  },
+    { name: 'sender',        type: 'address', indexed: true  },
+    { name: 'amount0',       type: 'int128',  indexed: false },
+    { name: 'amount1',       type: 'int128',  indexed: false },
+    { name: 'sqrtPriceX96',  type: 'uint160', indexed: false },
+    { name: 'liquidity',     type: 'uint128', indexed: false },
+    { name: 'tick',          type: 'int24',   indexed: false },
+    { name: 'fee',           type: 'uint24',  indexed: false },
+  ],
+} as const
+
+// Uniswap V4 PoolManager — Initialize event (pool creation)
+export const UNIV4_INITIALIZE_EVENT = {
+  type: 'event',
+  name: 'Initialize',
+  inputs: [
+    { name: 'id',           type: 'bytes32', indexed: true  },
+    { name: 'currency0',    type: 'address', indexed: true  },
+    { name: 'currency1',    type: 'address', indexed: true  },
+    { name: 'fee',          type: 'uint24',  indexed: false },
+    { name: 'tickSpacing',  type: 'int24',   indexed: false },
+    { name: 'hooks',        type: 'address', indexed: false },
+    { name: 'sqrtPriceX96', type: 'uint160', indexed: false },
+    { name: 'tick',         type: 'int24',   indexed: false },
+  ],
+} as const
+
 // ERC-20 ABI (minimal)
 export const ERC20_ABI = [
   { type: 'function', name: 'symbol',      inputs: [], outputs: [{ type: 'string'  }], stateMutability: 'view' },

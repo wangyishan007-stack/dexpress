@@ -7,6 +7,9 @@ import type { ChainSlug } from '@/lib/chains'
 
 type SwapStatus = 'idle' | 'pending' | 'success' | 'error'
 
+/** Solana signer function — passed in from component that calls Privy Solana hooks */
+export type SolanaSigner = (tx: Uint8Array) => Promise<string>
+
 interface UseExecuteSwapReturn {
   execute: (quote: SwapQuote) => Promise<boolean>
   status: SwapStatus
@@ -15,7 +18,7 @@ interface UseExecuteSwapReturn {
   reset: () => void
 }
 
-export function useExecuteSwap(_chain: ChainSlug): UseExecuteSwapReturn {
+export function useExecuteSwap(_chain: ChainSlug, solanaSigner?: SolanaSigner): UseExecuteSwapReturn {
   const { wallets } = useWallets()
   const [status, setStatus] = useState<SwapStatus>('idle')
   const [txHash, setTxHash] = useState<string | null>(null)
@@ -33,16 +36,54 @@ export function useExecuteSwap(_chain: ChainSlug): UseExecuteSwapReturn {
     setTxHash(null)
 
     try {
+      // ── Solana path ──────────────────────────────────────
       if (quote.transaction.serializedTransaction) {
-        throw new Error('Solana swap coming soon. Please use Jupiter directly.')
+        if (!solanaSigner) {
+          throw new Error('No Solana wallet connected. Please connect Phantom or another Solana wallet.')
+        }
+
+        const txBytes = Uint8Array.from(
+          atob(quote.transaction.serializedTransaction),
+          c => c.charCodeAt(0),
+        )
+
+        const signature = await solanaSigner(txBytes)
+        setTxHash(signature)
+        setStatus('success')
+        return true
       }
 
-      // Find active EVM wallet (prefer first connected)
+      // ── EVM path ─────────────────────────────────────────
       const wallet = wallets.find(w => w.walletClientType !== 'privy') ?? wallets[0]
       if (!wallet) throw new Error('No wallet connected. Please connect a wallet first.')
 
-      // Use wallet's EIP-1193 provider — works for both embedded and external wallets
       const provider = await wallet.getEthereumProvider()
+
+      // Switch to correct chain if needed (e.g. Base → BSC)
+      if (quote.chainId) {
+        const targetChainHex = `0x${quote.chainId.toString(16)}`
+        try {
+          await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: targetChainHex }],
+          })
+        } catch (switchErr: any) {
+          if (switchErr?.code === 4902 && quote.chainId === 56) {
+            await provider.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: targetChainHex,
+                chainName: 'BNB Smart Chain',
+                nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+                rpcUrls: ['https://bsc-dataseed.binance.org'],
+                blockExplorerUrls: ['https://bscscan.com'],
+              }],
+            })
+          } else {
+            throw switchErr
+          }
+        }
+      }
 
       const valueHex = quote.transaction.value
         ? `0x${BigInt(quote.transaction.value).toString(16)}`
@@ -72,7 +113,7 @@ export function useExecuteSwap(_chain: ChainSlug): UseExecuteSwapReturn {
       setStatus('error')
       return false
     }
-  }, [wallets])
+  }, [wallets, solanaSigner])
 
   return { execute, status, txHash, error, reset }
 }

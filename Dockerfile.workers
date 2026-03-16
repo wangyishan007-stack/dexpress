@@ -1,0 +1,22 @@
+FROM node:20-slim
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+WORKDIR /app
+
+# Install dependencies
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/shared/package.json   packages/shared/
+COPY packages/database/package.json packages/database/
+COPY packages/workers/package.json  packages/workers/
+
+RUN pnpm install --frozen-lockfile --filter=@dex/workers...
+
+# Copy source
+COPY packages/shared/   packages/shared/
+COPY packages/database/ packages/database/
+COPY packages/workers/  packages/workers/
+
+ENV NODE_ENV=production
+
+RUN pnpm --filter=@dex/workers build
+
+CMD ["pnpm", "--filter=@dex/workers", "start"]

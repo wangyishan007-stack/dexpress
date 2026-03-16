@@ -17,6 +17,16 @@ const BASE_CHAIN = {
   },
 }
 
+const BSC_CHAIN = {
+  id: 56,
+  name: 'BNB Smart Chain',
+  network: 'bsc',
+  nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+  rpcUrls: {
+    default: { http: ['https://bsc-dataseed.binance.org'] },
+  },
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   // Skip PrivyProvider when App ID is not configured
   if (!PRIVY_APP_ID) {
@@ -39,9 +49,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
         loginMethods: ['wallet', 'email'],
         defaultChain: BASE_CHAIN as any,
-        supportedChains: [BASE_CHAIN as any],
+        supportedChains: [BASE_CHAIN as any, BSC_CHAIN as any],
         embeddedWallets: {
           ethereum: {
+            createOnLogin: 'users-without-wallets',
+          },
+          solana: {
             createOnLogin: 'users-without-wallets',
           },
         },
