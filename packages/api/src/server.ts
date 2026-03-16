@@ -115,15 +115,31 @@ async function runMigration() {
   }
 }
 
-async function startSmartMoneyWorker() {
+async function startWorkers() {
   try {
-    // Lazy import to avoid circular deps
     const { SmartMoneyWorker } = await import('./smartMoneyWorker')
-    const worker = new SmartMoneyWorker()
-    await worker.start()
+    const smartMoney = new SmartMoneyWorker()
+    await smartMoney.start()
     console.log('[API] SmartMoneyWorker started')
   } catch (e) {
     console.warn('[API] SmartMoneyWorker failed to start:', e)
+  }
+
+  try {
+    const { IndexerWorker } = await import('./indexerWorker')
+    const { AggregatorWorker } = await import('./aggregatorWorker')
+    const { PairDiscoveryWorker } = await import('./pairDiscoveryWorker')
+    const indexer = new IndexerWorker()
+    const aggregator = new AggregatorWorker()
+    const discovery = new PairDiscoveryWorker({
+      onNewPool: (address: string) => indexer.addPool(address),
+    })
+    discovery.start().catch((e: unknown) => console.error('[API] Discovery error:', e))
+    await indexer.start()
+    aggregator.start()
+    console.log('[API] IndexerWorker + AggregatorWorker + PairDiscoveryWorker started')
+  } catch (e) {
+    console.warn('[API] IndexerWorker failed to start:', e)
   }
 }
 
@@ -141,7 +157,7 @@ async function start() {
   console.log(`[API] Listening on port ${port}`)
 
   // Start background workers after server is up
-  startSmartMoneyWorker()
+  startWorkers()
 }
 
 start().catch((err) => {
