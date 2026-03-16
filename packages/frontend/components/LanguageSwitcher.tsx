@@ -111,7 +111,6 @@ export function LanguageSwitcher({ iconOnly }: Props) {
             lang.locale === locale ? 'text-blue font-medium' : 'text-text'
           }`}
         >
-          <span>{lang.flag}</span>
           <span>{lang.label}</span>
           {lang.locale === locale && (
             <svg className="ml-auto" width="12" height="12" viewBox="0 0 12 12" fill="none">
