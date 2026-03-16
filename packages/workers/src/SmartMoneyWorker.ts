@@ -16,12 +16,20 @@ const MIN_TRADES       = 2              // 至少 2 笔交易
 const MAX_WALLETS      = 200            // 每个周期保留 Top 200
 
 // Base 链的稳定币 + WETH（过滤掉，只保留"目标 token"那一侧）
-const BASE_QUOTE_TOKENS = new Set([
-  '0x4200000000000000000000000000000000000006', // WETH
-  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC
-  '0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca', // USDbC
-  '0x50c5725949a6f0c72e6c4a641f24049a917db0cb', // DAI
-])
+const QUOTE_TOKENS_BY_CHAIN: Record<string, string[]> = {
+  base: [
+    '0x4200000000000000000000000000000000000006', // WETH
+    '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC
+    '0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca', // USDbC
+    '0x50c5725949a6f0c72e6c4a641f24049a917db0cb', // DAI
+  ],
+  bsc: [
+    '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c', // WBNB
+    '0x55d398326f99059ff775485246999027b3197955', // USDT
+    '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', // USDC
+    '0xe9e7cea3dedca5984780bafc599bd69add087d56', // BUSD
+  ],
+}
 
 type Period = '1d' | '7d' | '30d'
 const PERIOD_HOURS: Record<Period, number> = { '1d': 24, '7d': 168, '30d': 720 }
@@ -50,8 +58,10 @@ export class SmartMoneyWorker {
     this.isRunning = true
     const t0 = Date.now()
     try {
-      for (const period of ['1d', '7d', '30d'] as Period[]) {
-        await this.calcPeriod(period)
+      for (const chain of ['base', 'bsc']) {
+        for (const period of ['1d', '7d', '30d'] as Period[]) {
+          await this.calcPeriod(period, chain)
+        }
       }
       console.log(`[SmartMoney] Done in ${Date.now() - t0}ms`)
     } catch (e) {
@@ -61,9 +71,10 @@ export class SmartMoneyWorker {
     }
   }
 
-  private async calcPeriod(period: Period) {
+  private async calcPeriod(period: Period, chain = 'base') {
     const hours = PERIOD_HOURS[period]
     const since = new Date(Date.now() - hours * 3_600_000).toISOString()
+    const quoteTokens = QUOTE_TOKENS_BY_CHAIN[chain] ?? QUOTE_TOKENS_BY_CHAIN['base']
 
     // 聚合：钱包 × token 的买卖金额
     const rows = await query<{
@@ -97,7 +108,7 @@ export class SmartMoneyWorker {
         AND s.sender IS NOT NULL
         AND length(COALESCE(s.sender,'')) = 42
       GROUP BY 1, 2, 3
-    `, [since, Array.from(BASE_QUOTE_TOKENS)])
+    `, [since, quoteTokens])
 
     if (!rows.length) {
       console.log(`[SmartMoney] ${period}: no swaps data yet`)
@@ -184,7 +195,7 @@ export class SmartMoneyWorker {
           pnl_percentage     = EXCLUDED.pnl_percentage,
           calculated_at      = EXCLUDED.calculated_at
       `, [
-        wallet, 'base', period,
+        wallet, chain, period,
         w.realizedPnl, w.totalBought, w.totalSold,
         w.winTrades, w.lossTrades, w.totalTrades,
         w.bestToken, w.bestSymbol, w.bestPnl, pnlPct, now,

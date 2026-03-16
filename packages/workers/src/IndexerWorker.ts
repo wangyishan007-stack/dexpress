@@ -16,7 +16,7 @@ import {
   type PublicClient,
   type Log,
 } from 'viem'
-import { base } from 'viem/chains'
+import { base, bsc } from 'viem/chains'
 import {
   db,
   redis,
@@ -29,6 +29,8 @@ import {
   UNIV3_SWAP_EVENT,
   AERODROME_SWAP_EVENT,
   UNIV4_SWAP_EVENT,
+  PANCAKE_V3_SWAP_EVENT,
+  BSC_ADDRESSES,
   ERC20_ABI,
   ADDRESSES,
   STABLECOINS,
@@ -55,11 +57,13 @@ interface PoolMeta {
 
 export class IndexerWorker {
   private wsClient!: PublicClient
+  private bscWsClient?: PublicClient
   private httpClient: PublicClient
   private pools: Map<string, PoolMeta> = new Map()
   private tokenDecimals: Map<string, number> = new Map()
   private ethUsdPrice = 0
   private unsubscribeFns: (() => void)[] = []
+  private bscUnsubscribeFns: (() => void)[] = []
   private running = false
 
   constructor() {
@@ -69,6 +73,7 @@ export class IndexerWorker {
       transport: http(process.env.ALCHEMY_HTTP_URL!),
     })
     this.initWsClient()
+    this.initBscWsClient()
   }
 
   private initWsClient() {
@@ -90,6 +95,22 @@ export class IndexerWorker {
     })
   }
 
+  private initBscWsClient() {
+    const bscWsUrl = process.env.BSC_WS_URL
+    if (!bscWsUrl) return
+    this.bscWsClient = createPublicClient({
+      chain: bsc,
+      transport: webSocket(bscWsUrl, {
+        reconnect: { attempts: Infinity, delay: 3_000 },
+        onOpen:  () => console.log('[Indexer] BSC WS connected'),
+        onClose: () => {
+          console.warn('[Indexer] BSC WS disconnected, reconnecting…')
+          if (this.running) setTimeout(() => this.subscribeToBscSwaps(), 5_000)
+        },
+      }),
+    })
+  }
+
   // ─── Lifecycle ──────────────────────────────────────────────
 
   async start() {
@@ -100,6 +121,7 @@ export class IndexerWorker {
     await this.refreshEthPrice()
     this.startEthPricePoll()
     this.subscribeToSwaps()
+    this.subscribeToBscSwaps()
 
     console.log(`[Indexer] Watching ${this.pools.size} pools`)
   }
@@ -108,12 +130,16 @@ export class IndexerWorker {
     this.running = false
     this.unsubscribeFns.forEach((fn) => fn())
     this.unsubscribeFns = []
+    this.bscUnsubscribeFns.forEach((fn) => fn())
+    this.bscUnsubscribeFns = []
     console.log('[Indexer] Stopped')
   }
 
   private async resubscribe() {
     this.unsubscribeFns.forEach((fn) => fn())
     this.unsubscribeFns = []
+    this.bscUnsubscribeFns.forEach((fn) => fn())
+    this.bscUnsubscribeFns = []
     this.initWsClient()
     await this.loadPools()
     this.subscribeToSwaps()
@@ -359,6 +385,76 @@ export class IndexerWorker {
 
     await this.updatePoolPrice(poolKey, priceUsd, amountUsd)
     await this.publishSwapEvent(poolKey, priceUsd, amountUsd, isBuy)
+  }
+
+
+  // ─── BSC PancakeSwap V3 subscriptions ───────────────────────
+  private subscribeToBscSwaps() {
+    if (!this.bscWsClient) {
+      console.log('[Indexer] BSC_WS_URL not set, skipping BSC indexing')
+      return
+    }
+
+    const unsubBsc = this.bscWsClient.watchEvent({
+      event: PANCAKE_V3_SWAP_EVENT as any,
+      onLogs: (logs) => {
+        for (const log of logs) {
+          const meta = this.pools.get((log.address as string).toLowerCase())
+          if (meta?.dex === 'pancakeswap_v3') {
+            this.handleBscSwap(log as unknown as UniV3SwapEvent, meta).catch(
+              (e) => console.error('[Indexer] BSC swap error:', e)
+            )
+          }
+        }
+      },
+      onError: (err) => console.error('[Indexer] BSC watch error:', err.message),
+    })
+
+    this.bscUnsubscribeFns.push(unsubBsc)
+    console.log('[Indexer] BSC PancakeSwap V3 subscribed')
+  }
+
+  private async handleBscSwap(log: UniV3SwapEvent, meta: PoolMeta) {
+    const { sender, recipient, amount0, amount1, sqrtPriceX96 } = log.args
+    const BSC_QUOTE = new Set([
+      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c', // WBNB
+      '0x55d398326f99059ff775485246999027b3197955', // USDT
+      '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', // USDC
+      '0xe9e7cea3dedca5984780bafc599bd69add087d56', // BUSD
+    ])
+    const priceToken0InToken1 = sqrtPriceX96ToPrice(sqrtPriceX96, meta.decimals0, meta.decimals1)
+    const t0 = meta.token0.toLowerCase()
+    const t1 = meta.token1.toLowerCase()
+    const isBscQuote0 = BSC_QUOTE.has(t0)
+    const token0Usd = isBscQuote0 ? priceToken0InToken1 * this.ethUsdPrice : priceToken0InToken1
+    const token1Usd = isBscQuote0 ? this.ethUsdPrice : priceToken0InToken1 > 0 ? 1 / priceToken0InToken1 : 0
+
+    const norm0 = Number(amount0) / Math.pow(10, meta.decimals0)
+    const norm1 = Number(amount1) / Math.pow(10, meta.decimals1)
+    const isBuy = amount0 < 0n
+    const amountUsd = Math.max(Math.abs(norm0 * token0Usd), Math.abs(norm1 * token1Usd))
+    const priceUsd = BSC_QUOTE.has(t1) ? token0Usd : token1Usd
+
+    const blockTs = await this.getBlockTimestamp(log.blockNumber)
+    if (!blockTs) return
+
+    await insertSwap({
+      pool_address: log.address,
+      block_number: Number(log.blockNumber),
+      tx_hash:      log.transactionHash,
+      log_index:    log.logIndex ?? 0,
+      timestamp:    blockTs,
+      sender:       sender,
+      recipient:    recipient,
+      amount0:      norm0,
+      amount1:      norm1,
+      amount_usd:   amountUsd,
+      price_usd:    priceUsd,
+      is_buy:       isBuy,
+    })
+
+    await this.updatePoolPrice(log.address, priceUsd, amountUsd)
+    await this.publishSwapEvent(log.address, priceUsd, amountUsd, isBuy)
   }
 
   // ─── Helpers ─────────────────────────────────────────────────

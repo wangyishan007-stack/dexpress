@@ -6,6 +6,31 @@ export const BASE_CHAIN_ID = 8453
 
 // ─── Key Addresses (Base Mainnet) ─────────────────────────────
 
+// ── BSC chain constants ─────────────────────────────────────
+export const BSC_ADDRESSES = {
+  PANCAKE_V3_FACTORY:  '0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865',
+  PANCAKE_V3_ROUTER:   '0x13f4EA83D0bd40E75C8222255bc855a974568Dd4',
+  WBNB:                '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
+  USDT:                '0x55d398326f99059fF775485246999027B3197955',
+  USDC:                '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
+  BUSD:                '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56',
+}
+
+// PancakeSwap V3 Swap event (same as Uniswap V3)
+export const PANCAKE_V3_SWAP_EVENT = {
+  type: 'event',
+  name: 'Swap',
+  inputs: [
+    { name: 'sender',       type: 'address', indexed: true  },
+    { name: 'recipient',    type: 'address', indexed: true  },
+    { name: 'amount0',      type: 'int256',  indexed: false },
+    { name: 'amount1',      type: 'int256',  indexed: false },
+    { name: 'sqrtPriceX96', type: 'uint160', indexed: false },
+    { name: 'liquidity',    type: 'uint128', indexed: false },
+    { name: 'tick',         type: 'int24',   indexed: false },
+  ],
+} as const
+
 export const ADDRESSES = {
   WETH:  '0x4200000000000000000000000000000000000006',
   USDC:  '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
