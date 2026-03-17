@@ -159,6 +159,16 @@ export function explorerLink(chain: ChainSlug, type: 'address' | 'token' | 'tx',
   return `${c.explorer.url}${path}${value}`
 }
 
+/** Normalize address for comparison: lowercase for EVM, unchanged for Solana (base58 is case-sensitive) */
+export function normalizeAddr(chain: ChainSlug, addr: string): string {
+  return getChain(chain).chainType === 'svm' ? addr : addr.toLowerCase()
+}
+
+/** Case-aware address equality */
+export function addrEq(chain: ChainSlug, a: string, b: string): boolean {
+  return normalizeAddr(chain, a) === normalizeAddr(chain, b)
+}
+
 export function isQuoteToken(chain: ChainSlug, address: string): boolean {
   const c = getChain(chain)
   // Solana addresses are case-sensitive (base58), EVM addresses are not

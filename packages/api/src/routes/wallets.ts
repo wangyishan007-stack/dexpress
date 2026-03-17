@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
-import { query } from '@dex/database'
+import { query, redis } from '@dex/database'
+import { getSolanaIndexer } from '../solanaIndexer'
 
 // 各链的 Quote Tokens（复用 smartMoneyWorker 同一套）
 const CHAIN_QUOTE_TOKENS: Record<string, string[]> = {
@@ -15,6 +16,11 @@ const CHAIN_QUOTE_TOKENS: Record<string, string[]> = {
     '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', // USDC
     '0xe9e7cea3dedca5984780bafc599bd69add087d56', // BUSD
   ],
+  solana: [
+    'So11111111111111111111111111111111111111112',     // SOL
+    'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC
+    'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',  // USDT
+  ],
 }
 
 const PERIOD_INTERVAL: Record<string, string> = {
@@ -23,13 +29,30 @@ const PERIOD_INTERVAL: Record<string, string> = {
   '30d': '30 days',
 }
 
+// Fire-and-forget: queue Solana wallet for indexing
+function triggerSolanaIndex(addr: string) {
+  const indexer = getSolanaIndexer()
+  if (indexer) {
+    console.log(`[wallet] Triggering on-demand Solana index for ${addr.slice(0, 8)}...`)
+    indexer.indexOnDemand(addr).then(ok => {
+      console.log(`[wallet] On-demand index result for ${addr.slice(0, 8)}...: ${ok ? 'success' : 'no new data'}`)
+    }).catch(e => {
+      console.warn(`[wallet] On-demand index error for ${addr.slice(0, 8)}...:`, e?.message || e)
+    })
+  } else {
+    console.log('[wallet] No SolanaIndexer instance available')
+  }
+  // Also add to Redis queue for periodic scan
+  redis.sadd('solana:wallets_to_index', addr).catch(() => {})
+}
+
 export async function walletsRoutes(app: FastifyInstance) {
 
   // ── GET /api/wallet/:address/stats ────────────────────────
   app.get('/wallet/:address/stats', async (req, reply) => {
     const { address } = req.params as { address: string }
     const { chain = 'base' } = req.query as Record<string, string>
-    const addr = address.toLowerCase()
+    const addr = chain === 'solana' ? address : address.toLowerCase()
 
     try {
       const rows = await query<{
@@ -71,6 +94,8 @@ export async function walletsRoutes(app: FastifyInstance) {
 
         const s = swapStats[0]
         if (!s || Number(s.total_trades) === 0) {
+          // No data — trigger on-demand Solana indexing (fire-and-forget)
+          if (chain === 'solana') triggerSolanaIndex(addr)
           return reply.send(null)
         }
 
@@ -108,7 +133,7 @@ export async function walletsRoutes(app: FastifyInstance) {
   app.get('/wallet/:address/profitability', async (req, reply) => {
     const { address } = req.params as { address: string }
     const { chain = 'base', period = '30d', limit = '50' } = req.query as Record<string, string>
-    const addr = address.toLowerCase()
+    const addr = chain === 'solana' ? address : address.toLowerCase()
     const interval = PERIOD_INTERVAL[period] ?? '30 days'
     const limitN = Math.min(Number(limit) || 50, 200)
     const quoteTokens = CHAIN_QUOTE_TOKENS[chain] ?? CHAIN_QUOTE_TOKENS.base
@@ -150,6 +175,8 @@ export async function walletsRoutes(app: FastifyInstance) {
         LIMIT $5
       `, [addr, quoteTokens, chain, interval, limitN])
 
+      if (!rows.length && chain === 'solana') triggerSolanaIndex(addr)
+
       const tokens = rows.map(r => {
         const bought = Number(r.bought_usd)
         const sold = Number(r.sold_usd)
@@ -179,7 +206,7 @@ export async function walletsRoutes(app: FastifyInstance) {
   app.get('/wallet/:address/swaps', async (req, reply) => {
     const { address } = req.params as { address: string }
     const { chain = 'base', limit = '30' } = req.query as Record<string, string>
-    const addr = address.toLowerCase()
+    const addr = chain === 'solana' ? address : address.toLowerCase()
     const limitN = Math.min(Number(limit) || 30, 200)
     const quoteTokens = CHAIN_QUOTE_TOKENS[chain] ?? CHAIN_QUOTE_TOKENS.base
 
@@ -225,6 +252,8 @@ export async function walletsRoutes(app: FastifyInstance) {
         ORDER BY s.timestamp DESC
         LIMIT $3
       `, [addr, chain, limitN])
+
+      if (!rows.length && chain === 'solana') triggerSolanaIndex(addr)
 
       const swaps = rows.map(r => {
         const isQuoteToken0 = quoteTokens.includes(r.token0)

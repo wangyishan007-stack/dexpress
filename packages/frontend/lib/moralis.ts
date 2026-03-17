@@ -98,26 +98,31 @@ export interface MoralisWalletStats {
 const _walletStatsCache = new Map<string, { data: MoralisWalletStats | null; ts: number }>()
 
 export async function fetchWalletStats(walletAddress: string, chain: ChainSlug = DEFAULT_CHAIN): Promise<MoralisWalletStats | null> {
-  if (getChain(chain).chainType !== 'evm') return fetchSolanaWalletStats(walletAddress)
-  const moralisChain = getChain(chain).moralisChain
-  const addrLower = walletAddress.toLowerCase()
+  const isSolana = getChain(chain).chainType !== 'evm'
+  const addr = isSolana ? walletAddress : walletAddress.toLowerCase()
 
-  const cached = _walletStatsCache.get(`${chain}:${addrLower}`)
+  const cached = _walletStatsCache.get(`${chain}:${addr}`)
   if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data
 
-  // 优先从自建数据库获取
+  // 优先从自建数据库获取（所有链通用）
   if (INDEXER_API) {
     try {
-      const r = await fetch(`${INDEXER_API}/api/wallet/${addrLower}/stats?chain=${chain}`, { signal: AbortSignal.timeout(8_000) })
+      const r = await fetch(`${INDEXER_API}/api/wallet/${addr}/stats?chain=${chain}`, { signal: AbortSignal.timeout(8_000) })
       if (r.ok) {
         const data = await r.json()
         if (data && data.total_count_of_trades > 0) {
-          _walletStatsCache.set(`${chain}:${addrLower}`, { data, ts: Date.now() })
+          _walletStatsCache.set(`${chain}:${addr}`, { data, ts: Date.now() })
           return data as MoralisWalletStats
         }
       }
-    } catch { /* fall through to Moralis */ }
+    } catch { /* fall through */ }
   }
+
+  // Solana fallback → Birdeye
+  if (isSolana) return fetchSolanaWalletStats(walletAddress)
+
+  const moralisChain = getChain(chain).moralisChain
+  const addrLower = addr
 
   try {
     const res = await fetch(
@@ -234,17 +239,16 @@ export async function fetchWalletSwaps(
   chain: ChainSlug = DEFAULT_CHAIN,
   limit = 30,
 ): Promise<DetectedSwap[]> {
-  if (getChain(chain).chainType !== 'evm') return fetchSolanaWalletSwaps(address, limit)
-  const moralisChain = getChain(chain).moralisChain
-  const addrLower = address.toLowerCase()
-  const key = `swaps:${chain}:${addrLower}`
+  const isSolana = getChain(chain).chainType !== 'evm'
+  const addr = isSolana ? address : address.toLowerCase()
+  const key = `swaps:${chain}:${addr}`
   const cached = _swapsCache.get(key)
   if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data
 
-  // 优先从自建数据库获取
+  // 优先从自建数据库获取（所有链通用）
   if (INDEXER_API) {
     try {
-      const r = await fetch(`${INDEXER_API}/api/wallet/${addrLower}/swaps?chain=${chain}&limit=${limit}`, { signal: AbortSignal.timeout(8_000) })
+      const r = await fetch(`${INDEXER_API}/api/wallet/${addr}/swaps?chain=${chain}&limit=${limit}`, { signal: AbortSignal.timeout(8_000) })
       if (r.ok) {
         const data = await r.json()
         if (Array.isArray(data) && data.length > 0) {
@@ -252,8 +256,14 @@ export async function fetchWalletSwaps(
           return data as DetectedSwap[]
         }
       }
-    } catch { /* fall through to Moralis */ }
+    } catch { /* fall through */ }
   }
+
+  // Solana fallback → Birdeye
+  if (isSolana) return fetchSolanaWalletSwaps(address, limit)
+
+  const moralisChain = getChain(chain).moralisChain
+  const addrLower = addr
 
   try {
     const res = await fetch(
@@ -318,18 +328,17 @@ export interface WalletTokenPnl {
 const _profitabilityCache = new Map<string, { data: WalletTokenPnl[]; ts: number }>()
 
 export async function fetchWalletProfitability(walletAddress: string, chain: ChainSlug = DEFAULT_CHAIN): Promise<WalletTokenPnl[]> {
-  if (getChain(chain).chainType !== 'evm') return fetchSolanaWalletProfitability(walletAddress)
-  const moralisChain = getChain(chain).moralisChain
-  const addrLower = walletAddress.toLowerCase()
-  const key = `${chain}:${addrLower}`
+  const isSolana = getChain(chain).chainType !== 'evm'
+  const addr = isSolana ? walletAddress : walletAddress.toLowerCase()
+  const key = `${chain}:${addr}`
 
   const cached = _profitabilityCache.get(key)
   if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data
 
-  // 优先从自建数据库获取
+  // 优先从自建数据库获取（所有链通用）
   if (INDEXER_API) {
     try {
-      const r = await fetch(`${INDEXER_API}/api/wallet/${addrLower}/profitability?chain=${chain}&period=30d`, { signal: AbortSignal.timeout(8_000) })
+      const r = await fetch(`${INDEXER_API}/api/wallet/${addr}/profitability?chain=${chain}&period=30d`, { signal: AbortSignal.timeout(8_000) })
       if (r.ok) {
         const data = await r.json()
         if (Array.isArray(data) && data.length > 0) {
@@ -337,9 +346,13 @@ export async function fetchWalletProfitability(walletAddress: string, chain: Cha
           return data as WalletTokenPnl[]
         }
       }
-    } catch { /* fall through to Moralis */ }
+    } catch { /* fall through */ }
   }
 
+  // Solana fallback → Birdeye
+  if (isSolana) return fetchSolanaWalletProfitability(walletAddress)
+
+  const moralisChain = getChain(chain).moralisChain
   try {
     const res = await fetch(
       `/api/moralis?type=wallet_profitability&address=${walletAddress}&chain=${moralisChain}`,

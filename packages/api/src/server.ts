@@ -32,6 +32,13 @@ async function build() {
   const allowedOrigins = process.env.FRONTEND_URL
     ? process.env.FRONTEND_URL.split(',').map(s => s.trim())
     : ['*']
+  // Always allow localhost for local development
+  if (!allowedOrigins.includes('*')) {
+    for (const port of ['3000', '3001']) {
+      const lo = `http://localhost:${port}`
+      if (!allowedOrigins.includes(lo)) allowedOrigins.push(lo)
+    }
+  }
   await app.register(fastifyCors, {
     origin: allowedOrigins.length === 1 && allowedOrigins[0] === '*' ? '*' : allowedOrigins,
     methods: ['GET', 'POST', 'OPTIONS'],
@@ -134,16 +141,56 @@ async function runMigration() {
       UPDATE pools SET chain = 'bsc' WHERE dex IN ('pancakeswap_v3', 'pancakeswap_v2')
     `)
     console.log('[API] pools.chain migration OK')
+
+    // Widen address columns for Solana (base58 up to 44 chars, signatures up to 88 chars)
+    // Run each ALTER separately — some may fail if a view/rule depends on the column
+    const alterStmts = [
+      `ALTER TABLE tokens ALTER COLUMN address TYPE VARCHAR(50)`,
+      `ALTER TABLE pools ALTER COLUMN address TYPE VARCHAR(70)`,
+      `ALTER TABLE pools ALTER COLUMN token0 TYPE VARCHAR(50)`,
+      `ALTER TABLE pools ALTER COLUMN token1 TYPE VARCHAR(50)`,
+      `ALTER TABLE swaps ALTER COLUMN pool_address TYPE VARCHAR(70)`,
+      `ALTER TABLE swaps ALTER COLUMN tx_hash TYPE VARCHAR(100)`,
+      `ALTER TABLE swaps ALTER COLUMN sender TYPE VARCHAR(50)`,
+      `ALTER TABLE swaps ALTER COLUMN recipient TYPE VARCHAR(50)`,
+      `ALTER TABLE wallet_pnl ALTER COLUMN wallet_address TYPE VARCHAR(50)`,
+      `ALTER TABLE wallet_pnl ALTER COLUMN best_token_address TYPE VARCHAR(50)`,
+    ]
+    for (const stmt of alterStmts) {
+      try { await db.query(stmt) }
+      catch (e: any) { console.warn(`[Migration] ${stmt.slice(0, 60)}... skipped:`, e?.message?.slice(0, 80)) }
+    }
+    // Solana seed tokens
+    await db.query(`
+      INSERT INTO tokens (address, symbol, name, decimals) VALUES
+        ('So11111111111111111111111111111111111111112','SOL','Wrapped SOL',9),
+        ('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v','USDC','USD Coin',6),
+        ('Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB','USDT','Tether USD',6)
+      ON CONFLICT DO NOTHING
+    `)
+    console.log('[API] Solana column widening + seed tokens OK')
   } catch (e: unknown) {
     console.warn('[API] Migration warning:', e instanceof Error ? e.message : e)
   }
 }
 
 async function startWorkers() {
+  // Start SolanaIndexer first (needed for on-demand wallet indexing)
+  try {
+    const { SolanaIndexerWorker, setSolanaIndexerInstance } = await import('./solanaIndexer')
+    const solanaIndexer = new SolanaIndexerWorker()
+    setSolanaIndexerInstance(solanaIndexer)
+    await solanaIndexer.start()
+    console.log('[API] SolanaIndexerWorker started')
+  } catch (e) {
+    console.warn('[API] SolanaIndexerWorker failed to start:', e)
+  }
+
+  // SmartMoney can take minutes to compute — don't block other workers
   try {
     const { SmartMoneyWorker } = await import('./smartMoneyWorker')
     const smartMoney = new SmartMoneyWorker()
-    await smartMoney.start()
+    smartMoney.start().catch(e => console.warn('[API] SmartMoneyWorker error:', e))
     console.log('[API] SmartMoneyWorker started')
   } catch (e) {
     console.warn('[API] SmartMoneyWorker failed to start:', e)

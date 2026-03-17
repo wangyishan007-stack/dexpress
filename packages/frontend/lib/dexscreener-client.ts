@@ -9,7 +9,7 @@
  */
 
 import type { Pool, Token, Dex, PairsResponse } from '@dex/shared'
-import { getChain, DEFAULT_CHAIN, SUPPORTED_CHAINS, type ChainSlug } from '@/lib/chains'
+import { getChain, DEFAULT_CHAIN, SUPPORTED_CHAINS, normalizeAddr, type ChainSlug } from '@/lib/chains'
 
 const GT_BASE     = 'https://api.geckoterminal.com/api/v2'
 const GT_HEADERS  = { Accept: 'application/json;version=20230302' }
@@ -760,11 +760,11 @@ export function getCachedPools(chain: string = DEFAULT_CHAIN): Pool[] {
 
 export function getTokenLogoFromCache(tokenAddress: string, chain: ChainSlug = DEFAULT_CHAIN): string | null {
   if (!tokenAddress) return null
-  const addrLower = tokenAddress.toLowerCase()
+  const norm = normalizeAddr(chain, tokenAddress)
   const pools = _getCache(chain).pools
   for (const p of pools) {
-    if (p.token0.address.toLowerCase() === addrLower && p.token0.logo_url) return p.token0.logo_url
-    if (p.token1.address.toLowerCase() === addrLower && p.token1.logo_url) return p.token1.logo_url
+    if (normalizeAddr(chain, p.token0.address) === norm && p.token0.logo_url) return p.token0.logo_url
+    if (normalizeAddr(chain, p.token1.address) === norm && p.token1.logo_url) return p.token1.logo_url
   }
   return null
 }

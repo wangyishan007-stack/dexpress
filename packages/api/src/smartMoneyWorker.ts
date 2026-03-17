@@ -30,9 +30,14 @@ const CHAIN_QUOTE_TOKENS: Record<string, string[]> = {
     '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', // USDC
     '0xe9e7cea3dedca5984780bafc599bd69add087d56', // BUSD
   ],
+  solana: [
+    'So11111111111111111111111111111111111111112',     // SOL
+    'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC
+    'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',  // USDT
+  ],
 }
 
-const SUPPORTED_CHAINS = ['base', 'bsc']
+const SUPPORTED_CHAINS = ['base', 'bsc', 'solana']
 
 type Period = '1d' | '7d' | '30d'
 const PERIOD_HOURS: Record<Period, number> = { '1d': 24, '7d': 168, '30d': 720 }
@@ -110,7 +115,7 @@ export class SmartMoneyWorker {
         AND p.chain = $3
         AND s.amount_usd > 0
         AND s.sender IS NOT NULL
-        AND length(COALESCE(s.sender,'')) = 42
+        AND length(COALESCE(s.sender,'')) >= 32
       GROUP BY 1, 2, 3
     `, [since, quoteTokens, chain])
 
@@ -123,12 +128,13 @@ export class SmartMoneyWorker {
     type WalletAgg = {
       totalBought: number; totalSold: number; realizedPnl: number
       winTrades: number; lossTrades: number; totalTrades: number
+      totalBuys: number; totalSells: number  // actual buy/sell transaction counts
       bestToken: string; bestSymbol: string; bestPnl: number
     }
     const walletMap = new Map<string, WalletAgg>()
 
     for (const row of rows) {
-      const wallet = (row.wallet as string).toLowerCase()
+      const wallet = chain === 'solana' ? (row.wallet as string) : (row.wallet as string).toLowerCase()
       const bought = Number(row.bought_usd)
       const sold   = Number(row.sold_usd)
       const buys   = Number(row.buy_count)
@@ -140,12 +146,15 @@ export class SmartMoneyWorker {
       const w: WalletAgg = walletMap.get(wallet) ?? {
         totalBought: 0, totalSold: 0, realizedPnl: 0,
         winTrades: 0, lossTrades: 0, totalTrades: 0,
+        totalBuys: 0, totalSells: 0,
         bestToken: row.token_addr, bestSymbol: row.token_symbol, bestPnl: 0,
       }
 
       w.totalBought += bought
       w.totalSold   += sold
       w.totalTrades += buys + sells
+      w.totalBuys   += buys
+      w.totalSells  += sells
       w.realizedPnl += tokenPnl
       if (tokenPnl > 0) w.winTrades++
       else if (tokenPnl < 0) w.lossTrades++
@@ -158,18 +167,17 @@ export class SmartMoneyWorker {
       walletMap.set(wallet, w)
     }
 
-    // 过滤 + 排序
+    // 过滤 + 排序 (save all active wallets, not just profitable ones; API decides display)
     const ranked = Array.from(walletMap.entries())
       .filter(([, w]) =>
         w.totalTrades >= MIN_TRADES &&
-        (w.totalBought + w.totalSold) >= MIN_VOLUME_USD &&
-        w.realizedPnl > 0
+        (w.totalBought + w.totalSold) >= MIN_VOLUME_USD
       )
       .sort((a, b) => b[1].realizedPnl - a[1].realizedPnl)
       .slice(0, MAX_WALLETS)
 
     if (!ranked.length) {
-      console.log(`[SmartMoney] ${chain}/${period}: no profitable wallets found`)
+      console.log(`[SmartMoney] ${chain}/${period}: no qualifying wallets found`)
       return
     }
 
@@ -201,7 +209,7 @@ export class SmartMoneyWorker {
       `, [
         wallet, chain, period,
         w.realizedPnl, w.totalBought, w.totalSold,
-        w.winTrades, w.lossTrades, w.totalTrades,
+        w.totalBuys, w.totalSells, w.totalTrades,
         w.bestToken, w.bestSymbol, w.bestPnl, pnlPct, now,
       ])
     }

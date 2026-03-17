@@ -58,7 +58,9 @@ export async function upsertToken(token: {
   decimals: number
   total_supply?: bigint | string
   logo_url?: string
+  caseSensitive?: boolean
 }) {
+  const addr = token.caseSensitive ? token.address : token.address.toLowerCase()
   await db.query(
     `INSERT INTO tokens (address, symbol, name, decimals, total_supply, logo_url)
      VALUES ($1, $2, $3, $4, $5, $6)
@@ -70,7 +72,7 @@ export async function upsertToken(token: {
        logo_url     = COALESCE(EXCLUDED.logo_url, tokens.logo_url),
        updated_at   = NOW()`,
     [
-      token.address.toLowerCase(),
+      addr,
       token.symbol,
       token.name,
       token.decimals,
@@ -89,15 +91,17 @@ export async function upsertPool(pool: {
   fee_tier?: number
   tick_spacing?: number
   chain?: string
+  caseSensitive?: boolean
 }) {
+  const cs = pool.caseSensitive
   await db.query(
     `INSERT INTO pools (address, token0, token1, dex, fee_tier, tick_spacing, chain)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (address) DO NOTHING`,
     [
-      pool.address.toLowerCase(),
-      pool.token0.toLowerCase(),
-      pool.token1.toLowerCase(),
+      cs ? pool.address : pool.address.toLowerCase(),
+      cs ? pool.token0 : pool.token0.toLowerCase(),
+      cs ? pool.token1 : pool.token1.toLowerCase(),
       pool.dex,
       pool.fee_tier ?? null,
       pool.tick_spacing ?? null,
@@ -120,7 +124,9 @@ export async function insertSwap(swap: {
   amount_usd: number
   price_usd: number
   is_buy: boolean
+  caseSensitive?: boolean
 }) {
+  const cs = swap.caseSensitive
   try {
     await db.query(
       `INSERT INTO swaps
@@ -128,13 +134,13 @@ export async function insertSwap(swap: {
           sender, recipient, amount0, amount1, amount_usd, price_usd, is_buy)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       [
-        swap.pool_address.toLowerCase(),
+        cs ? swap.pool_address : swap.pool_address.toLowerCase(),
         swap.block_number.toString(),
-        swap.tx_hash.toLowerCase(),
+        cs ? swap.tx_hash : swap.tx_hash.toLowerCase(),
         swap.log_index,
         swap.timestamp,
-        swap.sender?.toLowerCase()    ?? null,
-        swap.recipient?.toLowerCase() ?? null,
+        cs ? (swap.sender ?? null) : (swap.sender?.toLowerCase() ?? null),
+        cs ? (swap.recipient ?? null) : (swap.recipient?.toLowerCase() ?? null),
         swap.amount0,
         swap.amount1,
         swap.amount_usd,

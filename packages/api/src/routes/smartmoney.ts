@@ -45,7 +45,8 @@ export async function smartMoneyRoutes(app: FastifyInstance) {
     }
 
     try {
-      const rows = await query<{
+      // Try profitable wallets first, fallback to most active wallets by volume
+      let rows = await query<{
         wallet_address:     string
         realized_pnl_usd:   string
         pnl_percentage:     string
@@ -79,6 +80,30 @@ export async function smartMoneyRoutes(app: FastifyInstance) {
         ORDER BY realized_pnl_usd DESC
         LIMIT $3
       `, [chain, period, limitN])
+
+      // Fallback: if no profitable wallets, show most active by volume
+      if (!rows.length) {
+        rows = await query(`
+          SELECT
+            wallet_address,
+            realized_pnl_usd,
+            pnl_percentage,
+            total_bought_usd,
+            total_sold_usd,
+            win_trades,
+            loss_trades,
+            total_trades,
+            best_token_address,
+            best_token_symbol,
+            best_token_pnl_usd,
+            calculated_at
+          FROM wallet_pnl
+          WHERE chain = $1
+            AND period = $2
+          ORDER BY (total_bought_usd + total_sold_usd) DESC
+          LIMIT $3
+        `, [chain, period, limitN])
+      }
 
       // Map to SmartWallet shape (compatible with frontend)
       const wallets = rows.map(r => ({

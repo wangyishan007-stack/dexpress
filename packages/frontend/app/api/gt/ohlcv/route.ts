@@ -33,7 +33,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(cached.data)
   }
 
-  const url = `${GT_BASE}/networks/${network}/pools/${pool}/ohlcv/${timeframe}?aggregate=${aggregate}&before_timestamp=${roundedBefore}&limit=${limit}&currency=usd`
+  const urlParams = new URLSearchParams({ aggregate, limit, currency: 'usd' })
+  if (roundedBefore) urlParams.set('before_timestamp', roundedBefore)
+  const url = `${GT_BASE}/networks/${network}/pools/${pool}/ohlcv/${timeframe}?${urlParams}`
   const proxyUrl = process.env.PROXY_URL
 
   for (let attempt = 0; attempt < 2; attempt++) {

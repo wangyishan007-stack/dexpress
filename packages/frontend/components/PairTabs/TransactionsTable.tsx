@@ -6,7 +6,7 @@ import Link from 'next/link'
 import clsx from 'clsx'
 import { fmtUsd, fmtPrice, fmtEth, fmtNum, shortAddr } from '../../lib/formatters'
 import { useChain } from '@/contexts/ChainContext'
-import { explorerLink } from '@/lib/chains'
+import { explorerLink, normalizeAddr } from '@/lib/chains'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import type { MoralisTrader } from '../../lib/moralis'
 
@@ -384,10 +384,10 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
     const map = new Map<string, MoralisTrader>()
     if (!traders) return map
     for (const t of traders) {
-      map.set(t.address.toLowerCase(), t)
+      map.set(normalizeAddr(chain, t.address), t)
     }
     return map
-  }, [traders])
+  }, [traders, chain])
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS)
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null)
@@ -452,7 +452,7 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
       const ethAmt = Math.abs(Number(s.amount0))
       if (filters.ethMin && ethAmt < Number(filters.ethMin)) return false
       if (filters.ethMax && ethAmt > Number(filters.ethMax)) return false
-      if (filters.maker && (!s.sender || !s.sender.toLowerCase().includes(filters.maker.toLowerCase()))) return false
+      if (filters.maker && (!s.sender || !normalizeAddr(chain, s.sender).includes(normalizeAddr(chain, filters.maker)))) return false
       return true
     })
   }, [swaps, filters])
@@ -532,7 +532,7 @@ export function TransactionsTable({ swaps, swapHasMore, swapLoading, onLoadMore,
           </span>
           <span className="flex items-center justify-end gap-1 min-w-0">
             {(() => {
-              const trader = s.sender ? traderMap.get(s.sender.toLowerCase()) : undefined
+              const trader = s.sender ? traderMap.get(normalizeAddr(chain, s.sender)) : undefined
               const winRate = trader && trader.realized_profit_percentage > 0 ? trader.realized_profit_percentage : null
               const addr = s.sender ?? ''
               return (

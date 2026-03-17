@@ -3,7 +3,7 @@ import type { PairsQuery } from '@dex/shared'
 import { MOCK_POOLS, MOCK_STATS, buildSwapsForPool } from './mockData'
 import { fetchDexScreenerPairs } from './dexscreener'
 import { fetchPairByAddress, fetchDexScreenerClient } from './dexscreener-client'
-import type { ChainSlug } from './chains'
+import { type ChainSlug, normalizeAddr } from './chains'
 import type { Stats } from '../hooks/useStats'
 import type { FilterValues, TextFilterValues } from '../components/FiltersModal'
 
@@ -110,7 +110,8 @@ export async function getPair(address: string, chain?: ChainSlug): Promise<(Pool
 
   // Try cached GT pools first, then single pool lookup
   const pools = await fetchDexScreenerClient(chain)
-  const cached = pools.find(p => p.address.toLowerCase() === address.toLowerCase())
+  const c = chain ?? 'base'
+  const cached = pools.find(p => normalizeAddr(c, p.address) === normalizeAddr(c, address))
   if (cached) return { ...cached, recent_swaps: [] }
 
   // Fallback: fetch single pool from GeckoTerminal

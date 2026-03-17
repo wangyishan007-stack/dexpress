@@ -7,7 +7,7 @@ import { useChain } from '@/contexts/ChainContext'
 import { useFollowedWallets } from '@/hooks/useFollowedWallets'
 import { useWalletDetail } from '@/hooks/useWalletDetail'
 import { fmtUsd, fmtPrice } from '@/lib/formatters'
-import { explorerLink, getChain, trustWalletLogo, type ChainSlug } from '@/lib/chains'
+import { explorerLink, getChain, trustWalletLogo, normalizeAddr, type ChainSlug } from '@/lib/chains'
 import { type DetectedSwap } from '@/lib/copyTrade'
 import { CopyTradeModal } from '@/components/CopyTradeModal'
 import { getTokenLogoFromCache } from '@/lib/dexscreener-client'
@@ -915,19 +915,14 @@ export default function WalletPage({ params }: { params: { address: string } }) 
 
   const handleTradeCopy = useCallback((swap: DetectedSwap) => {
     // Determine which token to buy: prefer the non-ETH/WETH/USDC token
-    const NATIVE_ADDRS = new Set([
-      '0x0000000000000000000000000000000000000000',
-      '0x4200000000000000000000000000000000000006', // WETH Base
-      '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC Base
-      'So11111111111111111111111111111111111111112', // SOL
-      'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC Solana
-    ])
+    const chainCfg = getChain(chain)
+    const quoteAddrs = new Set([chainCfg.wrappedNative, ...chainCfg.stablecoins])
+    if (chainCfg.chainType === 'evm') quoteAddrs.add('0x0000000000000000000000000000000000000000')
     const boughtAddr = swap.tokenBought.address
-    const buyToken = (NATIVE_ADDRS.has(boughtAddr) || NATIVE_ADDRS.has(boughtAddr.toLowerCase()))
-      ? swap.tokenSold
-      : swap.tokenBought
-    setCopyModalToken({ address: buyToken.address, symbol: buyToken.symbol, decimals: 18 })
-  }, [])
+    const isQuote = quoteAddrs.has(normalizeAddr(chain, boughtAddr))
+    const buyToken = isQuote ? swap.tokenSold : swap.tokenBought
+    setCopyModalToken({ address: buyToken.address, symbol: buyToken.symbol, decimals: chainCfg.nativeCurrency.decimals })
+  }, [chain])
 
   // Compute summary stats
   const pnl = stats ? Number(stats.total_realized_profit_usd) : null
