@@ -17,6 +17,14 @@ export async function smartMoneyRoutes(app: FastifyInstance) {
     }
   })
 
+  // GET /api/admin/pool-debug — 查 pool token 分布
+  app.get('/api/admin/pool-debug', async (_req, reply) => {
+    const r1 = await query("SELECT COUNT(*) n FROM pools WHERE token0 = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'")
+    const r2 = await query("SELECT COUNT(*) n FROM pools WHERE token1 = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'")
+    const r3 = await query("SELECT token_symbol, COUNT(*) n FROM wallet_pnl GROUP BY token_symbol ORDER BY n DESC LIMIT 10")
+    return reply.send({ usdc_as_token0: r1[0].n, usdc_as_token1: r2[0].n, top_tokens: r3 })
+  })
+
   // GET /api/admin/stats — 查数据库状态
   app.get('/api/admin/stats', async (_req, reply) => {
     const r1 = await query('SELECT COUNT(*) as n FROM swaps')
