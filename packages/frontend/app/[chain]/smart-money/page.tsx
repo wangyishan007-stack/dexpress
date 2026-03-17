@@ -409,12 +409,18 @@ function LeaderboardTab() {
             </div>
 
             <div className="text-[12px] tabular">
-              <span className={clsx('font-medium', (w.win_rate ?? 0) >= 50 ? 'text-green' : 'text-red')}>
-                {w.win_rate ?? 0}%
-              </span>
-              <div className="text-sub/50 text-[11px]">
-                {w.count_of_buys}W/{w.count_of_sells}L
-              </div>
+              {(w.win_rate ?? 0) > 0 ? (
+                <>
+                  <span className={clsx('font-medium', w.win_rate >= 50 ? 'text-green' : 'text-red')}>
+                    {w.win_rate}%
+                  </span>
+                  <div className="text-sub/50 text-[11px]">
+                    {w.count_of_buys}W/{w.count_of_sells}L
+                  </div>
+                </>
+              ) : (
+                <span className="text-sub">—</span>
+              )}
             </div>
 
             <div className="text-[12px] tabular text-text">
