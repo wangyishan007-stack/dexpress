@@ -65,8 +65,9 @@ export interface SmartWallet {
   realized_profit_usd: number
   realized_profit_percentage: number
   count_of_trades: number
-  count_of_buys: number
-  count_of_sells: number
+  count_of_buys: number   // win token count (tokens with profit)
+  count_of_sells: number  // loss token count (tokens with loss)
+  win_rate: number        // win% = wins / (wins + losses) * 100
   total_usd_invested: string
   total_sold_usd: string
   token_address: string
@@ -320,6 +321,7 @@ async function fetchViaMoralis(
         count_of_trades: trades,
         count_of_buys: buys,
         count_of_sells: sells,
+        win_rate: 0, // Moralis doesn't provide win/loss per token
         total_usd_invested: String(invested),
         total_sold_usd: String(sold),
         token_address: t._token_address,
@@ -488,13 +490,25 @@ async function fetchViaGtTrades(
     // but can't calculate exact %. Use conservative 100% estimate.
     const pctEstimate = w.bought_usd > 0 ? (pnl / w.bought_usd) * 100 : 100
 
+    // Count win/loss tokens
+    let winTokens = 0, lossTokens = 0
+    for (const [, tk] of w.tokens) {
+      const tkPnl = tk.sold - tk.bought
+      if (tk.bought > 0 && tk.sold > 0) {
+        if (tkPnl > 0) winTokens++
+        else if (tkPnl < 0) lossTokens++
+      }
+    }
+    const totalTokens = winTokens + lossTokens
+
     wallets.push({
       address: w.address,
       realized_profit_usd: pnl,
       realized_profit_percentage: pctEstimate,
       count_of_trades: w.buy_count + w.sell_count,
-      count_of_buys: w.buy_count,
-      count_of_sells: w.sell_count,
+      count_of_buys: winTokens,
+      count_of_sells: lossTokens,
+      win_rate: totalTokens > 0 ? Math.round((winTokens / totalTokens) * 100) : 0,
       total_usd_invested: String(w.bought_usd),
       total_sold_usd: String(w.sold_usd),
       token_address: bestTokenAddr,

@@ -97,7 +97,8 @@ export class SmartMoneyWorker {
       SELECT
         COALESCE(s.sender, s.recipient)        AS wallet,
         CASE
-          WHEN p.token0 = ANY($2::text[]) THEN p.token1
+          WHEN LOWER(p.token0) = ANY($2::text[]) THEN p.token1
+          WHEN LOWER(p.token1) = ANY($2::text[]) THEN p.token0
           ELSE p.token0
         END                                    AS token_addr,
         COALESCE(tk.symbol, '?')               AS token_symbol,
@@ -107,10 +108,11 @@ export class SmartMoneyWorker {
         COUNT(CASE WHEN NOT s.is_buy THEN 1 END)::text                 AS sell_count
       FROM swaps s
       JOIN pools p ON p.address = s.pool_address
-      LEFT JOIN tokens tk ON tk.address = CASE
-          WHEN p.token0 = ANY($2::text[]) THEN p.token1
+      LEFT JOIN tokens tk ON LOWER(tk.address) = LOWER(CASE
+          WHEN LOWER(p.token0) = ANY($2::text[]) THEN p.token1
+          WHEN LOWER(p.token1) = ANY($2::text[]) THEN p.token0
           ELSE p.token0
-        END
+        END)
       WHERE s.timestamp >= $1
         AND p.chain = $3
         AND s.amount_usd > 0
@@ -127,6 +129,7 @@ export class SmartMoneyWorker {
     // 按钱包聚合 PnL
     type WalletAgg = {
       totalBought: number; totalSold: number; realizedPnl: number
+      realizedBought: number  // 只算已实现 token 的买入量（用于 PnL%）
       winTrades: number; lossTrades: number; totalTrades: number
       totalBuys: number; totalSells: number  // actual buy/sell transaction counts
       bestToken: string; bestSymbol: string; bestPnl: number
@@ -141,10 +144,11 @@ export class SmartMoneyWorker {
       const sells  = Number(row.sell_count)
 
       // realized PnL: 只有既买又卖才算（单边持仓不算已实现）
-      const tokenPnl = (buys > 0 && sells > 0) ? sold - bought : 0
+      const isRealized = buys > 0 && sells > 0
+      const tokenPnl = isRealized ? sold - bought : 0
 
       const w: WalletAgg = walletMap.get(wallet) ?? {
-        totalBought: 0, totalSold: 0, realizedPnl: 0,
+        totalBought: 0, totalSold: 0, realizedPnl: 0, realizedBought: 0,
         winTrades: 0, lossTrades: 0, totalTrades: 0,
         totalBuys: 0, totalSells: 0,
         bestToken: row.token_addr, bestSymbol: row.token_symbol, bestPnl: 0,
@@ -156,6 +160,7 @@ export class SmartMoneyWorker {
       w.totalBuys   += buys
       w.totalSells  += sells
       w.realizedPnl += tokenPnl
+      if (isRealized) w.realizedBought += bought
       if (tokenPnl > 0) w.winTrades++
       else if (tokenPnl < 0) w.lossTrades++
       if (tokenPnl > w.bestPnl) {
@@ -167,11 +172,14 @@ export class SmartMoneyWorker {
       walletMap.set(wallet, w)
     }
 
-    // 过滤 + 排序 (save all active wallets, not just profitable ones; API decides display)
+    // 过滤 + 排序（过滤做市商/机器人：交易次数 > 5000，只保留盈利钱包）
+    const MAX_TRADES = 5_000
     const ranked = Array.from(walletMap.entries())
       .filter(([, w]) =>
         w.totalTrades >= MIN_TRADES &&
-        (w.totalBought + w.totalSold) >= MIN_VOLUME_USD
+        w.totalTrades <= MAX_TRADES &&
+        (w.totalBought + w.totalSold) >= MIN_VOLUME_USD &&
+        w.realizedPnl > 0
       )
       .sort((a, b) => b[1].realizedPnl - a[1].realizedPnl)
       .slice(0, MAX_WALLETS)
@@ -184,7 +192,8 @@ export class SmartMoneyWorker {
     // Upsert wallet_pnl
     const now = new Date()
     for (const [wallet, w] of ranked) {
-      const pnlPct = w.totalBought > 0 ? (w.realizedPnl / w.totalBought) * 100 : 0
+      // PnL%: 只用已实现 token 的买入量做分母，避免未实现仓位摊薄
+      const pnlPct = w.realizedBought > 0 ? (w.realizedPnl / w.realizedBought) * 100 : 0
       await query(`
         INSERT INTO wallet_pnl (
           wallet_address, chain, period,
@@ -209,7 +218,7 @@ export class SmartMoneyWorker {
       `, [
         wallet, chain, period,
         w.realizedPnl, w.totalBought, w.totalSold,
-        w.totalBuys, w.totalSells, w.totalTrades,
+        w.winTrades, w.lossTrades, w.totalTrades,
         w.bestToken, w.bestSymbol, w.bestPnl, pnlPct, now,
       ])
     }

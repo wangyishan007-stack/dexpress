@@ -43,6 +43,18 @@ export const PANCAKE_V3_SWAP_EVENT = {
   ],
 } as const
 
+// PancakeSwap V2 Factory — PairCreated event
+export const PANCAKE_V2_PAIR_CREATED_EVENT = {
+  type: 'event',
+  name: 'PairCreated',
+  inputs: [
+    { name: 'token0',         type: 'address', indexed: true  },
+    { name: 'token1',         type: 'address', indexed: true  },
+    { name: 'pair',           type: 'address', indexed: false },
+    { name: 'allPairsLength', type: 'uint256', indexed: false },
+  ],
+} as const
+
 // PancakeSwap V2 Swap event (same as Uniswap V2 / Aerodrome V2)
 export const PANCAKE_V2_SWAP_EVENT = {
   type: 'event',

@@ -41,7 +41,7 @@ function fmtNativeBalance(wei: string, decimals: number): string {
   return n.toFixed(4)
 }
 
-type SortKey = 'pnl' | 'trades' | 'volume'
+type SortKey = 'pnl' | 'winRate' | 'trades' | 'volume'
 type FilterKey = 'smart' | 'freshWallet' | 'sniper' | 'myTracked'
 
 const FILTER_KEYS: FilterKey[] = ['smart', 'freshWallet', 'sniper', 'myTracked']
@@ -294,9 +294,10 @@ function LeaderboardTab() {
   const sorted = filtered.slice().sort((a, b) => {
     let diff = 0
     switch (sortKey) {
-      case 'pnl':    diff = a.realized_profit_usd - b.realized_profit_usd; break
-      case 'trades': diff = a.count_of_trades - b.count_of_trades; break
-      case 'volume': diff = (Number(a.total_usd_invested) + Number(a.total_sold_usd)) - (Number(b.total_usd_invested) + Number(b.total_sold_usd)); break
+      case 'pnl':     diff = a.realized_profit_usd - b.realized_profit_usd; break
+      case 'winRate': diff = (a.win_rate ?? 0) - (b.win_rate ?? 0); break
+      case 'trades':  diff = a.count_of_trades - b.count_of_trades; break
+      case 'volume':  diff = (Number(a.total_usd_invested) + Number(a.total_sold_usd)) - (Number(b.total_usd_invested) + Number(b.total_sold_usd)); break
     }
     return sortAsc ? diff : -diff
   })
@@ -315,7 +316,7 @@ function LeaderboardTab() {
     )
   }
 
-  const gridCols = '32px minmax(200px, 1.5fr) minmax(130px, 1fr) minmax(90px, 0.6fr) minmax(100px, 0.7fr) 80px'
+  const gridCols = '32px minmax(180px, 1.5fr) minmax(120px, 1fr) minmax(70px, 0.5fr) minmax(90px, 0.6fr) minmax(90px, 0.6fr) 80px'
 
   /* Filter bar — always rendered so user can switch tabs even when list is empty */
   const filterBar = (
@@ -367,14 +368,17 @@ function LeaderboardTab() {
       <div className="flex flex-col border border-border rounded-lg overflow-x-auto">
       {/* Header */}
       <div className="grid gap-x-2 px-4 py-3 text-[12px] md:text-[14px] font-medium text-header border-b border-border sticky top-0 bg-surface z-10"
-        style={{ gridTemplateColumns: gridCols, minWidth: 740 }}>
+        style={{ gridTemplateColumns: gridCols, minWidth: 820 }}>
         <span>#</span>
         <span>{t('wallet')}</span>
         <button onClick={() => handleSort('pnl')} className="flex items-center gap-0.5 hover:text-text transition-colors">
           {t('pnl')} <SortArrow active={sortKey === 'pnl'} asc={sortAsc} />
         </button>
+        <button onClick={() => handleSort('winRate')} className="flex items-center gap-0.5 hover:text-text transition-colors">
+          Win Rate <SortArrow active={sortKey === 'winRate'} asc={sortAsc} />
+        </button>
         <button onClick={() => handleSort('trades')} className="flex items-center gap-0.5 hover:text-text transition-colors">
-          {t('buys')} / {t('sells')} <SortArrow active={sortKey === 'trades'} asc={sortAsc} />
+          {t('trades')} <SortArrow active={sortKey === 'trades'} asc={sortAsc} />
         </button>
         <button onClick={() => handleSort('volume')} className="flex items-center gap-0.5 hover:text-text transition-colors">
           {t('volume')} <SortArrow active={sortKey === 'volume'} asc={sortAsc} />
@@ -391,7 +395,7 @@ function LeaderboardTab() {
         return (
           <Link key={w.address} href={`/${chain}/wallet/${w.address}?token=${w.token_address}`}
             className="grid gap-x-2 px-4 py-2.5 items-center border-b border-border hover:bg-surface/50 transition-colors cursor-pointer"
-            style={{ gridTemplateColumns: gridCols, minWidth: 740 }}>
+            style={{ gridTemplateColumns: gridCols, minWidth: 820 }}>
             <div className="flex items-center justify-center"><RankBadge rank={i + 1} /></div>
 
             <div className="flex items-center gap-3 min-w-0">
@@ -425,9 +429,16 @@ function LeaderboardTab() {
             </div>
 
             <div className="text-[12px] tabular">
-              <span className="text-green">{w.count_of_buys}</span>
-              <span className="text-sub"> / </span>
-              <span className="text-red">{w.count_of_sells}</span>
+              <span className={clsx('font-medium', (w.win_rate ?? 0) >= 50 ? 'text-green' : 'text-red')}>
+                {w.win_rate ?? 0}%
+              </span>
+              <span className="text-sub/50 ml-1 text-[11px]">
+                {w.count_of_buys}W/{w.count_of_sells}L
+              </span>
+            </div>
+
+            <div className="text-[12px] tabular text-text">
+              {w.count_of_trades}
             </div>
 
             <span className={clsx('text-[12px] tabular', vol > 0 ? 'text-text' : 'text-sub')}>

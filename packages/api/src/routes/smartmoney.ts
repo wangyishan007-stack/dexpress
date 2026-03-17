@@ -114,19 +114,25 @@ export async function smartMoneyRoutes(app: FastifyInstance) {
       }
 
       // Map to SmartWallet shape (compatible with frontend)
-      const wallets = rows.map(r => ({
-        address:                    r.wallet_address,
-        realized_profit_usd:        Number(r.realized_pnl_usd),
-        realized_profit_percentage: Number(r.pnl_percentage),
-        count_of_trades:            r.total_trades,
-        count_of_buys:              r.win_trades,
-        count_of_sells:             r.loss_trades,
-        total_usd_invested:         r.total_bought_usd,
-        total_sold_usd:             r.total_sold_usd,
-        token_address:              r.best_token_address ?? '',
-        token_symbol:               r.best_token_symbol  ?? '',
-        native_balance_wei:         '0',
-      }))
+      const wallets = rows.map(r => {
+        const wins = r.win_trades ?? 0
+        const losses = r.loss_trades ?? 0
+        const totalTokens = wins + losses
+        return {
+          address:                    r.wallet_address,
+          realized_profit_usd:        Number(r.realized_pnl_usd),
+          realized_profit_percentage: Number(r.pnl_percentage),
+          count_of_trades:            r.total_trades,
+          count_of_buys:              wins,
+          count_of_sells:             losses,
+          win_rate:                   totalTokens > 0 ? Math.round((wins / totalTokens) * 100) : 0,
+          total_usd_invested:         r.total_bought_usd,
+          total_sold_usd:             r.total_sold_usd,
+          token_address:              r.best_token_address ?? '',
+          token_symbol:               r.best_token_symbol  ?? '',
+          native_balance_wei:         '0',
+        }
+      })
 
       const resp = { wallets, chain, source: 'indexer' }
       if (wallets.length > 0) cache.set(cacheKey, { data: resp, ts: Date.now() })

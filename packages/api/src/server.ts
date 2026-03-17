@@ -130,7 +130,20 @@ async function runMigration() {
         ('0x0ed7e52944161450477ee417de9cd3a859b14fd0','0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82','0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c','pancakeswap_v2',0,'bsc')
       ON CONFLICT DO NOTHING
     `)
+    // BSC meme tokens
+    await db.query(`
+      INSERT INTO tokens (address, symbol, name, decimals) VALUES
+        ('0x25d887ce7a35172c62febfd67a1856f20faebb00','PEPE','Pepe',18),
+        ('0xfb5b838b6cfeedc2873ab27866079ac55363d37e','FLOKI','Floki',9)
+      ON CONFLICT DO NOTHING
+    `)
     console.log('[API] BSC seed data OK')
+
+    // Add BSC indexer state key if not exists
+    await db.query(`
+      INSERT INTO indexer_state (key, value) VALUES ('last_block_bsc_pool_created', '0')
+      ON CONFLICT (key) DO NOTHING
+    `)
 
     // Add chain column to pools if not exists
     await db.query(`
