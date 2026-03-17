@@ -42,9 +42,9 @@ function fmtNativeBalance(wei: string, decimals: number): string {
 }
 
 type SortKey = 'score' | 'pnl' | 'winRate' | 'trades' | 'volume'
-type FilterKey = 'all' | 'smart' | 'profitable' | 'sniper' | 'myTracked'
+type FilterKey = 'smart' | 'freshWallet' | 'sniper' | 'myTracked'
 
-const FILTER_KEYS: FilterKey[] = ['all', 'smart', 'profitable', 'sniper', 'myTracked']
+const FILTER_KEYS: FilterKey[] = ['smart', 'freshWallet', 'sniper', 'myTracked']
 
 const PERIODS: SmartMoneyPeriod[] = ['1d', '7d', '30d']
 const PERIOD_LABELS: Record<SmartMoneyPeriod, string> = { '1d': '1D', '7d': '7D', '30d': '30D' }
@@ -233,7 +233,7 @@ function LeaderboardTab() {
   const t = useTranslations('smartMoney')
 
   const [period, setPeriod] = useState<SmartMoneyPeriod>('7d')
-  const [filter, setFilter] = useState<FilterKey>('all')
+  const [filter, setFilter] = useState<FilterKey>('smart')
   const [sortKey, setSortKey] = useState<SortKey>('score')
   const [sortAsc, setSortAsc] = useState(false)
   const [copyModal, setCopyModal] = useState<CopyModalState>({
@@ -250,31 +250,18 @@ function LeaderboardTab() {
     else { setSortKey(key); setSortAsc(false) }
   }
 
-  // Filter labels
-  const FILTER_LABELS: Record<FilterKey, string> = {
-    all: 'All',
-    smart: 'Smart Money',
-    profitable: 'Profitable',
-    sniper: 'Sniper',
-    myTracked: t('myTracked'),
-  }
-
-  // Client-side filters (参考 GMGN)
+  // Client-side filters
   const filtered = (() => {
     switch (filter) {
       case 'smart':
-        // GMGN-style: Win Rate ≥40%, PnL% ≥30%, score ≥50
-        return wallets.filter(w =>
-          (w.win_rate ?? 0) >= 40 &&
-          w.realized_profit_percentage >= 30 &&
-          (w.smart_score ?? 0) >= 50
-        )
-      case 'profitable':
-        // All profitable wallets
-        return wallets.filter(w => w.realized_profit_usd > 0)
+        // Profitable + at least a few trades
+        return wallets.filter(w => w.realized_profit_percentage > 0 && w.count_of_trades >= 2)
+      case 'freshWallet':
+        // New wallets: few trades (< 10)
+        return wallets.filter(w => w.count_of_trades < 10)
       case 'sniper':
         // High PnL% with few trades — got in early on new tokens
-        return wallets.filter(w => w.realized_profit_percentage > 200 && w.count_of_trades <= 30)
+        return wallets.filter(w => w.realized_profit_percentage > 500 && w.count_of_trades <= 20)
       case 'myTracked':
         return wallets.filter(w => isFollowing(w.address))
       default:
@@ -320,7 +307,7 @@ function LeaderboardTab() {
               'flex items-center h-[30px] px-3 rounded text-[14px] font-medium transition-colors whitespace-nowrap flex-shrink-0',
               filter === f ? 'bg-border/60 text-text' : 'text-sub/70 hover:text-sub'
             )}>
-            {FILTER_LABELS[f]}
+            {t(f === 'smart' ? 'smartOnly' : f)}
           </button>
         ))}
       </div>
