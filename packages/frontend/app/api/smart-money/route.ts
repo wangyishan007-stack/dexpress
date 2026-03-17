@@ -571,7 +571,7 @@ export async function GET(req: NextRequest) {
   // ── Try self-hosted backend first (wallet_pnl table) ──────
   // Quality gate: only use indexer when data is mature enough,
   // otherwise fall through to Moralis/GT which have richer historical data
-  const MIN_PROFITABLE_WALLETS = 15
+  const MIN_PROFITABLE_WALLETS = 5
   const backendUrl = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL
   let indexerWallets: SmartWallet[] | null = null
   if (backendUrl) {
