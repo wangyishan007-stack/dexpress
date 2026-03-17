@@ -10,11 +10,20 @@ export async function smartMoneyRoutes(app: FastifyInstance) {
     try {
       const { SmartMoneyWorker } = await import('../smartMoneyWorker')
       const worker = new SmartMoneyWorker()
-      worker.calculateNow().catch(console.error) // 后台运行
+      // 后台运行，完成后清缓存
+      worker.calculateNow()
+        .then(() => { cache.clear(); console.log('[smart-money] Recalc done, cache cleared') })
+        .catch(console.error)
       return reply.send({ ok: true, message: 'Recalculation started' })
     } catch (e) {
       return reply.status(500).send({ error: String(e) })
     }
+  })
+
+  // GET /api/admin/clear-cache — 手动清缓存
+  app.get('/api/admin/clear-cache', async (_req, reply) => {
+    cache.clear()
+    return reply.send({ ok: true, message: 'Cache cleared' })
   })
 
   // GET /api/admin/pool-debug — 查 pool token 分布
