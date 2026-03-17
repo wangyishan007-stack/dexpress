@@ -182,6 +182,18 @@ async function runMigration() {
       ON CONFLICT DO NOTHING
     `)
     console.log('[API] Solana column widening + seed tokens OK')
+
+    // Smart Money v2: add token_count + smart_score columns
+    for (const stmt of [
+      `ALTER TABLE wallet_pnl ADD COLUMN IF NOT EXISTS token_count INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE wallet_pnl ADD COLUMN IF NOT EXISTS smart_score REAL NOT NULL DEFAULT 0`,
+    ]) {
+      try { await db.query(stmt) }
+      catch (e: any) { console.warn(`[Migration] ${stmt.slice(0, 60)}... skipped:`, e?.message?.slice(0, 80)) }
+    }
+    // Add index for smart_score sorting
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_wallet_pnl_smart_score ON wallet_pnl(chain, period, smart_score DESC)`).catch(() => {})
+    console.log('[API] wallet_pnl smart_score migration OK')
   } catch (e: unknown) {
     console.warn('[API] Migration warning:', e instanceof Error ? e.message : e)
   }

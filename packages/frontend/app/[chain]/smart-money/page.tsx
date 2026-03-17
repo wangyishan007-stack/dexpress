@@ -41,10 +41,10 @@ function fmtNativeBalance(wei: string, decimals: number): string {
   return n.toFixed(4)
 }
 
-type SortKey = 'pnl' | 'winRate' | 'trades' | 'volume'
-type FilterKey = 'smart' | 'freshWallet' | 'sniper' | 'myTracked'
+type SortKey = 'score' | 'pnl' | 'winRate' | 'trades' | 'volume'
+type FilterKey = 'all' | 'smart' | 'profitable' | 'sniper' | 'myTracked'
 
-const FILTER_KEYS: FilterKey[] = ['smart', 'freshWallet', 'sniper', 'myTracked']
+const FILTER_KEYS: FilterKey[] = ['all', 'smart', 'profitable', 'sniper', 'myTracked']
 
 const PERIODS: SmartMoneyPeriod[] = ['1d', '7d', '30d']
 const PERIOD_LABELS: Record<SmartMoneyPeriod, string> = { '1d': '1D', '7d': '7D', '30d': '30D' }
@@ -87,29 +87,6 @@ function WalletAvatar({ address, size = 44 }: { address: string; size?: number }
       style={{ width: size, height: size }}
       onError={() => setFailed(true)}
     />
-  )
-}
-
-/* ── Token logo (small) ──────────────────────────────── */
-function TokenLogo({ logo, symbol, size = 20 }: { logo: string | null; symbol: string; size?: number }) {
-  const [failed, setFailed] = useState(false)
-  const hue = symbol.split('').reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)
-
-  if (!logo || failed) {
-    return (
-      <div
-        className="rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
-        style={{ width: size, height: size, fontSize: size * 0.45, background: `hsl(${Math.abs(hue) % 360}, 55%, 45%)` }}
-      >
-        {symbol.charAt(0)}
-      </div>
-    )
-  }
-
-  return (
-    <img src={logo} alt={symbol} width={size} height={size}
-      className="rounded-full flex-shrink-0" style={{ width: size, height: size }}
-      onError={() => setFailed(true)} />
   )
 }
 
@@ -156,9 +133,9 @@ function StatsCards({ wallets, period, chain }: {
   const t = useTranslations('smartMoney')
 
   const stats = useMemo(() => {
-    const topEarner = wallets[0] ?? null // already sorted by PnL desc from API
-    const totalPnl = wallets.reduce((sum, w) => sum + w.realized_profit_usd, 0)
-
+    const topEarner = wallets.find(w => w.realized_profit_usd > 0) ?? null
+    const profitableWallets = wallets.filter(w => w.realized_profit_usd > 0)
+    const totalPnl = profitableWallets.reduce((sum, w) => sum + w.realized_profit_usd, 0)
     // Aggregate profit per token, sort by total profit desc
     const tokenAgg = new Map<string, { profit: number; count: number }>()
     for (const w of wallets) {
@@ -173,7 +150,7 @@ function StatsCards({ wallets, period, chain }: {
       .sort((a, b) => b[1].profit - a[1].profit)
       .slice(0, 3)
 
-    return { topEarner, totalPnl, trendingTokens }
+    return { topEarner, totalPnl, trendingTokens, totalWallets: wallets.length }
   }, [wallets])
 
   if (!wallets.length) return null
@@ -220,7 +197,7 @@ function StatsCards({ wallets, period, chain }: {
         </div>
       </div>
 
-      {/* Card 3: Total PnL */}
+      {/* Card 3: Overview */}
       <div className="flex items-start gap-3 border border-border rounded-lg p-3 md:p-4">
         <svg width="26" height="26" viewBox="0 0 26 26" fill="none" className="flex-shrink-0"><circle cx="13" cy="13" r="13" fill="#6EDC78" fillOpacity="0.1"/><path d="M17.9298 11.1417C17.6042 10.8053 17.2527 10.4949 16.8786 10.2133C16.8249 10.1735 16.7839 10.1453 16.7363 10.1106C17.0484 10.0257 17.3258 9.84429 17.5288 9.59239C17.7318 9.3405 17.85 9.03094 17.8667 8.70787C17.8257 8.26745 17.6125 7.86103 17.2735 7.57687C16.9345 7.29272 16.4971 7.15378 16.0563 7.19025C15.844 7.19025 15.6334 7.22869 15.4348 7.30371C15.3638 7.3297 15.2952 7.36173 15.2296 7.39946C15.2077 7.40524 15.1847 7.40584 15.1626 7.40121C15.1404 7.39658 15.1196 7.38685 15.1018 7.37278C15.0022 7.22806 14.8836 7.09732 14.7493 6.98402C14.4483 6.70512 14.0531 6.55017 13.6427 6.55017C13.2324 6.55017 12.8372 6.70512 12.5362 6.98402C12.4048 7.09509 12.2885 7.22292 12.1904 7.36423C12.1737 7.38026 12.1534 7.39207 12.1312 7.39868C12.109 7.4053 12.0856 7.40652 12.0628 7.40225C11.995 7.36321 11.924 7.32992 11.8506 7.30272C11.6519 7.22808 11.4414 7.18965 11.2291 7.18925C10.7884 7.15312 10.3512 7.29221 10.0124 7.57636C9.6736 7.86051 9.46049 8.26679 9.41932 8.70707C9.42925 8.97957 9.51449 9.24399 9.66558 9.47098C9.81667 9.69797 10.0277 9.87865 10.2753 9.99298C10.2183 10.0316 10.1652 10.0708 10.1106 10.111C9.73512 10.3865 9.38395 10.6937 9.06101 11.0293C8.10593 11.9318 7.54506 13.1744 7.5 14.4877C7.5 18.0546 10.195 19.7508 13.4419 19.7508C14.7548 19.7873 16.0542 19.477 17.209 18.8513C18.6691 17.9933 19.5 16.5523 19.5 14.4877C19.4354 13.2097 18.8716 12.0081 17.9298 11.1417Z" fill="#6EDC78"/><path d="M13.2315 17.6019V11.8364H13.6009V17.6019H13.2315ZM14.2112 13.7395C14.1932 13.5578 14.1158 13.4167 13.9792 13.3161C13.8426 13.2155 13.6572 13.1652 13.4229 13.1652C13.2638 13.1652 13.1294 13.1877 13.0198 13.2327C12.9102 13.2763 12.8261 13.3371 12.7676 13.4152C12.7105 13.4932 12.682 13.5818 12.682 13.6809C12.679 13.7635 12.6962 13.8356 12.7338 13.8971C12.7728 13.9587 12.8261 14.012 12.8937 14.057C12.9613 14.1006 13.0393 14.1389 13.1279 14.1719C13.2165 14.2034 13.3111 14.2304 13.4117 14.253L13.8261 14.3521C14.0273 14.3971 14.2119 14.4572 14.3801 14.5322C14.5483 14.6073 14.6939 14.6996 14.817 14.8092C14.9401 14.9188 15.0355 15.048 15.103 15.1966C15.1721 15.3452 15.2074 15.5157 15.2089 15.7078C15.2074 15.9901 15.1353 16.2348 14.9927 16.442C14.8515 16.6477 14.6473 16.8076 14.3801 16.9217C14.1143 17.0343 13.7938 17.0906 13.4184 17.0906C13.0461 17.0906 12.7218 17.0336 12.4455 16.9195C12.1708 16.8054 11.956 16.6365 11.8014 16.4128C11.6483 16.1875 11.5679 15.909 11.5604 15.5772H12.5041C12.5146 15.7319 12.5589 15.861 12.6369 15.9646C12.7165 16.0667 12.8224 16.144 12.9545 16.1966C13.0881 16.2476 13.239 16.2731 13.4072 16.2731C13.5723 16.2731 13.7157 16.2491 13.8373 16.2011C13.9604 16.153 14.0558 16.0862 14.1233 16.0006C14.1909 15.915 14.2247 15.8167 14.2247 15.7056C14.2247 15.602 14.1939 15.5149 14.1324 15.4443C14.0723 15.3738 13.9837 15.3137 13.8666 15.2642C13.751 15.2146 13.6091 15.1696 13.441 15.129L12.9387 15.0029C12.5499 14.9083 12.2428 14.7604 12.0176 14.5593C11.7924 14.3581 11.6805 14.0871 11.682 13.7462C11.6805 13.467 11.7549 13.223 11.905 13.0143C12.0566 12.8056 12.2646 12.6427 12.5288 12.5256C12.7931 12.4085 13.0934 12.3499 13.4297 12.3499C13.772 12.3499 14.0708 12.4085 14.326 12.5256C14.5828 12.6427 14.7825 12.8056 14.9251 13.0143C15.0677 13.223 15.1413 13.4647 15.1458 13.7395H14.2112Z" fill="black"/></svg>
         <div className="flex-1 min-w-0">
@@ -228,9 +205,11 @@ function StatsCards({ wallets, period, chain }: {
           <div className="text-green text-[18px] font-bold tabular mt-1">
             +{fmtUsd(stats.totalPnl)}
           </div>
-          <span className="text-[12px] text-sub/60 mt-0.5 block">
-            {t('acrossWallets', { n: wallets.length, period: periodLabel })}
-          </span>
+          <div className="flex items-center gap-3 mt-0.5">
+            <span className="text-[12px] text-sub/60">
+              {stats.totalWallets} wallets · {periodLabel}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -254,8 +233,8 @@ function LeaderboardTab() {
   const t = useTranslations('smartMoney')
 
   const [period, setPeriod] = useState<SmartMoneyPeriod>('7d')
-  const [filter, setFilter] = useState<FilterKey>('smart')
-  const [sortKey, setSortKey] = useState<SortKey>('pnl')
+  const [filter, setFilter] = useState<FilterKey>('all')
+  const [sortKey, setSortKey] = useState<SortKey>('score')
   const [sortAsc, setSortAsc] = useState(false)
   const [copyModal, setCopyModal] = useState<CopyModalState>({
     isOpen: false, tokenAddress: '', tokenSymbol: '', walletAddress: '', walletPnlPct: 0,
@@ -271,20 +250,32 @@ function LeaderboardTab() {
     else { setSortKey(key); setSortAsc(false) }
   }
 
-  // Client-side filters
+  // Filter labels
+  const FILTER_LABELS: Record<FilterKey, string> = {
+    all: 'All',
+    smart: 'Smart Money',
+    profitable: 'Profitable',
+    sniper: 'Sniper',
+    myTracked: t('myTracked'),
+  }
+
+  // Client-side filters (参考 GMGN)
   const filtered = (() => {
     switch (filter) {
       case 'smart':
-        // Profitable + at least a few trades
-        return wallets.filter(w => w.realized_profit_percentage > 0 && w.count_of_trades >= 2)
-      case 'freshWallet':
-        // New wallets: few trades (< 10) — likely just started
-        return wallets.filter(w => w.count_of_trades < 10)
+        // GMGN-style: Win Rate ≥40%, PnL% ≥30%, score ≥50
+        return wallets.filter(w =>
+          (w.win_rate ?? 0) >= 40 &&
+          w.realized_profit_percentage >= 30 &&
+          (w.smart_score ?? 0) >= 50
+        )
+      case 'profitable':
+        // All profitable wallets
+        return wallets.filter(w => w.realized_profit_usd > 0)
       case 'sniper':
         // High PnL% with few trades — got in early on new tokens
-        return wallets.filter(w => w.realized_profit_percentage > 500 && w.count_of_trades <= 20)
+        return wallets.filter(w => w.realized_profit_percentage > 200 && w.count_of_trades <= 30)
       case 'myTracked':
-        // Only wallets the user is following
         return wallets.filter(w => isFollowing(w.address))
       default:
         return wallets
@@ -294,6 +285,7 @@ function LeaderboardTab() {
   const sorted = filtered.slice().sort((a, b) => {
     let diff = 0
     switch (sortKey) {
+      case 'score':   diff = (a.smart_score ?? 0) - (b.smart_score ?? 0); break
       case 'pnl':     diff = a.realized_profit_usd - b.realized_profit_usd; break
       case 'winRate': diff = (a.win_rate ?? 0) - (b.win_rate ?? 0); break
       case 'trades':  diff = a.count_of_trades - b.count_of_trades; break
@@ -316,9 +308,9 @@ function LeaderboardTab() {
     )
   }
 
-  const gridCols = '32px minmax(180px, 1.5fr) minmax(120px, 1fr) minmax(70px, 0.5fr) minmax(90px, 0.6fr) minmax(90px, 0.6fr) 80px'
+  const gridCols = '32px minmax(180px, 1.5fr) minmax(120px, 1fr) minmax(70px, 0.5fr) minmax(70px, 0.5fr) minmax(90px, 0.6fr) 80px'
 
-  /* Filter bar — always rendered so user can switch tabs even when list is empty */
+  /* Filter bar */
   const filterBar = (
     <div className="flex items-center justify-between gap-2 py-2 md:py-2.5 flex-shrink-0">
       <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
@@ -328,7 +320,7 @@ function LeaderboardTab() {
               'flex items-center h-[30px] px-3 rounded text-[14px] font-medium transition-colors whitespace-nowrap flex-shrink-0',
               filter === f ? 'bg-border/60 text-text' : 'text-sub/70 hover:text-sub'
             )}>
-            {t(f === 'smart' ? 'smartOnly' : f)}
+            {FILTER_LABELS[f]}
           </button>
         ))}
       </div>
@@ -405,13 +397,11 @@ function LeaderboardTab() {
                   <span className="font-mono text-[13px] text-text truncate font-medium">
                     {shortAddr(w.address)}
                   </span>
-                  <span onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
-                    <a href={explorerLink(chain, 'address', w.address)} target="_blank" rel="noopener" className="text-sub hover:text-text transition-colors">
+                  <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(explorerLink(chain, 'address', w.address), '_blank') }} className="flex-shrink-0 text-sub hover:text-text transition-colors">
                       <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
                         <path d="M5.5 2.5H3.5C2.94772 2.5 2.5 2.94772 2.5 3.5V10.5C2.5 11.0523 2.94772 11.5 3.5 11.5H10.5C11.0523 11.5 11.5 11.0523 11.5 10.5V8.5M8.5 2.5H11.5V5.5M11.5 2.5L6.5 7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
-                    </a>
-                  </span>
+                  </button>
                 </div>
                 <div className="flex items-center gap-1.5">
                   {w.token_symbol && <span className="text-[11px] text-sub"><span className="text-green">${w.token_symbol}</span></span>}
@@ -424,7 +414,10 @@ function LeaderboardTab() {
 
             <div className="flex flex-col gap-0.5">
               <span className={clsx('text-[12px] tabular font-medium', pnl >= 0 ? 'text-green' : 'text-red')}>
-                {pnl >= 0 ? '+' : ''}{fmtUsd(Math.abs(pnl))} / {pnlPct >= 0 ? '+' : ''}{fmtPct(pnlPct)}
+                {pnl >= 0 ? '+' : ''}{fmtUsd(Math.abs(pnl))}
+              </span>
+              <span className={clsx('text-[11px] tabular', pnlPct >= 0 ? 'text-green/70' : 'text-red/70')}>
+                {pnlPct >= 0 ? '+' : '-'}{fmtPct(pnlPct)}
               </span>
             </div>
 
@@ -432,13 +425,16 @@ function LeaderboardTab() {
               <span className={clsx('font-medium', (w.win_rate ?? 0) >= 50 ? 'text-green' : 'text-red')}>
                 {w.win_rate ?? 0}%
               </span>
-              <span className="text-sub/50 ml-1 text-[11px]">
+              <div className="text-sub/50 text-[11px]">
                 {w.count_of_buys}W/{w.count_of_sells}L
-              </span>
+              </div>
             </div>
 
             <div className="text-[12px] tabular text-text">
               {w.count_of_trades}
+              {(w.token_count ?? 0) > 0 && (
+                <div className="text-sub/50 text-[11px]">{w.token_count} tokens</div>
+              )}
             </div>
 
             <span className={clsx('text-[12px] tabular', vol > 0 ? 'text-text' : 'text-sub')}>

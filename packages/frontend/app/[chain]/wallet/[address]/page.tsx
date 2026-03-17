@@ -829,10 +829,10 @@ function TradesTab({ swaps, chain, gtLogos, onCopy }: { swaps: DetectedSwap[]; c
 
   return (
     <div>
-      {swaps.map(swap => {
+      {swaps.map((swap, i) => {
         const isBuy = swap.transactionType === 'buy'
         return (
-          <div key={swap.txHash} className="flex items-center gap-3 px-4 py-3 border-b border-border hover:bg-surface/50 transition-colors">
+          <div key={`${swap.txHash}-${i}`} className="flex items-center gap-3 px-4 py-3 border-b border-border hover:bg-surface/50 transition-colors">
             {/* Buy/Sell badge */}
             <span className={clsx(
               'text-[11px] font-bold uppercase w-[34px] text-center flex-shrink-0',

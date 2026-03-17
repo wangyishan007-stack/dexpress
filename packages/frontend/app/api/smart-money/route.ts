@@ -72,6 +72,8 @@ export interface SmartWallet {
   total_sold_usd: string
   token_address: string
   token_symbol: string
+  token_count: number     // number of realized tokens traded
+  smart_score: number     // 0-100 composite score (winRate 40% + PnL% 40% + diversity 20%)
   native_balance_wei: string
 }
 
@@ -326,6 +328,8 @@ async function fetchViaMoralis(
         total_sold_usd: String(sold),
         token_address: t._token_address,
         token_symbol: t._token_symbol,
+        token_count: 1,
+        smart_score: 0,
         native_balance_wei: '0',
       })
     }
@@ -501,6 +505,13 @@ async function fetchViaGtTrades(
     }
     const totalTokens = winTokens + lossTokens
 
+    const winRate = totalTokens > 0 ? Math.round((winTokens / totalTokens) * 100) : 0
+    // Compute smart_score for GT trades path
+    const wrScore = Math.min(winRate, 100) * 0.4
+    const pnlScore = Math.min(Math.max(pctEstimate, 0), 500) / 500 * 40
+    const divScore = Math.min(totalTokens, 20) / 20 * 20
+    const smartScore = Math.round(wrScore + pnlScore + divScore)
+
     wallets.push({
       address: w.address,
       realized_profit_usd: pnl,
@@ -508,11 +519,13 @@ async function fetchViaGtTrades(
       count_of_trades: w.buy_count + w.sell_count,
       count_of_buys: winTokens,
       count_of_sells: lossTokens,
-      win_rate: totalTokens > 0 ? Math.round((winTokens / totalTokens) * 100) : 0,
+      win_rate: winRate,
       total_usd_invested: String(w.bought_usd),
       total_sold_usd: String(w.sold_usd),
       token_address: bestTokenAddr,
       token_symbol: bestTokenSym,
+      token_count: totalTokens,
+      smart_score: smartScore,
       native_balance_wei: '0',
     })
   }
@@ -556,17 +569,27 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Try self-hosted backend first (wallet_pnl table) ──────
+  // Quality gate: only use indexer when data is mature enough,
+  // otherwise fall through to Moralis/GT which have richer historical data
+  const MIN_PROFITABLE_WALLETS = 15
   const backendUrl = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL
+  let indexerWallets: SmartWallet[] | null = null
   if (backendUrl) {
     try {
       const res = await fetch(
-        `${backendUrl}/api/smart-money?chain=${chain}&period=${period}&limit=100`,
+        `${backendUrl}/api/smart-money?chain=${chain}&period=${period}&limit=200`,
         { signal: AbortSignal.timeout(8_000) }
       )
       if (res.ok) {
         const data = await res.json() as { wallets: SmartWallet[]; chain: string }
-        if (Array.isArray(data.wallets) && data.wallets.length > 0) {
-          return NextResponse.json({ wallets: data.wallets, chain, source: 'indexer' })
+        if (Array.isArray(data.wallets)) {
+          const profitableCount = data.wallets.filter(w => w.realized_profit_usd > 0).length
+          if (profitableCount >= MIN_PROFITABLE_WALLETS) {
+            // Indexer has enough quality data — use it directly
+            return NextResponse.json({ wallets: data.wallets, chain, source: 'indexer' })
+          }
+          // Keep indexer data for potential merge with third-party
+          if (data.wallets.length > 0) indexerWallets = data.wallets
         }
       }
     } catch {
@@ -580,22 +603,29 @@ export async function GET(req: NextRequest) {
   const hasFreshCache = cached && cached.data.length > 0 && Date.now() - cached.ts < CACHE_TTL
   const hasStaleCache = cached && cached.data.length > 0 && Date.now() - cached.ts < STALE_TTL
 
-  // Fresh cache → return immediately
+  // Fresh cache → merge with indexer data if available
   if (hasFreshCache) {
-    return NextResponse.json({ wallets: cached!.data, chain })
+    let wallets = cached!.data
+    if (indexerWallets && indexerWallets.length > 0) {
+      wallets = mergeWallets(wallets, indexerWallets)
+    }
+    return NextResponse.json({ wallets, chain })
   }
 
-  // Stale cache → return immediately + background refresh
+  // Stale cache → merge with indexer + background refresh
   if (hasStaleCache) {
     if (chainInfo.source === 'moralis') {
-      // Moralis is fast enough to refresh in background
       fetchViaMoralis(chain, chainInfo, period, tokensParam)
         .then(w => { if (w.length > 0) _cache.set(cacheKey, { data: w, ts: Date.now() }) })
         .catch(() => {})
     } else {
       refreshGtCache(chain, chainInfo, period, cacheKey).catch(() => {})
     }
-    return NextResponse.json({ wallets: cached!.data, chain, stale: true })
+    let wallets = cached!.data
+    if (indexerWallets && indexerWallets.length > 0) {
+      wallets = mergeWallets(wallets, indexerWallets)
+    }
+    return NextResponse.json({ wallets, chain, stale: true })
   }
 
   // No cache at all → must fetch fresh
@@ -608,14 +638,48 @@ export async function GET(req: NextRequest) {
       wallets = await fetchViaGtTrades(chain, chainInfo, period)
     }
 
+    // Merge with indexer data (if indexer had some but not enough to use alone)
+    if (indexerWallets && indexerWallets.length > 0) {
+      wallets = mergeWallets(wallets, indexerWallets)
+    }
+
     if (wallets.length > 0) {
       _cache.set(cacheKey, { data: wallets, ts: Date.now() })
       return NextResponse.json({ wallets, chain })
     }
 
+    // Last resort: return sparse indexer data
+    if (indexerWallets && indexerWallets.length > 0) {
+      return NextResponse.json({ wallets: indexerWallets, chain, source: 'indexer' })
+    }
+
     return NextResponse.json({ wallets: [], chain })
   } catch (e) {
     console.error('[/api/smart-money] error:', e)
+    // If third-party failed but we have indexer data, use it
+    if (indexerWallets && indexerWallets.length > 0) {
+      return NextResponse.json({ wallets: indexerWallets, chain, source: 'indexer' })
+    }
     return NextResponse.json({ wallets: [], chain, error: 'Failed to fetch data' })
   }
+}
+
+/** Merge two wallet lists: deduplicate by address, keep the one with higher PnL */
+function mergeWallets(primary: SmartWallet[], secondary: SmartWallet[]): SmartWallet[] {
+  const map = new Map<string, SmartWallet>()
+  // Add primary first
+  for (const w of primary) {
+    map.set(w.address.toLowerCase(), w)
+  }
+  // Merge secondary: only add if not present or has higher PnL
+  for (const w of secondary) {
+    const key = w.address.toLowerCase()
+    const existing = map.get(key)
+    if (!existing || w.realized_profit_usd > existing.realized_profit_usd) {
+      map.set(key, w)
+    }
+  }
+  return Array.from(map.values())
+    .sort((a, b) => b.realized_profit_usd - a.realized_profit_usd)
+    .slice(0, 100)
 }

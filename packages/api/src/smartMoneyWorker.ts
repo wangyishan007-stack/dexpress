@@ -1,20 +1,21 @@
 /**
- * SmartMoneyWorker
+ * SmartMoneyWorker v2
  *
- * 职责：
- *  1. 每小时从 swaps 表聚合钱包买卖数据
- *  2. 计算 realized PnL（sold - bought）
- *  3. 写入 wallet_pnl 表（1d / 7d / 30d 三个周期）
- *  4. 为 /api/smart-money 接口提供本地数据
- *  5. 支持多链：Base + BSC（通过 pools.chain 区分）
+ * 参考 GMGN 方法论优化：
+ *  1. 综合评分（smart_score）替代纯 PnL 金额排序
+ *  2. 更严格的机器人过滤（MAX_TRADES=300，参考 GMGN <300 交易）
+ *  3. 包含亏损钱包（不再仅保留盈利钱包）
+ *  4. 评分公式：Win Rate(40%) + PnL%(40%) + Token 多样性(20%)
+ *  5. 支持多链：Base + BSC + Solana
  */
 
 import { query } from '@dex/database'
 
 const CALC_INTERVAL_MS = 60 * 60 * 1000 // 每小时计算一次
 const MIN_VOLUME_USD   = 100             // 过滤交易量太低的钱包
-const MIN_TRADES       = 2              // 至少 2 笔交易
-const MAX_WALLETS      = 200            // 每个周期保留 Top 200
+const MIN_TRADES       = 3              // 至少 3 笔交易（平衡质量与数量）
+const MAX_TRADES       = 300            // 过滤机器人/做市商（GMGN: <300）
+const MAX_WALLETS      = 500            // 每个周期保留 Top 500
 
 // 各链的 Quote Tokens（用来识别"买入/卖出"方向）
 const CHAIN_QUOTE_TOKENS: Record<string, string[]> = {
@@ -42,12 +43,39 @@ const SUPPORTED_CHAINS = ['base', 'bsc', 'solana']
 type Period = '1d' | '7d' | '30d'
 const PERIOD_HOURS: Record<Period, number> = { '1d': 24, '7d': 168, '30d': 720 }
 
+/**
+ * Smart Score 计算（0-100 分）
+ * 参考 GMGN: Win Rate ≥40%, PnL% ≥60%, 交易数 <300
+ *
+ * - Win Rate (40%权重): 盈利 token 占比
+ * - PnL% (40%权重): 已实现收益率，封顶 500%
+ * - Token 多样性 (20%权重): 交易过的 token 数量，封顶 20
+ */
+function computeSmartScore(
+  winRate: number,    // 0-100
+  pnlPct: number,     // can be negative
+  tokenCount: number,  // realized token count
+): number {
+  // Win rate component (0-40 points)
+  const wrScore = Math.min(Math.max(winRate, 0), 100) * 0.4
+
+  // PnL% component (0-40 points), cap at 500% positive, 0 for negative
+  const pnlNorm = Math.min(Math.max(pnlPct, 0), 500) / 500
+  const pnlScore = pnlNorm * 40
+
+  // Token diversity (0-20 points)
+  const divNorm = Math.min(Math.max(tokenCount, 0), 20) / 20
+  const divScore = divNorm * 20
+
+  return Math.round(wrScore + pnlScore + divScore)
+}
+
 export class SmartMoneyWorker {
   private timer?: NodeJS.Timeout
   private isRunning = false
 
   async start() {
-    console.log('[SmartMoney] Worker started')
+    console.log('[SmartMoney] Worker started (v2: smart_score)')
     await this.calculate()
     this.timer = setInterval(() => this.calculate(), CALC_INTERVAL_MS)
   }
@@ -136,7 +164,8 @@ export class SmartMoneyWorker {
       totalBought: number; totalSold: number; realizedPnl: number
       realizedBought: number  // 只算已实现 token 的买入量（用于 PnL%）
       winTrades: number; lossTrades: number; totalTrades: number
-      totalBuys: number; totalSells: number  // actual buy/sell transaction counts
+      totalBuys: number; totalSells: number
+      tokenCount: number      // 已实现交易的 token 数量
       bestToken: string; bestSymbol: string; bestPnl: number
     }
     const walletMap = new Map<string, WalletAgg>()
@@ -155,8 +184,8 @@ export class SmartMoneyWorker {
       const w: WalletAgg = walletMap.get(wallet) ?? {
         totalBought: 0, totalSold: 0, realizedPnl: 0, realizedBought: 0,
         winTrades: 0, lossTrades: 0, totalTrades: 0,
-        totalBuys: 0, totalSells: 0,
-        bestToken: row.token_addr, bestSymbol: row.token_symbol, bestPnl: 0,
+        totalBuys: 0, totalSells: 0, tokenCount: 0,
+        bestToken: row.token_addr, bestSymbol: row.token_symbol, bestPnl: -Infinity,
       }
 
       w.totalBought += bought
@@ -165,9 +194,12 @@ export class SmartMoneyWorker {
       w.totalBuys   += buys
       w.totalSells  += sells
       w.realizedPnl += tokenPnl
-      if (isRealized) w.realizedBought += bought
-      if (tokenPnl > 0) w.winTrades++
-      else if (tokenPnl < 0) w.lossTrades++
+      if (isRealized) {
+        w.realizedBought += bought
+        w.tokenCount++
+        if (tokenPnl > 0) w.winTrades++
+        else if (tokenPnl < 0) w.lossTrades++
+      }
       if (tokenPnl > w.bestPnl) {
         w.bestPnl    = tokenPnl
         w.bestToken  = row.token_addr
@@ -177,28 +209,32 @@ export class SmartMoneyWorker {
       walletMap.set(wallet, w)
     }
 
-    // 过滤 + 排序（过滤做市商/机器人：交易次数 > 5000，只保留盈利钱包）
-    const MAX_TRADES = 5_000
-    const ranked = Array.from(walletMap.entries())
+    // 过滤 + 评分 + 排序
+    // v2: 不再要求 realizedPnl > 0，改为要求至少 1 个已实现 token
+    const scored = Array.from(walletMap.entries())
       .filter(([, w]) =>
         w.totalTrades >= MIN_TRADES &&
         w.totalTrades <= MAX_TRADES &&
         (w.totalBought + w.totalSold) >= MIN_VOLUME_USD &&
-        w.realizedPnl > 0
+        w.tokenCount >= 1  // 至少 1 个已实现 token（买+卖过）
       )
-      .sort((a, b) => b[1].realizedPnl - a[1].realizedPnl)
+      .map(([addr, w]) => {
+        const winRate = w.tokenCount > 0 ? (w.winTrades / w.tokenCount) * 100 : 0
+        const pnlPct = w.realizedBought > 0 ? (w.realizedPnl / w.realizedBought) * 100 : 0
+        const score = computeSmartScore(winRate, pnlPct, w.tokenCount)
+        return { addr, w, winRate, pnlPct, score }
+      })
+      .sort((a, b) => b.score - a.score)  // 按 smart_score 排序
       .slice(0, MAX_WALLETS)
 
-    if (!ranked.length) {
+    if (!scored.length) {
       console.log(`[SmartMoney] ${chain}/${period}: no qualifying wallets found`)
       return
     }
 
     // Upsert wallet_pnl
     const now = new Date()
-    for (const [wallet, w] of ranked) {
-      // PnL%: 只用已实现 token 的买入量做分母，避免未实现仓位摊薄
-      const pnlPct = w.realizedBought > 0 ? (w.realizedPnl / w.realizedBought) * 100 : 0
+    for (const { addr, w, pnlPct, score } of scored) {
       await query(`
         INSERT INTO wallet_pnl (
           wallet_address, chain, period,
@@ -206,8 +242,8 @@ export class SmartMoneyWorker {
           total_bought_usd, total_sold_usd,
           win_trades, loss_trades, total_trades,
           best_token_address, best_token_symbol, best_token_pnl_usd,
-          pnl_percentage, calculated_at
-        ) VALUES ($1,$2,$3,$4,0,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+          pnl_percentage, token_count, smart_score, calculated_at
+        ) VALUES ($1,$2,$3,$4,0,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
         ON CONFLICT (wallet_address, chain, period) DO UPDATE SET
           realized_pnl_usd   = EXCLUDED.realized_pnl_usd,
           total_bought_usd   = EXCLUDED.total_bought_usd,
@@ -219,15 +255,19 @@ export class SmartMoneyWorker {
           best_token_symbol  = EXCLUDED.best_token_symbol,
           best_token_pnl_usd = EXCLUDED.best_token_pnl_usd,
           pnl_percentage     = EXCLUDED.pnl_percentage,
+          token_count        = EXCLUDED.token_count,
+          smart_score        = EXCLUDED.smart_score,
           calculated_at      = EXCLUDED.calculated_at
       `, [
-        wallet, chain, period,
+        addr, chain, period,
         w.realizedPnl, w.totalBought, w.totalSold,
         w.winTrades, w.lossTrades, w.totalTrades,
-        w.bestToken, w.bestSymbol, w.bestPnl, pnlPct, now,
+        w.bestToken, w.bestSymbol, w.bestPnl, pnlPct,
+        w.tokenCount, score, now,
       ])
     }
 
-    console.log(`[SmartMoney] ${chain}/${period}: saved top ${ranked.length} wallets (best PnL: $${ranked[0][1].realizedPnl.toFixed(0)})`)
+    const topScore = scored[0]
+    console.log(`[SmartMoney] ${chain}/${period}: saved ${scored.length} wallets (top score: ${topScore.score}, PnL: $${topScore.w.realizedPnl.toFixed(0)})`)
   }
 }

@@ -50,20 +50,28 @@ export async function smartMoneyRoutes(app: FastifyInstance) {
     })
   })
 
-  // GET /api/smart-money?chain=base&period=7d&limit=100
+  // GET /api/smart-money?chain=base&period=7d&limit=100&sort=score
   app.get('/api/smart-money', async (req, reply) => {
-    const { chain = 'base', period = '7d', limit = '100' } = req.query as Record<string, string>
-    const limitN = Math.min(Number(limit) || 100, 200)
+    const { chain = 'base', period = '7d', limit = '100', sort = 'score' } = req.query as Record<string, string>
+    const limitN = Math.min(Number(limit) || 100, 500)
 
-    const cacheKey = `${chain}:${period}:${limitN}`
+    const cacheKey = `${chain}:${period}:${limitN}:${sort}`
     const cached = cache.get(cacheKey)
     if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
       return reply.header('X-Cache', 'HIT').send(cached.data)
     }
 
     try {
-      // Try profitable wallets first, fallback to most active wallets by volume
-      let rows = await query<{
+      // Build ORDER BY based on sort param
+      let orderClause: string
+      switch (sort) {
+        case 'pnl':     orderClause = 'realized_pnl_usd DESC'; break
+        case 'winRate':  orderClause = 'CASE WHEN (win_trades + loss_trades) > 0 THEN win_trades::float / (win_trades + loss_trades) ELSE 0 END DESC'; break
+        case 'volume':   orderClause = '(total_bought_usd + total_sold_usd) DESC'; break
+        default:         orderClause = 'smart_score DESC, realized_pnl_usd DESC'; break // 'score'
+      }
+
+      const rows = await query<{
         wallet_address:     string
         realized_pnl_usd:   string
         pnl_percentage:     string
@@ -75,6 +83,8 @@ export async function smartMoneyRoutes(app: FastifyInstance) {
         best_token_address: string
         best_token_symbol:  string
         best_token_pnl_usd: string
+        token_count:        number
+        smart_score:        number
         calculated_at:      string
       }>(`
         SELECT
@@ -89,38 +99,15 @@ export async function smartMoneyRoutes(app: FastifyInstance) {
           best_token_address,
           best_token_symbol,
           best_token_pnl_usd,
+          COALESCE(token_count, 0) as token_count,
+          COALESCE(smart_score, 0) as smart_score,
           calculated_at
         FROM wallet_pnl
         WHERE chain = $1
           AND period = $2
-          AND realized_pnl_usd > 0
-        ORDER BY realized_pnl_usd DESC
+        ORDER BY ${orderClause}
         LIMIT $3
       `, [chain, period, limitN])
-
-      // Fallback: if no profitable wallets, show most active by volume
-      if (!rows.length) {
-        rows = await query(`
-          SELECT
-            wallet_address,
-            realized_pnl_usd,
-            pnl_percentage,
-            total_bought_usd,
-            total_sold_usd,
-            win_trades,
-            loss_trades,
-            total_trades,
-            best_token_address,
-            best_token_symbol,
-            best_token_pnl_usd,
-            calculated_at
-          FROM wallet_pnl
-          WHERE chain = $1
-            AND period = $2
-          ORDER BY (total_bought_usd + total_sold_usd) DESC
-          LIMIT $3
-        `, [chain, period, limitN])
-      }
 
       // Map to SmartWallet shape (compatible with frontend)
       const wallets = rows.map(r => {
@@ -139,6 +126,8 @@ export async function smartMoneyRoutes(app: FastifyInstance) {
           total_sold_usd:             r.total_sold_usd,
           token_address:              r.best_token_address ?? '',
           token_symbol:               r.best_token_symbol  ?? '',
+          token_count:                r.token_count ?? 0,
+          smart_score:                r.smart_score ?? 0,
           native_balance_wei:         '0',
         }
       })
