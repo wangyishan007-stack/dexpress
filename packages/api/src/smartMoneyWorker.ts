@@ -84,7 +84,11 @@ export class SmartMoneyWorker {
     const since = new Date(Date.now() - hours * 3_600_000).toISOString()
     const quoteTokens = CHAIN_QUOTE_TOKENS[chain] ?? CHAIN_QUOTE_TOKENS.base
 
+    // 先清掉该链+周期的旧数据（避免已过滤钱包残留）
+    await query(`DELETE FROM wallet_pnl WHERE chain = $1 AND period = $2`, [chain, period])
+
     // 聚合：钱包 × token 的买卖金额（只看该链的 pool）
+    // 跳过两个 token 都是 quote token 的 pool（如 WETH/USDC、USDT/USDC）
     const rows = await query<{
       wallet:       string
       token_addr:   string
@@ -118,6 +122,7 @@ export class SmartMoneyWorker {
         AND s.amount_usd > 0
         AND s.sender IS NOT NULL
         AND length(COALESCE(s.sender,'')) >= 32
+        AND NOT (LOWER(p.token0) = ANY($2::text[]) AND LOWER(p.token1) = ANY($2::text[]))
       GROUP BY 1, 2, 3
     `, [since, quoteTokens, chain])
 
