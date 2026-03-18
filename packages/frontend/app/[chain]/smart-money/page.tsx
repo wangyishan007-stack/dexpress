@@ -13,7 +13,12 @@ import { explorerLink, getChain } from '@/lib/chains'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { ChainTabs } from '@/components/ChainTabs'
 import dynamic from 'next/dynamic'
-const CopyTradeModal = dynamic(() => import('@/components/CopyTradeModal').then(m => ({ default: m.CopyTradeModal })), { ssr: false })
+// Try Solana-enabled wrapper first; if @privy-io/react-auth/solana fails (production WASM issue), fall back to base modal
+const CopyTradeComponent = dynamic(
+  () => import('@/components/SolanaCopyTradeWrapper')
+    .catch(() => import('@/components/CopyTradeModal').then(m => ({ default: m.CopyTradeModal }))),
+  { ssr: false },
+)
 
 /* ── Helpers ──────────────────────────────────────────── */
 function addrToHue(address: string): number {
@@ -431,7 +436,7 @@ function LeaderboardTab() {
       </div>
 
       {/* Copy Trade Modal */}
-      <CopyTradeModal
+      <CopyTradeComponent
         isOpen={copyModal.isOpen}
         onClose={() => setCopyModal(s => ({ ...s, isOpen: false }))}
         tokenAddress={copyModal.tokenAddress}

@@ -7,15 +7,6 @@ import { useExecuteSwap } from '@/hooks/useExecuteSwap'
 import { useFollowedWallets } from '@/hooks/useFollowedWallets'
 import { fmtUsd, shortAddr } from '@/lib/formatters'
 import { explorerLink, getChain, type ChainSlug } from '@/lib/chains'
-import { useWallets as useSolanaWallets, useSignAndSendTransaction } from '@privy-io/react-auth/solana'
-import { Component, type ReactNode } from 'react'
-
-/** Error boundary — prevents Solana hook crashes from taking down the page */
-class CopyTradeErrorBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { hasError: boolean }> {
-  state = { hasError: false }
-  static getDerivedStateFromError() { return { hasError: true } }
-  render() { return this.state.hasError ? this.props.fallback : this.props.children }
-}
 
 /* ── Types ────────────────────────────────────────────── */
 
@@ -29,6 +20,9 @@ export interface CopyTradeModalProps {
   walletPnlPct: number
   chain: ChainSlug
   tokenDecimals?: number
+  /** Provided by SolanaCopyTradeWrapper when Solana hooks load successfully */
+  solanaAddress?: string
+  solanaSigner?: (tx: Uint8Array) => Promise<string>
 }
 
 /* ── Helpers ──────────────────────────────────────────── */
@@ -67,11 +61,7 @@ const AMOUNT_OPTIONS = [50, 100, 500]
 
 export function CopyTradeModal(props: CopyTradeModalProps) {
   if (!props.isOpen) return null
-  return (
-    <CopyTradeErrorBoundary fallback={null}>
-      <CopyTradeModalInner {...props} />
-    </CopyTradeErrorBoundary>
-  )
+  return <CopyTradeModalInner {...props} />
 }
 
 function CopyTradeModalInner({
@@ -84,6 +74,8 @@ function CopyTradeModalInner({
   walletPnlPct,
   chain,
   tokenDecimals,
+  solanaAddress,
+  solanaSigner,
 }: CopyTradeModalProps) {
   const backdropRef = useRef<HTMLDivElement>(null)
   const { authenticated, user, login } = useAuth()
@@ -93,20 +85,6 @@ function CopyTradeModalInner({
   const nativeSymbol = chainConfig.nativeCurrency.symbol
   const isSolana = chainConfig.chainType === 'svm'
 
-  // Solana wallet hooks (always called — hooks can't be conditional)
-  const { wallets: solanaWallets } = useSolanaWallets()
-  const { signAndSendTransaction } = useSignAndSendTransaction()
-
-  // Solana signer — wraps Privy hook for useExecuteSwap
-  const solanaSigner = useCallback(async (tx: Uint8Array): Promise<string> => {
-    const wallet = solanaWallets[0]
-    if (!wallet) throw new Error('No Solana wallet found. Please connect a Solana wallet.')
-    const { signature } = await signAndSendTransaction({ transaction: tx, wallet })
-    // Convert Uint8Array signature to base58 for explorer links
-    const bs58 = await import('bs58')
-    return bs58.default.encode(signature)
-  }, [solanaWallets, signAndSendTransaction])
-
   // State
   const [selectedAmount, setSelectedAmount] = useState<number>(100)
   const [customAmount, setCustomAmount] = useState('')
@@ -115,10 +93,9 @@ function CopyTradeModalInner({
 
   const sellAmountUsd = customAmount ? Number(customAmount) || 0 : selectedAmount
 
-  // Get user's wallet address
-  const solanaAddr = solanaWallets[0]?.address
+  // Get user's wallet address (Solana passed via props, EVM from Privy auth)
   const takerAddress = isSolana
-    ? solanaAddr ?? undefined
+    ? solanaAddress ?? undefined
     : user?.wallet?.address ?? undefined
 
   // Fetch quote
@@ -126,7 +103,7 @@ function CopyTradeModalInner({
     chain, tokenAddress, tokenSymbol, tokenDecimals ?? 18, sellAmountUsd, takerAddress,
   )
 
-  // Execute — pass Solana signer for SVM chains
+  // Execute — pass Solana signer for SVM chains (may be undefined if hooks failed to load)
   const { execute, status, txHash, error: execError, reset } = useExecuteSwap(
     chain, isSolana ? solanaSigner : undefined,
   )
@@ -146,14 +123,15 @@ function CopyTradeModalInner({
 
     // Solana: need serializedTransaction to execute
     if (isSolana && !quote.transaction.serializedTransaction) {
-      if (!solanaAddr) {
+      if (!solanaAddress) {
         login()
         return
       }
-      // Quote was fetched before wallet connected — SWR will auto-refetch
-      // since takerAddress changed. Show loading state briefly.
       return
     }
+
+    // Solana: need signer to execute
+    if (isSolana && !solanaSigner) return
 
     const success = await execute(quote)
 
