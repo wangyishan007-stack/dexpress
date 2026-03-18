@@ -24,6 +24,7 @@ const CHAIN_QUOTE_TOKENS: Record<string, string[]> = {
     '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC
     '0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca', // USDbC
     '0x50c5725949a6f0c72e6c4a641f24049a917db0cb', // DAI
+    '0xfde4c96c8593536e31f229ea8f37b2ada2699bb2', // USDT
   ],
   bsc: [
     '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c', // WBNB

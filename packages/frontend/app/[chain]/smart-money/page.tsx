@@ -31,15 +31,6 @@ function fmtPct(pct: number): string {
   return `${abs.toFixed(1)}%`
 }
 
-/** Format wei string to human-readable native balance */
-function fmtNativeBalance(wei: string, decimals: number): string {
-  if (!wei || wei === '0') return '0'
-  const n = Number(wei) / Math.pow(10, decimals)
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`
-  if (n >= 1) return n.toFixed(2)
-  if (n >= 0.01) return n.toFixed(3)
-  return n.toFixed(4)
-}
 
 type SortKey = 'score' | 'pnl' | 'winRate' | 'trades' | 'volume'
 type FilterKey = 'smart' | 'freshWallet' | 'sniper' | 'myTracked'
@@ -234,7 +225,7 @@ function LeaderboardTab() {
 
   const [period, setPeriod] = useState<SmartMoneyPeriod>('7d')
   const [filter, setFilter] = useState<FilterKey>('smart')
-  const [sortKey, setSortKey] = useState<SortKey>('score')
+  const [sortKey, setSortKey] = useState<SortKey>('pnl')
   const [sortAsc, setSortAsc] = useState(false)
   const [copyModal, setCopyModal] = useState<CopyModalState>({
     isOpen: false, tokenAddress: '', tokenSymbol: '', walletAddress: '', walletPnlPct: 0,
@@ -260,8 +251,8 @@ function LeaderboardTab() {
         // New wallets: few trades (< 10)
         return wallets.filter(w => w.count_of_trades < 10)
       case 'sniper':
-        // High PnL% with few trades — got in early on new tokens
-        return wallets.filter(w => w.realized_profit_percentage > 500 && w.count_of_trades <= 20)
+        // High PnL% or very few trades with profit — got in early on new tokens
+        return wallets.filter(w => w.realized_profit_percentage > 200 || (w.realized_profit_usd > 0 && w.count_of_trades <= 5))
       case 'myTracked':
         return wallets.filter(w => isFollowing(w.address))
       default:
@@ -280,9 +271,6 @@ function LeaderboardTab() {
     }
     return sortAsc ? diff : -diff
   })
-
-  const nativeSymbol = chainConfig.nativeCurrency.symbol
-  const nativeDecimals = chainConfig.nativeCurrency.decimals
 
   if (isLoading) return <div className="flex items-center justify-center flex-1 text-sub"><Spinner /></div>
   if (unsupported) {
@@ -311,17 +299,19 @@ function LeaderboardTab() {
           </button>
         ))}
       </div>
-      <div className="flex items-center gap-0.5 flex-shrink-0">
-        {PERIODS.map(p => (
-          <button key={p} onClick={() => setPeriod(p)}
-            className={clsx(
-              'flex items-center h-[30px] px-2.5 rounded-md text-[14px] font-medium transition-colors',
-              period === p ? 'bg-blue/15 text-blue' : 'text-sub/70 hover:text-sub'
-            )}>
-            {PERIOD_LABELS[p]}
-          </button>
-        ))}
-      </div>
+      {chain === 'base' && (
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          {PERIODS.map(p => (
+            <button key={p} onClick={() => setPeriod(p)}
+              className={clsx(
+                'flex items-center h-[30px] px-2.5 rounded-md text-[14px] font-medium transition-colors',
+                period === p ? 'bg-blue/15 text-blue' : 'text-sub/70 hover:text-sub'
+              )}>
+              {PERIOD_LABELS[p]}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 
@@ -370,7 +360,6 @@ function LeaderboardTab() {
         const pnl = w.realized_profit_usd
         const pnlPct = w.realized_profit_percentage
         const vol = Number(w.total_usd_invested) + Number(w.total_sold_usd)
-        const balance = fmtNativeBalance(w.native_balance_wei, nativeDecimals)
         return (
           <Link key={w.address} href={`/${chain}/wallet/${w.address}?token=${w.token_address}`}
             className="grid gap-x-2 px-4 py-2.5 items-center border-b border-border hover:bg-surface/50 transition-colors cursor-pointer"
@@ -390,18 +379,15 @@ function LeaderboardTab() {
                       </svg>
                   </button>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  {w.token_symbol && <span className="text-[11px] text-sub"><span className="text-green">${w.token_symbol}</span></span>}
-                  {balance !== '0' && (
-                    <span className="text-[11px] text-sub/60">{balance} {nativeSymbol}</span>
-                  )}
-                </div>
+                {w.token_symbol && (
+                  <span className="text-[11px] text-sub"><span className="text-green">${w.token_symbol}</span></span>
+                )}
               </div>
             </div>
 
             <div className="flex flex-col gap-0.5">
               <span className={clsx('text-[12px] tabular font-medium', pnl >= 0 ? 'text-green' : 'text-red')}>
-                {pnl >= 0 ? '+' : ''}{fmtUsd(Math.abs(pnl))}
+                {pnl >= 0 ? '+' : '-'}{fmtUsd(Math.abs(pnl))}
               </span>
               <span className={clsx('text-[11px] tabular', pnlPct >= 0 ? 'text-green/70' : 'text-red/70')}>
                 {pnlPct >= 0 ? '+' : '-'}{fmtPct(pnlPct)}
@@ -410,14 +396,9 @@ function LeaderboardTab() {
 
             <div className="text-[12px] tabular">
               {(w.win_rate ?? 0) > 0 ? (
-                <>
-                  <span className={clsx('font-medium', w.win_rate >= 50 ? 'text-green' : 'text-red')}>
-                    {w.win_rate}%
-                  </span>
-                  <div className="text-sub/50 text-[11px]">
-                    {w.count_of_buys}W/{w.count_of_sells}L
-                  </div>
-                </>
+                <span className={clsx('font-medium', w.win_rate >= 50 ? 'text-green' : 'text-red')}>
+                  {w.win_rate}%
+                </span>
               ) : (
                 <span className="text-sub">—</span>
               )}

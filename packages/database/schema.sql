@@ -290,6 +290,8 @@ CREATE TABLE IF NOT EXISTS wallet_pnl (
   best_token_symbol  VARCHAR(50),
   best_token_pnl_usd NUMERIC(30,6) NOT NULL DEFAULT 0,
   pnl_percentage    NUMERIC(15,4)  NOT NULL DEFAULT 0,
+  token_count       INTEGER        NOT NULL DEFAULT 0,
+  smart_score       INTEGER        NOT NULL DEFAULT 0,
   calculated_at     TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
   PRIMARY KEY (wallet_address, chain, period)
 );

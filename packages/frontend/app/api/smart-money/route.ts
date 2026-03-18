@@ -50,13 +50,15 @@ const CHAIN_MAP: Record<string, { gt: string; moralis: string; supported: boolea
   solana: { gt: 'solana', moralis: 'solana', supported: true,  source: 'gt_trades' },
 }
 
-/** Build GT URLs — trending for diversity, volume for larger trades */
+/** Build GT URLs — trending for diversity, volume for larger trades, new pools for fresh tokens */
 function buildGtUrls(network: string, _period: string): string[] {
   const base = `${GT_BASE}/networks/${network}`
   return [
     `${base}/trending_pools?page=1`,
+    `${base}/trending_pools?page=2`,
     `${base}/pools?sort=h24_volume_usd_desc&page=1`,
     `${base}/pools?sort=h24_volume_usd_desc&page=2`,
+    `${base}/new_pools?page=1`,
   ]
 }
 
@@ -77,10 +79,67 @@ export interface SmartWallet {
   native_balance_wei: string
 }
 
-/* ── In-memory cache ─────────────────────────────────── */
+/* ── Redis + in-memory cache ──────────────────────────── */
+import { createClient, RedisClientType } from 'redis'
+
 const _cache = new Map<string, { data: SmartWallet[]; ts: number }>()
 const CACHE_TTL = 3_600_000 // 1 hour — fresh data window
 const STALE_TTL = 24 * 3_600_000 // 24 hours — serve stale if fresh fetch fails
+const REDIS_KEY_PREFIX = 'sm:'
+const REDIS_TTL_SEC = 7200 // 2 hours in Redis
+
+let _redis: RedisClientType | null = null
+
+function getRedis(): RedisClientType | null {
+  const url = process.env.REDIS_URL
+  if (!url) return null
+  if (_redis) return _redis
+  try {
+    const client = createClient({
+      url,
+      socket: {
+        connectTimeout: 3_000,
+        reconnectStrategy: (retries: number) => retries > 3 ? false : Math.min(retries * 500, 2_000),
+      },
+    }) as RedisClientType
+    client.on('error', () => {})
+    client.connect().catch(() => {})
+    _redis = client
+    return client
+  } catch { return null }
+}
+
+async function cacheGet(key: string): Promise<{ data: SmartWallet[]; ts: number } | null> {
+  // 1. In-memory first
+  const mem = _cache.get(key)
+  if (mem) return mem
+  // 2. Redis fallback (redis client queues commands while connecting)
+  const client = getRedis()
+  if (!client) return null
+  try {
+    const val = await Promise.race([
+      client.get(REDIS_KEY_PREFIX + key),
+      new Promise<null>((_, rej) => setTimeout(() => rej(new Error('timeout')), 3_000)),
+    ])
+    if (!val) return null
+    const parsed = JSON.parse(val as string) as { data: SmartWallet[]; ts: number }
+    _cache.set(key, parsed)
+    return parsed
+  } catch { return null }
+}
+
+async function cacheSet(key: string, data: SmartWallet[]): Promise<void> {
+  const entry = { data, ts: Date.now() }
+  _cache.set(key, entry)
+  const client = getRedis()
+  if (!client) return
+  try {
+    await Promise.race([
+      client.set(REDIS_KEY_PREFIX + key, JSON.stringify(entry), { EX: REDIS_TTL_SEC }),
+      new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 3_000)),
+    ])
+  } catch {}
+}
 
 /** Parse token address from GT pool relationships */
 function extractBaseTokenAddress(pool: any): string | null {
@@ -149,6 +208,7 @@ const SKIP_TOKENS = new Set([
   '0x50c5725949a6f0c72e6c4a641f24049a917db0cb', // DAI (Base)
   '0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf', // cbBTC (Base)
   '0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22', // cbETH (Base)
+  '0xfde4c96c8593536e31f229ea8f37b2ada2699bb2', // USDT (Base)
   '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c', // WBNB (BSC)
   '0x55d398326f99059ff775485246999027b3197955', // USDT (BSC)
   '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', // USDC (BSC)
@@ -165,9 +225,8 @@ const FALLBACK_TOKENS: Record<string, { address: string; symbol: string }[]> = {
     { address: '0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed', symbol: 'DEGEN' },
     { address: '0xAC1Bd2486aAf3B5C0fc3Fd868558b082a531B2B4', symbol: 'TOSHI' },
     { address: '0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b', symbol: 'VIRTUAL' },
-    { address: '0xBC45647eA894030a4E9801Ec03479739FA2485F0', symbol: 'AERO' },
-    { address: '0x22aF33FE49fD1Fa80c7149773dDe5A6C3C8DD480', symbol: 'MORPHO' },
     { address: '0x940181a94A35A4569E4529A3CDfB74e38FD98631', symbol: 'AERO' },
+    { address: '0x22aF33FE49fD1Fa80c7149773dDe5A6C3C8DD480', symbol: 'MORPHO' },
     { address: '0xfA980cEd6895AC314E7dE34Ef1bFAE90a5AdD21b', symbol: 'PRIME' },
   ],
   bsc: [
@@ -199,21 +258,6 @@ function dedupeTokens(pools: any[]): { address: string; symbol: string }[] {
     tokens.push({ address: addr, symbol: parseBaseSymbol(pool?.attributes?.name || '') })
   }
   return tokens
-}
-
-/**
- * Estimate buys/sells from trade count.
- * Moralis top-gainers only gives total count, not split.
- * A trader must buy before selling, so counts are roughly balanced.
- * Profitable traders often sell in multiple lots → slightly more sells.
- */
-function estimateBuySell(trades: number): { buys: number; sells: number } {
-  if (trades <= 0) return { buys: 0, sells: 0 }
-  if (trades === 1) return { buys: 1, sells: 0 }
-  // ~45% buys, ~55% sells (profitable traders tend to DCA out)
-  const buys = Math.max(1, Math.round(trades * 0.45))
-  const sells = Math.max(1, trades - buys)
-  return { buys, sells }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -309,21 +353,33 @@ async function fetchViaMoralis(
     if (!isFinite(pnl) || !isFinite(pct) || !isFinite(invested) || !isFinite(sold)) continue
     if (Math.abs(pnl) > MAX_PNL_USD || Math.abs(pct) > MAX_PCT) continue
     if (invested > MAX_VOL || sold > MAX_VOL) continue
-    if (pnl <= 0) continue
 
     const trades = t.count_of_trades ?? 0
-    const { buys, sells } = estimateBuySell(trades)
 
     const existing = walletMap.get(addr)
-    if (!existing || pnl > existing.realized_profit_usd) {
+    if (existing) {
+      // Aggregate across tokens for same wallet
+      existing.count_of_trades += trades
+      existing.token_count += 1
+      if (pnl > 0) existing.count_of_buys += 1 // win token
+      else existing.count_of_sells += 1 // loss token
+      if (pnl > (existing as any)._bestPnl) {
+        (existing as any)._bestPnl = pnl
+        existing.token_address = t._token_address
+        existing.token_symbol = t._token_symbol
+      }
+      existing.realized_profit_usd += pnl
+      existing.total_usd_invested = String(Number(existing.total_usd_invested) + invested)
+      existing.total_sold_usd = String(Number(existing.total_sold_usd) + sold)
+    } else {
       walletMap.set(addr, {
         address: t.address,
         realized_profit_usd: pnl,
         realized_profit_percentage: pct,
         count_of_trades: trades,
-        count_of_buys: buys,
-        count_of_sells: sells,
-        win_rate: 0, // Moralis doesn't provide win/loss per token
+        count_of_buys: pnl > 0 ? 1 : 0,
+        count_of_sells: pnl > 0 ? 0 : 1,
+        win_rate: 0,
         total_usd_invested: String(invested),
         total_sold_usd: String(sold),
         token_address: t._token_address,
@@ -331,11 +387,35 @@ async function fetchViaMoralis(
         token_count: 1,
         smart_score: 0,
         native_balance_wei: '0',
-      })
+        _bestPnl: pnl,
+      } as any)
     }
   }
 
-  return Array.from(walletMap.values())
+  // Compute win_rate, recalculate pnl%, and smart_score for each wallet
+  const result: SmartWallet[] = []
+  for (const w of walletMap.values()) {
+    const wins = w.count_of_buys
+    const losses = w.count_of_sells
+    const total = wins + losses
+    w.win_rate = total > 0 ? Math.round((wins / total) * 100) : 0
+    // Recalculate PnL% from aggregated totals (initial value is only from first token)
+    const totalInvested = Number(w.total_usd_invested)
+    if (totalInvested > 0) {
+      w.realized_profit_percentage = (w.realized_profit_usd / totalInvested) * 100
+    }
+    // Smart score: winRate 40% + PnL% 40% + diversity 20%
+    const wrScore = Math.min(w.win_rate, 100) * 0.4
+    const pnlPctClamped = Math.min(Math.max(w.realized_profit_percentage, 0), 500)
+    const pnlScore = pnlPctClamped / 500 * 40
+    const divScore = Math.min(w.token_count, 20) / 20 * 20
+    w.smart_score = Math.round(wrScore + pnlScore + divScore)
+    // Clean up internal field
+    delete (w as any)._bestPnl
+    if (w.realized_profit_usd > 0) result.push(w)
+  }
+
+  return result
     .sort((a, b) => b.realized_profit_usd - a.realized_profit_usd)
     .slice(0, 100)
 }
@@ -394,8 +474,8 @@ async function fetchViaGtTrades(
   const gtUrls = buildGtUrls(network, period)
   const allPools = await fetchGtSequential(gtUrls, (url) => fetchGtPools(url))
 
-  // 2) Extract unique pools (max 5 — balance between coverage and rate limits)
-  let poolInfos = extractPoolInfos(allPools, 5)
+  // 2) Extract unique pools (max 15 — 20 total GT requests safely under 30 req/min)
+  let poolInfos = extractPoolInfos(allPools, 15)
 
   if (poolInfos.length === 0) {
     console.warn(`[smart-money] GT pool discovery returned 0 for ${chain}`)
@@ -543,7 +623,7 @@ async function refreshGtCache(chain: string, chainInfo: typeof CHAIN_MAP[string]
   try {
     const wallets = await fetchViaGtTrades(chain, chainInfo, period)
     if (wallets.length > 0) {
-      _cache.set(cacheKey, { data: wallets, ts: Date.now() })
+      await cacheSet(cacheKey, wallets)
     }
   } finally {
     _refreshing.delete(cacheKey)
@@ -559,7 +639,6 @@ export async function GET(req: NextRequest) {
   const period = req.nextUrl.searchParams.get('period') || '7d'
   const tokensParam = req.nextUrl.searchParams.get('tokens') || ''
   const chainInfo = CHAIN_MAP[chain]
-
   if (!chainInfo) {
     return NextResponse.json({ error: `Unsupported chain: ${chain}` }, { status: 400 })
   }
@@ -569,15 +648,13 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Try self-hosted backend first (wallet_pnl table) ──────
-  // Quality gate: only use indexer when data is mature enough,
-  // otherwise fall through to Moralis/GT which have richer historical data
   const MIN_PROFITABLE_WALLETS = 5
   const backendUrl = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL
   let indexerWallets: SmartWallet[] | null = null
   if (backendUrl) {
     try {
       const res = await fetch(
-        `${backendUrl}/api/smart-money?chain=${chain}&period=${period}&limit=200`,
+        `${backendUrl}/api/smart-money?chain=${chain}&period=${period}&limit=200&sort=pnl`,
         { signal: AbortSignal.timeout(8_000) }
       )
       if (res.ok) {
@@ -588,7 +665,6 @@ export async function GET(req: NextRequest) {
             // Indexer has enough quality data — use it directly
             return NextResponse.json({ wallets: data.wallets, chain, source: 'indexer' })
           }
-          // Keep indexer data for potential merge with third-party
           if (data.wallets.length > 0) indexerWallets = data.wallets
         }
       }
@@ -597,13 +673,57 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Check cache
+  // ── For gt_trades chains (BSC/Solana): return indexer immediately, refresh GT in background ──
+  // GT trades path is slow (~15s sequential) and yields few wallets.
+  // Return whatever indexer data we have instantly; GT will enrich the cache for next request.
   const cacheKey = `${chain}-${period}`
-  const cached = _cache.get(cacheKey)
+  const cached = await cacheGet(cacheKey)
   const hasFreshCache = cached && cached.data.length > 0 && Date.now() - cached.ts < CACHE_TTL
   const hasStaleCache = cached && cached.data.length > 0 && Date.now() - cached.ts < STALE_TTL
 
-  // Fresh cache → merge with indexer data if available
+  if (chainInfo.source === 'gt_trades') {
+    // Merge indexer + any cached GT data
+    if (hasFreshCache) {
+      let wallets = cached!.data
+      if (indexerWallets) wallets = mergeWallets(wallets, indexerWallets)
+      return NextResponse.json({ wallets, chain })
+    }
+
+    // Have indexer data → return immediately + refresh GT in background
+    if (indexerWallets && indexerWallets.length > 0) {
+      if (!hasFreshCache) {
+        refreshGtCache(chain, chainInfo, period, cacheKey).catch(() => {})
+      }
+      // Merge with stale GT cache if available
+      let wallets = indexerWallets
+      if (hasStaleCache) {
+        wallets = mergeWallets(cached!.data, indexerWallets)
+      }
+      return NextResponse.json({ wallets, chain, source: 'indexer' })
+    }
+
+    // No indexer data — check stale cache
+    if (hasStaleCache) {
+      refreshGtCache(chain, chainInfo, period, cacheKey).catch(() => {})
+      return NextResponse.json({ wallets: cached!.data, chain, stale: true })
+    }
+
+    // No cache, no indexer — must wait for GT (slow but only happens once)
+    try {
+      const wallets = await fetchViaGtTrades(chain, chainInfo, period)
+      if (wallets.length > 0) {
+        await cacheSet(cacheKey, wallets)
+        return NextResponse.json({ wallets, chain })
+      }
+    } catch (e) {
+      console.error(`[/api/smart-money] GT trades error for ${chain}:`, e)
+    }
+    return NextResponse.json({ wallets: [], chain })
+  }
+
+  // ── Moralis path (Base) ──────────────────────────────────
+
+  // Fresh cache → merge with indexer
   if (hasFreshCache) {
     let wallets = cached!.data
     if (indexerWallets && indexerWallets.length > 0) {
@@ -612,15 +732,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ wallets, chain })
   }
 
-  // Stale cache → merge with indexer + background refresh
+  // Stale cache → merge + background refresh
   if (hasStaleCache) {
-    if (chainInfo.source === 'moralis') {
-      fetchViaMoralis(chain, chainInfo, period, tokensParam)
-        .then(w => { if (w.length > 0) _cache.set(cacheKey, { data: w, ts: Date.now() }) })
-        .catch(() => {})
-    } else {
-      refreshGtCache(chain, chainInfo, period, cacheKey).catch(() => {})
-    }
+    fetchViaMoralis(chain, chainInfo, period, tokensParam)
+      .then(async w => { if (w.length > 0) await cacheSet(cacheKey, w) })
+      .catch(() => {})
     let wallets = cached!.data
     if (indexerWallets && indexerWallets.length > 0) {
       wallets = mergeWallets(wallets, indexerWallets)
@@ -628,27 +744,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ wallets, chain, stale: true })
   }
 
-  // No cache at all → must fetch fresh
+  // No cache → fetch Moralis fresh
   try {
-    let wallets: SmartWallet[]
+    let wallets = await fetchViaMoralis(chain, chainInfo, period, tokensParam)
 
-    if (chainInfo.source === 'moralis') {
-      wallets = await fetchViaMoralis(chain, chainInfo, period, tokensParam)
-    } else {
-      wallets = await fetchViaGtTrades(chain, chainInfo, period)
-    }
-
-    // Merge with indexer data (if indexer had some but not enough to use alone)
     if (indexerWallets && indexerWallets.length > 0) {
       wallets = mergeWallets(wallets, indexerWallets)
     }
 
     if (wallets.length > 0) {
-      _cache.set(cacheKey, { data: wallets, ts: Date.now() })
+      await cacheSet(cacheKey, wallets)
       return NextResponse.json({ wallets, chain })
     }
 
-    // Last resort: return sparse indexer data
     if (indexerWallets && indexerWallets.length > 0) {
       return NextResponse.json({ wallets: indexerWallets, chain, source: 'indexer' })
     }
@@ -656,7 +764,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ wallets: [], chain })
   } catch (e) {
     console.error('[/api/smart-money] error:', e)
-    // If third-party failed but we have indexer data, use it
     if (indexerWallets && indexerWallets.length > 0) {
       return NextResponse.json({ wallets: indexerWallets, chain, source: 'indexer' })
     }

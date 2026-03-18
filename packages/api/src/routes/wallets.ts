@@ -9,6 +9,7 @@ const CHAIN_QUOTE_TOKENS: Record<string, string[]> = {
     '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC
     '0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca', // USDbC
     '0x50c5725949a6f0c72e6c4a641f24049a917db0cb', // DAI
+    '0xfde4c96c8593536e31f229ea8f37b2ada2699bb2', // USDT
   ],
   bsc: [
     '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c', // WBNB
@@ -147,10 +148,13 @@ export async function walletsRoutes(app: FastifyInstance) {
         sold_usd:      string
         buy_count:     string
         sell_count:    string
+        bought_tokens: string
+        sold_tokens:   string
       }>(`
         SELECT
           CASE
-            WHEN p.token0 = ANY($2::text[]) THEN p.token1
+            WHEN LOWER(p.token0) = ANY($2::text[]) THEN p.token1
+            WHEN LOWER(p.token1) = ANY($2::text[]) THEN p.token0
             ELSE p.token0
           END AS token_address,
           COALESCE(tk.symbol, '?') AS symbol,
@@ -158,17 +162,25 @@ export async function walletsRoutes(app: FastifyInstance) {
           SUM(CASE WHEN s.is_buy THEN s.amount_usd ELSE 0 END)::text AS bought_usd,
           SUM(CASE WHEN NOT s.is_buy THEN s.amount_usd ELSE 0 END)::text AS sold_usd,
           COUNT(CASE WHEN s.is_buy THEN 1 END)::text AS buy_count,
-          COUNT(CASE WHEN NOT s.is_buy THEN 1 END)::text AS sell_count
+          COUNT(CASE WHEN NOT s.is_buy THEN 1 END)::text AS sell_count,
+          SUM(CASE WHEN s.is_buy THEN ABS(
+            CASE WHEN LOWER(p.token0) = ANY($2::text[]) THEN s.amount1 ELSE s.amount0 END
+          ) ELSE 0 END)::text AS bought_tokens,
+          SUM(CASE WHEN NOT s.is_buy THEN ABS(
+            CASE WHEN LOWER(p.token0) = ANY($2::text[]) THEN s.amount1 ELSE s.amount0 END
+          ) ELSE 0 END)::text AS sold_tokens
         FROM swaps s
         JOIN pools p ON p.address = s.pool_address
-        LEFT JOIN tokens tk ON tk.address = CASE
-            WHEN p.token0 = ANY($2::text[]) THEN p.token1
+        LEFT JOIN tokens tk ON LOWER(tk.address) = LOWER(CASE
+            WHEN LOWER(p.token0) = ANY($2::text[]) THEN p.token1
+            WHEN LOWER(p.token1) = ANY($2::text[]) THEN p.token0
             ELSE p.token0
-          END
+          END)
         WHERE (s.sender = $1 OR s.recipient = $1)
           AND p.chain = $3
           AND s.timestamp >= NOW() - $4::interval
           AND s.amount_usd > 0
+          AND NOT (LOWER(p.token0) = ANY($2::text[]) AND LOWER(p.token1) = ANY($2::text[]))
         GROUP BY token_address, symbol, name
         ORDER BY (SUM(CASE WHEN NOT s.is_buy THEN s.amount_usd ELSE 0 END) -
                   SUM(CASE WHEN s.is_buy THEN s.amount_usd ELSE 0 END)) DESC
@@ -181,6 +193,8 @@ export async function walletsRoutes(app: FastifyInstance) {
         const bought = Number(r.bought_usd)
         const sold = Number(r.sold_usd)
         const pnl = sold - bought
+        const boughtTokens = Number(r.bought_tokens)
+        const soldTokens = Number(r.sold_tokens)
         return {
           token_address: r.token_address,
           symbol: r.symbol,
@@ -189,8 +203,8 @@ export async function walletsRoutes(app: FastifyInstance) {
           realized_profit_usd: pnl.toFixed(6),
           total_usd_invested: r.bought_usd,
           total_sold_usd: r.sold_usd,
-          avg_buy_price_usd: '0',
-          avg_sell_price_usd: '0',
+          avg_buy_price_usd: boughtTokens > 0 ? (bought / boughtTokens).toFixed(12) : '0',
+          avg_sell_price_usd: soldTokens > 0 ? (sold / soldTokens).toFixed(12) : '0',
           count_of_trades: Number(r.buy_count) + Number(r.sell_count),
         }
       })

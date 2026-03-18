@@ -230,6 +230,7 @@ async function fetchSolanaQuote(
   }
 
   // Get swap transaction
+  const feeAccount = process.env.SOLANA_FEE_RECIPIENT_ADDRESS || ''
   const swapRes = await proxyFetch(`${base}/swap`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...jupHeaders() },
@@ -237,6 +238,7 @@ async function fetchSolanaQuote(
       quoteResponse: quoteData,
       userPublicKey: taker,
       wrapAndUnwrapSol: true,
+      ...(feeAccount ? { feeAccount } : {}),
     }),
     timeout: 15_000,
   })
