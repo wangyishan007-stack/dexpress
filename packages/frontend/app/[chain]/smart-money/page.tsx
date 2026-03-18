@@ -12,7 +12,8 @@ import { fmtUsd, shortAddr } from '@/lib/formatters'
 import { explorerLink, getChain } from '@/lib/chains'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { ChainTabs } from '@/components/ChainTabs'
-import { CopyTradeModal } from '@/components/CopyTradeModal'
+import dynamic from 'next/dynamic'
+const CopyTradeModal = dynamic(() => import('@/components/CopyTradeModal').then(m => m.CopyTradeModal ? { default: m.CopyTradeModal } : m), { ssr: false })
 
 /* ── Helpers ──────────────────────────────────────────── */
 function addrToHue(address: string): number {
