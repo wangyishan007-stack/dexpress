@@ -7,7 +7,22 @@ import { useExecuteSwap } from '@/hooks/useExecuteSwap'
 import { useFollowedWallets } from '@/hooks/useFollowedWallets'
 import { fmtUsd, shortAddr } from '@/lib/formatters'
 import { explorerLink, getChain, type ChainSlug } from '@/lib/chains'
-import { useWallets as useSolanaWallets, useSignAndSendTransaction } from '@privy-io/react-auth/solana'
+// Safe wrapper — @privy-io/react-auth/solana hooks can crash if Solana provider isn't ready
+let _useSolanaWallets: any, _useSignAndSendTransaction: any
+try {
+  const mod = require('@privy-io/react-auth/solana')
+  _useSolanaWallets = mod.useWallets
+  _useSignAndSendTransaction = mod.useSignAndSendTransaction
+} catch { /* Solana hooks unavailable */ }
+
+function useSafeSolanaWallets() {
+  try { return _useSolanaWallets ? _useSolanaWallets() : { wallets: [] } }
+  catch { return { wallets: [] } }
+}
+function useSafeSignAndSendTransaction() {
+  try { return _useSignAndSendTransaction ? _useSignAndSendTransaction() : { signAndSendTransaction: async () => { throw new Error('Solana not available') } } }
+  catch { return { signAndSendTransaction: async () => { throw new Error('Solana not available') } } }
+}
 
 /* ── Types ────────────────────────────────────────────── */
 
@@ -76,9 +91,9 @@ export function CopyTradeModal({
   const nativeSymbol = chainConfig.nativeCurrency.symbol
   const isSolana = chainConfig.chainType === 'svm'
 
-  // Solana wallet hooks (always called — hooks can't be conditional)
-  const { wallets: solanaWallets } = useSolanaWallets()
-  const { signAndSendTransaction } = useSignAndSendTransaction()
+  // Solana wallet hooks (safe wrappers — won't crash if provider unavailable)
+  const { wallets: solanaWallets } = useSafeSolanaWallets()
+  const { signAndSendTransaction } = useSafeSignAndSendTransaction()
 
   // Solana signer — wraps Privy hook for useExecuteSwap
   const solanaSigner = useCallback(async (tx: Uint8Array): Promise<string> => {
