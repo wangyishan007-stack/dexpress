@@ -23,6 +23,8 @@ export interface CopyTradeModalProps {
   /** Provided by SolanaCopyTradeWrapper when Solana hooks load successfully */
   solanaAddress?: string
   solanaSigner?: (tx: Uint8Array) => Promise<string>
+  /** SOL balance of the connected Solana wallet (null = unknown) */
+  solanaBalanceSol?: number | null
 }
 
 /* ── Helpers ──────────────────────────────────────────── */
@@ -76,6 +78,7 @@ function CopyTradeModalInner({
   tokenDecimals,
   solanaAddress,
   solanaSigner,
+  solanaBalanceSol,
 }: CopyTradeModalProps) {
   const backdropRef = useRef<HTMLDivElement>(null)
   const { authenticated, user, login } = useAuth()
@@ -271,6 +274,23 @@ function CopyTradeModalInner({
               ))}
             </div>
           </div>
+
+          {/* Solana insufficient balance warning */}
+          {isSolana && authenticated && solanaBalanceSol !== null && solanaBalanceSol !== undefined && solanaBalanceSol < 0.01 && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-[#2a1f00] border border-[#5c4200] text-[12px]">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 text-yellow-400">
+                <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <div>
+                <span className="text-yellow-400 font-medium">Insufficient SOL balance</span>
+                <span className="text-sub ml-1">
+                  ({solanaBalanceSol.toFixed(4)} SOL). Transfer SOL to your wallet
+                  <span className="text-text ml-1">{solanaAddress ? shortAddr(solanaAddress) : ''}</span>
+                  {' '}to execute trades.
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Execute button */}
           {!authenticated ? (
