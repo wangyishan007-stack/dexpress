@@ -610,9 +610,28 @@ async function fetchViaGtTrades(
     })
   }
 
-  return wallets
+  const sorted = wallets
     .sort((a, b) => b.realized_profit_usd - a.realized_profit_usd)
     .slice(0, 100)
+
+  // Push discovered Solana wallets to indexer queue (fire-and-forget)
+  if (chain === 'solana' && sorted.length > 0) {
+    queueWalletsForIndexer(sorted.map(w => w.address)).catch(() => {})
+  }
+
+  return sorted
+}
+
+/** Push discovered wallets to Redis queue so SolanaIndexer can index their full history */
+async function queueWalletsForIndexer(addresses: string[]) {
+  const client = getRedis()
+  if (!client || !addresses.length) return
+  try {
+    await Promise.race([
+      client.sAdd('solana:wallets_to_index', addresses),
+      new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 3_000)),
+    ])
+  } catch { /* ignore */ }
 }
 
 /** Background cache refresh for GT trades (runs without blocking the response) */

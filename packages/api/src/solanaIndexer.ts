@@ -19,21 +19,21 @@ const JUPITER_TOKENS = 'https://token.jup.ag/strict'  // strict list is smaller,
 const POLL_INTERVAL_MS   = 5 * 60 * 1000  // 5 minutes
 const PRICE_CACHE_TTL    = 30_000          // 30s
 const STALE_THRESHOLD_MS = 60 * 60 * 1000  // 1 hour
-const MAX_WALLETS        = 100
+const MAX_WALLETS        = 200             // increased from 100 — GT discovery feeds more wallets
 const HELIUS_RATE_MS     = 550             // ~2 req/s
 
 // Seed wallets: known active Solana DEX traders for bootstrapping
+// Note: program addresses (e.g. Jupiter aggregator) removed — only real trader wallets
 const SOLANA_SEED_WALLETS = [
   '5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1',  // active trader already indexed
-  'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4',   // Jupiter aggregator
   'FMcVchfQXrSPZ3ffWfj77HBdwHDxxNk13aKzYRkMkHBk',  // active meme trader
   'BQ72nSv9f3PRyRKCBnHLVrerrv37CYTHm5h3s9VSGQDV',  // Raydium whale
   '2iCmrRHvyET8KMjNYoMa4R3g1JjwpMixqFj6idLt2gNf',  // known SOL trader
   'GThUX1Atko4tqhN2NaiTazWSeFWMuiUvfFnyJyUghFMJ',   // active DEX user
   'HWEoBxYs7ssKueFhPVhbRCpLYv4wnerxhFxYCJNpz6zp',   // Orca trader
   '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P',    // Meteora trader
-  'CEU3Bwk4tVGRF2VJDJJUkhnMSXxNVpJEgPeYyxjFp4aF',  // high-freq DEX bot
   'DYw8jCTfwHNRJhhmFcbXvVDTqWMEVFBX6ZKUmG5CNSKK',  // active Raydium LP
+  'Egu4Rot7uvLLxiuAoTZsgCQpf7Q1VrpdAY98qAC72aKd',  // top SOL trader from indexer data
 ]
 
 const SOLANA_QUOTE_TOKENS = new Set([
