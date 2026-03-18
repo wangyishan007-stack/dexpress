@@ -1,9 +1,13 @@
 'use client'
 
 import { PrivyProvider } from '@privy-io/react-auth'
+import { createSolanaRpc, createSolanaRpcSubscriptions } from '@solana/kit'
 import { WatchlistProvider } from '../hooks/useWatchlist'
 import { FollowedWalletsProvider } from '../hooks/useFollowedWallets'
 import { ToastProvider } from './Toast'
+
+const SOLANA_RPC = createSolanaRpc('https://api.mainnet-beta.solana.com')
+const SOLANA_RPC_WS = createSolanaRpcSubscriptions('wss://api.mainnet-beta.solana.com')
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID
 
@@ -53,6 +57,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
         embeddedWallets: {
           ethereum: {
             createOnLogin: 'users-without-wallets',
+          },
+          solana: {
+            createOnLogin: 'users-without-wallets',
+          },
+        },
+        solana: {
+          rpcs: {
+            'solana:mainnet': {
+              rpc: SOLANA_RPC,
+              rpcSubscriptions: SOLANA_RPC_WS,
+            },
           },
         },
       }}
