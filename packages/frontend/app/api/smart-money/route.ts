@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Vercel serverless timeout — GT trades fetch needs ~30s sequential
+export const maxDuration = 60
+
 const MORALIS_BASE = 'https://deep-index.moralis.io/api/v2.2'
 const MORALIS_API_KEY = process.env.MORALIS_API_KEY || ''
 const GT_BASE = 'https://api.geckoterminal.com/api/v2'
@@ -50,14 +53,12 @@ const CHAIN_MAP: Record<string, { gt: string; moralis: string; supported: boolea
   solana: { gt: 'solana', moralis: 'solana', supported: true,  source: 'gt_trades' },
 }
 
-/** Build GT URLs — trending for diversity, volume for larger trades, new pools for fresh tokens */
+/** Build GT URLs — trending + volume for wallet discovery (kept lean for Vercel timeout) */
 function buildGtUrls(network: string, _period: string): string[] {
   const base = `${GT_BASE}/networks/${network}`
   return [
     `${base}/trending_pools?page=1`,
-    `${base}/trending_pools?page=2`,
     `${base}/pools?sort=h24_volume_usd_desc&page=1`,
-    `${base}/pools?sort=h24_volume_usd_desc&page=2`,
     `${base}/new_pools?page=1`,
   ]
 }
@@ -474,8 +475,8 @@ async function fetchViaGtTrades(
   const gtUrls = buildGtUrls(network, period)
   const allPools = await fetchGtSequential(gtUrls, (url) => fetchGtPools(url))
 
-  // 2) Extract unique pools (max 15 — 20 total GT requests safely under 30 req/min)
-  let poolInfos = extractPoolInfos(allPools, 15)
+  // 2) Extract unique pools (max 10 — 13 total GT requests, fits in Vercel ~25s)
+  let poolInfos = extractPoolInfos(allPools, 10)
 
   if (poolInfos.length === 0) {
     console.warn(`[smart-money] GT pool discovery returned 0 for ${chain}`)
