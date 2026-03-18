@@ -687,52 +687,45 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── For gt_trades chains (BSC/Solana): return indexer immediately, refresh GT in background ──
-  // GT trades path is slow (~15s sequential) and yields few wallets.
-  // Return whatever indexer data we have instantly; GT will enrich the cache for next request.
+  // ── For gt_trades chains (BSC/Solana): always merge indexer + GT ──
+  // On Vercel, fire-and-forget background tasks get killed after response.
+  // So we always fetch GT synchronously when cache is missing, then merge.
   const cacheKey = `${chain}-${period}`
   const cached = await cacheGet(cacheKey)
   const hasFreshCache = cached && cached.data.length > 0 && Date.now() - cached.ts < CACHE_TTL
   const hasStaleCache = cached && cached.data.length > 0 && Date.now() - cached.ts < STALE_TTL
 
   if (chainInfo.source === 'gt_trades') {
-    // Merge indexer + any cached GT data
+    // Fresh GT cache → merge with indexer → return
     if (hasFreshCache) {
       let wallets = cached!.data
       if (indexerWallets) wallets = mergeWallets(wallets, indexerWallets)
       return NextResponse.json({ wallets, chain })
     }
 
-    // Have indexer data → return immediately + refresh GT in background
-    if (indexerWallets && indexerWallets.length > 0) {
-      if (!hasFreshCache) {
-        refreshGtCache(chain, chainInfo, period, cacheKey).catch(() => {})
-      }
-      // Merge with stale GT cache if available
-      let wallets = indexerWallets
-      if (hasStaleCache) {
-        wallets = mergeWallets(cached!.data, indexerWallets)
-      }
-      return NextResponse.json({ wallets, chain, source: 'indexer' })
-    }
-
-    // No indexer data — check stale cache
-    if (hasStaleCache) {
-      refreshGtCache(chain, chainInfo, period, cacheKey).catch(() => {})
-      return NextResponse.json({ wallets: cached!.data, chain, stale: true })
-    }
-
-    // No cache, no indexer — must wait for GT (slow but only happens once)
+    // No fresh cache → always fetch GT (stale cache as interim, GT refreshes it)
+    // This is slow (~40s first time) but necessary on Vercel where background tasks die
+    let gtWallets: SmartWallet[] = []
     try {
-      const wallets = await fetchViaGtTrades(chain, chainInfo, period)
-      if (wallets.length > 0) {
-        await cacheSet(cacheKey, wallets)
-        return NextResponse.json({ wallets, chain })
+      gtWallets = await fetchViaGtTrades(chain, chainInfo, period)
+      if (gtWallets.length > 0) {
+        await cacheSet(cacheKey, gtWallets)
       }
     } catch (e) {
       console.error(`[/api/smart-money] GT trades error for ${chain}:`, e)
     }
-    return NextResponse.json({ wallets: [], chain })
+
+    // Merge all sources: GT + indexer + stale cache
+    let wallets = gtWallets
+    if (indexerWallets && indexerWallets.length > 0) {
+      wallets = mergeWallets(wallets, indexerWallets)
+    }
+    if (wallets.length === 0 && hasStaleCache) {
+      wallets = cached!.data
+      if (indexerWallets) wallets = mergeWallets(wallets, indexerWallets)
+    }
+
+    return NextResponse.json({ wallets, chain })
   }
 
   // ── Moralis path (Base) ──────────────────────────────────
