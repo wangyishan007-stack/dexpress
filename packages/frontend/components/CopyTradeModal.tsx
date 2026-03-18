@@ -7,21 +7,14 @@ import { useExecuteSwap } from '@/hooks/useExecuteSwap'
 import { useFollowedWallets } from '@/hooks/useFollowedWallets'
 import { fmtUsd, shortAddr } from '@/lib/formatters'
 import { explorerLink, getChain, type ChainSlug } from '@/lib/chains'
-// Safe wrapper — @privy-io/react-auth/solana hooks can crash if Solana provider isn't ready
-let _useSolanaWallets: any, _useSignAndSendTransaction: any
-try {
-  const mod = require('@privy-io/react-auth/solana')
-  _useSolanaWallets = mod.useWallets
-  _useSignAndSendTransaction = mod.useSignAndSendTransaction
-} catch { /* Solana hooks unavailable */ }
+import { useWallets as useSolanaWallets, useSignAndSendTransaction } from '@privy-io/react-auth/solana'
+import { Component, type ReactNode } from 'react'
 
-function useSafeSolanaWallets() {
-  try { return _useSolanaWallets ? _useSolanaWallets() : { wallets: [] } }
-  catch { return { wallets: [] } }
-}
-function useSafeSignAndSendTransaction() {
-  try { return _useSignAndSendTransaction ? _useSignAndSendTransaction() : { signAndSendTransaction: async () => { throw new Error('Solana not available') } } }
-  catch { return { signAndSendTransaction: async () => { throw new Error('Solana not available') } } }
+/** Error boundary — prevents Solana hook crashes from taking down the page */
+class CopyTradeErrorBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false }
+  static getDerivedStateFromError() { return { hasError: true } }
+  render() { return this.state.hasError ? this.props.fallback : this.props.children }
 }
 
 /* ── Types ────────────────────────────────────────────── */
@@ -72,7 +65,16 @@ const AMOUNT_OPTIONS = [50, 100, 500]
 
 /* ── Component ───────────────────────────────────────── */
 
-export function CopyTradeModal({
+export function CopyTradeModal(props: CopyTradeModalProps) {
+  if (!props.isOpen) return null
+  return (
+    <CopyTradeErrorBoundary fallback={null}>
+      <CopyTradeModalInner {...props} />
+    </CopyTradeErrorBoundary>
+  )
+}
+
+function CopyTradeModalInner({
   isOpen,
   onClose,
   tokenAddress,
@@ -91,9 +93,9 @@ export function CopyTradeModal({
   const nativeSymbol = chainConfig.nativeCurrency.symbol
   const isSolana = chainConfig.chainType === 'svm'
 
-  // Solana wallet hooks (safe wrappers — won't crash if provider unavailable)
-  const { wallets: solanaWallets } = useSafeSolanaWallets()
-  const { signAndSendTransaction } = useSafeSignAndSendTransaction()
+  // Solana wallet hooks (always called — hooks can't be conditional)
+  const { wallets: solanaWallets } = useSolanaWallets()
+  const { signAndSendTransaction } = useSignAndSendTransaction()
 
   // Solana signer — wraps Privy hook for useExecuteSwap
   const solanaSigner = useCallback(async (tx: Uint8Array): Promise<string> => {
@@ -135,8 +137,6 @@ export function CopyTradeModal({
     (!isSolana && !quote.transaction.to && !quote.transaction.data)
   )
 
-  if (!isOpen) return null
-
   const handleExecute = async () => {
     if (!authenticated) {
       login()
@@ -144,16 +144,14 @@ export function CopyTradeModal({
     }
     if (!quote) return
 
-    // Solana: need serializedTransaction to execute — re-fetch with taker if missing
+    // Solana: need serializedTransaction to execute
     if (isSolana && !quote.transaction.serializedTransaction) {
       if (!solanaAddr) {
-        // User has no Solana wallet — prompt login to create one
         login()
         return
       }
-      // Refetch quote with taker to get serializedTransaction
-      // For now, show error
-      reset()
+      // Quote was fetched before wallet connected — SWR will auto-refetch
+      // since takerAddress changed. Show loading state briefly.
       return
     }
 
