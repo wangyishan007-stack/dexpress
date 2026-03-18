@@ -648,7 +648,7 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Try self-hosted backend first (wallet_pnl table) ──────
-  const MIN_PROFITABLE_WALLETS = 5
+  // Always fetch indexer data and merge with Moralis/GT for maximum coverage
   const backendUrl = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL
   let indexerWallets: SmartWallet[] | null = null
   if (backendUrl) {
@@ -659,13 +659,8 @@ export async function GET(req: NextRequest) {
       )
       if (res.ok) {
         const data = await res.json() as { wallets: SmartWallet[]; chain: string }
-        if (Array.isArray(data.wallets)) {
-          const profitableCount = data.wallets.filter(w => w.realized_profit_usd > 0).length
-          if (profitableCount >= MIN_PROFITABLE_WALLETS) {
-            // Indexer has enough quality data — use it directly
-            return NextResponse.json({ wallets: data.wallets, chain, source: 'indexer' })
-          }
-          if (data.wallets.length > 0) indexerWallets = data.wallets
+        if (Array.isArray(data.wallets) && data.wallets.length > 0) {
+          indexerWallets = data.wallets
         }
       }
     } catch {
