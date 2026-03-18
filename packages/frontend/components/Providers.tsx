@@ -54,9 +54,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
           ethereum: {
             createOnLogin: 'users-without-wallets',
           },
-          solana: {
-            createOnLogin: 'users-without-wallets',
-          },
         },
       }}
     >
