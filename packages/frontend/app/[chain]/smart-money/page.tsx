@@ -13,7 +13,7 @@ import { explorerLink, getChain } from '@/lib/chains'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { ChainTabs } from '@/components/ChainTabs'
 import dynamic from 'next/dynamic'
-const CopyTradeModal = dynamic(() => import('@/components/CopyTradeModal').then(m => m.CopyTradeModal ? { default: m.CopyTradeModal } : m), { ssr: false })
+const CopyTradeModal = dynamic(() => import('@/components/CopyTradeModal').then(m => ({ default: m.CopyTradeModal })), { ssr: false })
 
 /* ── Helpers ──────────────────────────────────────────── */
 function addrToHue(address: string): number {

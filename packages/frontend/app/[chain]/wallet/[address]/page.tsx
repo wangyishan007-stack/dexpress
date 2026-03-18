@@ -10,7 +10,7 @@ import { fmtUsd, fmtPrice } from '@/lib/formatters'
 import { explorerLink, getChain, trustWalletLogo, normalizeAddr, type ChainSlug } from '@/lib/chains'
 import { type DetectedSwap } from '@/lib/copyTrade'
 import dynamic from 'next/dynamic'
-const CopyTradeModal = dynamic(() => import('@/components/CopyTradeModal').then(m => m.CopyTradeModal ? { default: m.CopyTradeModal } : m), { ssr: false })
+const CopyTradeModal = dynamic(() => import('@/components/CopyTradeModal').then(m => ({ default: m.CopyTradeModal })), { ssr: false })
 import { getTokenLogoFromCache } from '@/lib/dexscreener-client'
 import { useTokenLogos } from '@/hooks/useTokenLogos'
 import type { WalletTokenPnl, WalletHolding } from '@/lib/moralis'
